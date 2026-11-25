@@ -56,11 +56,6 @@ dependencies {
     implementation("ch.qos.logback:logback-classic")
     implementation("org.codehaus.janino:janino")
 
-    // JWT
-    implementation("io.jsonwebtoken:jjwt-api:0.11.2")
-    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.11.2")
-    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.2")
-
     // Discord
     implementation("net.dv8tion:JDA:4.4.0_350") {
         exclude("opus-java")

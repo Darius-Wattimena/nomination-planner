@@ -155,6 +155,15 @@ class LoginServiceTest {
     }
 
     @Test
+    fun `Should not set up a login for a token without a subject`() {
+        // {"exp":4102444800}
+        FakeOsu.token("${token.substringBefore('.')}.eyJleHAiOjQxMDI0NDQ4MDB9.signature")
+
+        assertNull(auth.login("code="))
+        assertEquals(listOf("POST /oauth/token"), FakeOsu.calls())
+    }
+
+    @Test
     fun `Should not set up a login without a readable token`() {
         FakeOsu.token("unreadable")
 

@@ -186,7 +186,11 @@ class UtilTest {
         assertEquals("5", parseJwtToken(createToken(subject = "5", algorithm = "none"))!!.subject)
         assertNull(parseJwtToken(createToken(expires = 1)))
         assertNull(parseJwtToken("bearer $token"))
-        listOf("", "unreadable", "a.b.c", "Bearer ").forEach { assertNull(parseJwtToken(it)) }
+        listOf("", "unreadable", "a.b.c", "Bearer ", "WzFd.${token.split('.')[1]}.x").forEach { assertNull(parseJwtToken(it)) }
+
+        val withoutExpiry = "${token.split('.')[0]}.eyJzdWIiOjV9.x"
+        assertEquals("5", parseJwtToken(withoutExpiry)!!.subject)
+        assertNull(parseJwtToken(withoutExpiry)!!["exp"])
     }
 
     @Test

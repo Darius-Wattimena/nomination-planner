@@ -105,7 +105,7 @@ class OsuService(
 
         val claims = parseJwtToken(token.access_token) ?: return null
 
-        val osuId = claims.subject
+        val osuId = claims.subject ?: return null
         val user =
             userService.forceFindUserById(token.access_token, osuId, logEventToDiscord = false)
                 // Use what we know when osu! is unavailable
