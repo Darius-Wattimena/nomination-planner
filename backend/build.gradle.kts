@@ -63,7 +63,7 @@ dependencies {
 
     testImplementation("com.nhaarman.mockitokotlin2:mockito-kotlin:2.2.0")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("de.flapdoodle.embed:de.flapdoodle.embed.mongo:4.24.0")
+    testImplementation("de.flapdoodle.embed:de.flapdoodle.embed.mongo:5.0.0")
     providedRuntime("org.springframework.boot:spring-boot-starter-tomcat")
 }
 
