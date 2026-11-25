@@ -1,101 +1,122 @@
-defaults: &defaults
-  working_directory: ~/repo
-  docker:
-    - image: cimg/openjdk:21.0
+version: 2.1
 
-
-version: 2
 jobs:
-  build:
-    <<: *defaults
+  build-backend:
+    docker:
+      - image: cimg/openjdk:21.0
+    working_directory: ~/repo/backend
     environment:
       JVM_OPTS: -Xmx3200m
       TERM: dumb
-
     steps:
-      - checkout
-
+      - checkout:
+          path: ~/repo
       - restore_cache:
           keys:
-            - v2-{{ checksum "build.gradle.kts" }}
-            - v2-
-
+            - backend-v1-{{ checksum "build.gradle.kts" }}
+            - backend-v1-
       - run: ./gradlew dependencies --build-cache --parallel
-
       - run: ./gradlew build --build-cache --parallel
-
       - save_cache:
           paths:
             - ~/.gradle
             - ~/.embedmongo
-            - ~/build-cache
-          key: v2-{{ checksum "build.gradle.kts" }}
-
-      - run:
-          name: Save test results
-          command: |
-            mkdir -p ~/tests/junit
-            find . -type f -regex ".*/build/test-results/.*xml" -exec cp {} ~/tests/junit/ \;
-          when: always
-
+          key: backend-v1-{{ checksum "build.gradle.kts" }}
       - store_test_results:
-          path: ~/tests
-
+          path: build/test-results
+      - store_artifacts:
+          path: build/libs
+          destination: wars
       - persist_to_workspace:
           root: ~/repo
           paths:
-            - build
-            - out
-            - ./build/generated-resources/version.properties
+            - backend/build
 
-      - store_artifacts:
-          path: ./build/libs
-          destination: wars
-
-      - store_artifacts:
-          path: ./build/generated-resources/version.properties
-
-  deploy:
-    <<: *defaults
-
+  deploy-backend:
+    docker:
+      - image: cimg/openjdk:21.0
+    working_directory: ~/repo/backend
     environment:
-      # Customize the JVM maximum heap limit
       JVM_OPTS: -Xmx3200m
       TERM: dumb
-
     steps:
-      - checkout
-
+      - checkout:
+          path: ~/repo
       - attach_workspace:
           at: ~/repo
-
-      # Download and cache dependencies
       - restore_cache:
           keys:
-            - v2-{{ checksum "build.gradle.kts" }}
-            # fallback to using the latest cache if no exact match is found
-            - v2-
-
+            - backend-v1-{{ checksum "build.gradle.kts" }}
+            - backend-v1-
       - run:
           name: Deploy to Elastic Beanstalk
-          command: |
-            ./gradlew deployProduction
+          command: ./gradlew deployProduction
+
+  build-frontend:
+    docker:
+      - image: cimg/node:22.14.0
+    working_directory: ~/repo/frontend
+    steps:
+      - checkout:
+          path: ~/repo
+      - restore_cache:
+          keys:
+            - frontend-v1-{{ checksum "package-lock.json" }}
+      - run: npm ci
+      - save_cache:
+          paths:
+            - ~/.npm
+          key: frontend-v1-{{ checksum "package-lock.json" }}
+      - run: npm run build
+      - persist_to_workspace:
+          root: ~/repo
+          paths:
+            - frontend/build
+
+  deploy-frontend:
+    docker:
+      - image: cimg/aws:2022.06
+    working_directory: ~/repo
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - run:
+          name: Deploy to AWS S3 bucket
+          command: aws s3 sync frontend/build s3://bnplanner.greaper.net --delete --exact-timestamps
+      - run:
+          name: Invalidate CloudFront
+          command: aws cloudfront create-invalidation --distribution-id E5XATFDRCHYNT --paths "/*"
 
 workflows:
-  version: 2
-  build-approve-deploy:
+  backend:
     jobs:
-      - build:
+      - build-backend:
           context: build-context
-      - hold:
+      - hold-backend:
           type: approval
-          requires:
-            - build
+          requires: [build-backend]
           filters:
             branches:
-              only:
-                - master
-      - deploy:
+              only: master
+      - deploy-backend:
           context: build-context
-          requires:
-            - hold
+          requires: [hold-backend]
+          filters:
+            branches:
+              only: master
+  frontend:
+    jobs:
+      - build-frontend:
+          context: build-context
+      - hold-frontend:
+          type: approval
+          requires: [build-frontend]
+          filters:
+            branches:
+              only: master
+      - deploy-frontend:
+          context: build-context
+          requires: [hold-frontend]
+          filters:
+            branches:
+              only: master
