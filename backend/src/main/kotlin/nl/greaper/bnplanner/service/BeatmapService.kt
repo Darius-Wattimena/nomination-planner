@@ -258,8 +258,14 @@ class BeatmapService(
     ): Beatmap {
         val newStatus =
             when (osuBeatmap.ranked) {
-                1, 2 -> BeatmapStatus.Ranked
-                3 -> BeatmapStatus.Qualified
+                1, 2 -> {
+                    BeatmapStatus.Ranked
+                }
+
+                3 -> {
+                    BeatmapStatus.Qualified
+                }
+
                 else -> {
                     if (osuBeatmap.currentNominations.isNotEmpty()) {
                         BeatmapStatus.Nominated
@@ -336,10 +342,12 @@ class BeatmapService(
                             currentFirst.nominatorId -> {
                                 currentFirst.copy(hasNominated = true) to currentSecond
                             }
+
                             // Second nominator was updated
                             currentSecond.nominatorId -> {
                                 currentFirst to currentSecond.copy(hasNominated = true)
                             }
+
                             // New nominator, replace first as we don't know
                             else -> {
                                 BeatmapNominator(newFirst, true) to currentSecond

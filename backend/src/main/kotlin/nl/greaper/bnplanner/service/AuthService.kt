@@ -70,17 +70,21 @@ class AuthService(
 
         val loginMessage =
             when {
-                exception?.message != null ->
+                exception?.message != null -> {
                     buildString {
                         appendLine("**ERROR:** Unexpected error occurred while $loginMessagePart")
                         append(exception.message)
                     }
+                }
+
                 context == null -> {
                     "**ERROR:** Could not set up context while $loginMessagePart"
                 }
+
                 user == null -> {
                     "**ERROR:** Could not find user while $loginMessagePart"
                 }
+
                 else -> {
                     "**LOGIN:** ${user.username} ${if (refresh) "refreshed login" else "logged in"}"
                 }

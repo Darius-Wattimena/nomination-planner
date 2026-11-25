@@ -1,15 +1,15 @@
 import org.gradle.testing.jacoco.tasks.JacocoReportBase
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("org.springframework.boot") version "3.4.4"
     id("io.spring.dependency-management") version "1.1.7"
-    id("org.jlleitschuh.gradle.ktlint") version "12.2.0"
+    id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
     id("fi.evident.beanstalk") version "0.3.3"
     war
     jacoco
-    kotlin("jvm") version "2.1.20"
-    kotlin("plugin.spring") version "2.1.20"
+    kotlin("jvm") version "2.4.21"
+    kotlin("plugin.spring") version "2.4.21"
 }
 
 group = "nl.greaper"
@@ -27,7 +27,16 @@ jacoco {
 }
 
 ktlint {
-    version.set("1.5.0")
+    version.set("1.8.0")
+}
+
+// ktlint runs on the Kotlin compiler it was built with, not the one of this project
+configurations.matching { it.name.startsWith("ktlint") }.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.jetbrains.kotlin") {
+            useVersion("2.2.21")
+        }
+    }
 }
 
 dependencies {
@@ -41,7 +50,6 @@ dependencies {
 
     // Kotlin
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
     // Mongo
     implementation("org.litote.kmongo:kmongo:5.2.0")
@@ -67,11 +75,11 @@ dependencies {
     providedRuntime("org.springframework.boot:spring-boot-starter-tomcat")
 }
 
-val compileKotlin: KotlinCompile by tasks
-
-compileKotlin.kotlinOptions {
-    freeCompilerArgs = listOf("-Xjsr305=strict")
-    jvmTarget = "17"
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xjsr305=strict")
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
 }
 
 tasks {

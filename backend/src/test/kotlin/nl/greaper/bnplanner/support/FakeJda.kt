@@ -55,8 +55,14 @@ class FakeJda {
                         onQueue()
                         null
                     }
-                    it.method.returnType.isInstance(it.mock) -> it.mock
-                    else -> Mockito.RETURNS_DEFAULTS.answer(it)
+
+                    it.method.returnType.isInstance(it.mock) -> {
+                        it.mock
+                    }
+
+                    else -> {
+                        Mockito.RETURNS_DEFAULTS.answer(it)
+                    }
                 }
             }
         return Mockito.mock(invocation.method.returnType, answer)
@@ -116,20 +122,50 @@ class FakeJda {
         val event =
             Mockito.mock(SlashCommandEvent::class.java) {
                 when (it.method.name) {
-                    "isFromGuild" -> isFromGuild
-                    "getName" -> name
-                    "getSubcommandName" -> subcommand
-                    "getGuild" -> guild
-                    "getMember" -> member
-                    "getChannel" -> channel
-                    "getHook" -> hook
-                    "getOption" -> option.takeIf { _ -> it.arguments[0] == "gamemode" }
-                    "deferReply" -> action(it) { deferred++ }
+                    "isFromGuild" -> {
+                        isFromGuild
+                    }
+
+                    "getName" -> {
+                        name
+                    }
+
+                    "getSubcommandName" -> {
+                        subcommand
+                    }
+
+                    "getGuild" -> {
+                        guild
+                    }
+
+                    "getMember" -> {
+                        member
+                    }
+
+                    "getChannel" -> {
+                        channel
+                    }
+
+                    "getHook" -> {
+                        hook
+                    }
+
+                    "getOption" -> {
+                        option.takeIf { _ -> it.arguments[0] == "gamemode" }
+                    }
+
+                    "deferReply" -> {
+                        action(it) { deferred++ }
+                    }
+
                     "reply" -> {
                         val text = it.arguments[0] as String
                         action(it) { replies += text }
                     }
-                    else -> Mockito.RETURNS_DEFAULTS.answer(it)
+
+                    else -> {
+                        Mockito.RETURNS_DEFAULTS.answer(it)
+                    }
                 }
             }
         DiscordBotHandler(dataSource).onSlashCommand(event)
@@ -142,7 +178,10 @@ class FakeJda {
         val guild =
             Mockito.mock(Guild::class.java) {
                 when (it.method.name) {
-                    "getId" -> guildId
+                    "getId" -> {
+                        guildId
+                    }
+
                     "updateCommands" -> {
                         val registered = mutableListOf<CommandData>()
                         Mockito.mock(it.method.returnType) { call ->
@@ -151,15 +190,22 @@ class FakeJda {
                                     call.arguments.forEach { command -> registered += command as CommandData }
                                     call.mock
                                 }
+
                                 "queue" -> {
                                     commands = registered.single().toData()
                                     null
                                 }
-                                else -> Mockito.RETURNS_DEFAULTS.answer(call)
+
+                                else -> {
+                                    Mockito.RETURNS_DEFAULTS.answer(call)
+                                }
                             }
                         }
                     }
-                    else -> Mockito.RETURNS_DEFAULTS.answer(it)
+
+                    else -> {
+                        Mockito.RETURNS_DEFAULTS.answer(it)
+                    }
                 }
             }
         val event = Mockito.mock(GuildReadyEvent::class.java)

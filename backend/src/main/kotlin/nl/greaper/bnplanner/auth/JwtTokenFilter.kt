@@ -57,6 +57,7 @@ class JwtTokenFilter(
                     return
                 }
             }
+
             header.startsWith("Bearer ") -> {
                 // Get jwt token and validate
                 val token = findToken(header)

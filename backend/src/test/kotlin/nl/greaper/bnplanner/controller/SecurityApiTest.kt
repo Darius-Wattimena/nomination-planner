@@ -71,7 +71,11 @@ class SecurityApiTest : ApiTest() {
                     assertEquals(401, response.status, "$it $uri")
                     assertEquals("Full authentication is required to access this resource", response.errorMessage)
                 }
-                in allowed -> assertEquals(200, response.status, "$it $uri ${response.contentAsString}")
+
+                in allowed -> {
+                    assertEquals(200, response.status, "$it $uri ${response.contentAsString}")
+                }
+
                 // SUSPECTED BUG - Access denied should have been 403, it is even reported to Discord as an error
                 else -> {
                     response.assertUnableToHandle()

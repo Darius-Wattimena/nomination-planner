@@ -221,11 +221,13 @@ class AiessService(
                     logNomination(databaseBeatmap, beatmapStatus, userId, username, updatingGamemode.gamemode)
                     newNominator to currentSecondNominator
                 }
+
                 currentSecondNominator.nominatorId == userId -> {
                     val newNominator = currentSecondNominator.copy(hasNominated = true)
                     logNomination(databaseBeatmap, beatmapStatus, userId, username, updatingGamemode.gamemode)
                     currentFirstNominator to newNominator
                 }
+
                 currentFirstNominator.nominatorId == MISSING_USER_ID -> {
                     val newNominator =
                         BeatmapNominator(
@@ -242,6 +244,7 @@ class AiessService(
                     logNomination(databaseBeatmap, beatmapStatus, userId, username, updatingGamemode.gamemode)
                     newNominator to currentSecondNominator
                 }
+
                 currentSecondNominator.nominatorId == MISSING_USER_ID -> {
                     val newNominator =
                         BeatmapNominator(
@@ -258,6 +261,7 @@ class AiessService(
                     logNomination(databaseBeatmap, beatmapStatus, userId, username, updatingGamemode.gamemode)
                     currentFirstNominator to newNominator
                 }
+
                 !currentFirstNominator.hasNominated -> {
                     val newNominator =
                         BeatmapNominator(
@@ -274,6 +278,7 @@ class AiessService(
                     logNomination(databaseBeatmap, beatmapStatus, userId, username, updatingGamemode.gamemode)
                     newNominator to currentSecondNominator
                 }
+
                 !currentSecondNominator.hasNominated -> {
                     val newNominator =
                         BeatmapNominator(
@@ -290,6 +295,7 @@ class AiessService(
                     logNomination(databaseBeatmap, beatmapStatus, userId, username, updatingGamemode.gamemode)
                     currentFirstNominator to newNominator
                 }
+
                 else -> {
                     log.error { "Two nominators already nominated this beatmap for this gamemode, beatmap is out of sync with Aiess" }
                     currentFirstNominator to currentSecondNominator
@@ -408,11 +414,15 @@ class AiessService(
             BeatmapStatus.Nominated,
             BeatmapStatus.Pending,
             -> EmbedColor.BLUE
+
             BeatmapStatus.Disqualified,
             BeatmapStatus.Reset,
             -> EmbedColor.ORANGE
+
             BeatmapStatus.Ranked -> EmbedColor.GREEN
+
             BeatmapStatus.Graved -> EmbedColor.GREY
+
             BeatmapStatus.Unfinished -> EmbedColor.PURPLE
         }
 
@@ -450,6 +460,7 @@ class AiessService(
                     userDataSource.saveUser(updateUser)
                 }
             }
+
             AiessUserEventType.remove -> {
                 if (oldGamemode != null) {
                     val updateUser = changingUser.copy(gamemodes = changingUser.gamemodes.filter { it != oldGamemode })
