@@ -1,34 +1,44 @@
 import {createContext, ReactNode, useCallback, useContext, useRef, useState} from "react";
-import {FaCircleCheck, FaCircleExclamation, FaXmark} from "react-icons/fa6";
+import {UNDO_TIME} from "../resources/planner";
+import {FaXmark} from "react-icons/fa6";
 
-type ToastKind = "success" | "error"
-type ShowToast = (message: string, kind?: ToastKind) => void
+interface ToastOptions {
+  kind?: "success" | "error"
+  undo?: () => void
+}
+
+type ShowToast = (message: string, options?: ToastOptions) => void
 
 const ToastContext = createContext<ShowToast>(() => {})
 
 export const useToast = () => useContext(ToastContext)
 
 export function ToastProvider({children}: {children: ReactNode}) {
-  const [toasts, setToasts] = useState<{id: number, message: string, kind: ToastKind}[]>([])
+  const [toasts, setToasts] = useState<(ToastOptions & {id: number, message: string})[]>([])
   const nextId = useRef(0)
 
   const dismiss = useCallback((id: number) => setToasts(all => all.filter(it => it.id !== id)), [])
 
-  const show = useCallback<ShowToast>((message, kind = "success") => {
+  const show = useCallback<ShowToast>((message, options = {}) => {
     const id = nextId.current++
-    setToasts(all => [...all, {id, message, kind}])
-    window.setTimeout(() => dismiss(id), kind === "error" ? 8000 : 4000)
+    setToasts(all => [...all.slice(-2), {id, message, ...options}])
+    window.setTimeout(() => dismiss(id), options.undo ? UNDO_TIME : options.kind === "error" ? 8000 : 4000)
   }, [dismiss])
 
   return (
     <ToastContext.Provider value={show}>
       {children}
       <div className="toasts" role="status" aria-live="polite">
-        {toasts.map(toast => (
-          <div key={toast.id} className={`toast toast-${toast.kind}`}>
-            {toast.kind === "success" ? <FaCircleCheck/> : <FaCircleExclamation/>}
-            <span>{toast.message}</span>
-            <button className="icon-button" aria-label="Dismiss" onClick={() => dismiss(toast.id)}><FaXmark/></button>
+        {toasts.map(({id, message, kind, undo}) => (
+          <div key={id} className={`toast toast-${kind ?? "success"}`}>
+            <span>{message}</span>
+            {undo &&
+              <button className="link" onClick={() => {
+                dismiss(id)
+                undo()
+              }}>Undo</button>
+            }
+            <button className="icon-button" aria-label="Dismiss" onClick={() => dismiss(id)}><FaXmark/></button>
           </div>
         ))}
       </div>

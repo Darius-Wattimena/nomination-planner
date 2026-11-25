@@ -1,5 +1,5 @@
 import {AxiosRequestConfig} from "axios";
-import {BeatmapFilter, BeatmapStatus, Gamemode, PageLimit, UserSearchFilter} from "../models/Types";
+import {BeatmapFilter, BeatmapStatus, Gamemode, PageLimit} from "../models/Types";
 
 function toParams(values: object) {
   const params: Record<string, string> = {}
@@ -61,10 +61,30 @@ const Api = {
     url: '/v2/beatmap/find/table',
     params: toParams({...filter, pageNumber, pageLimit})
   }),
-  searchUsers: (filter: UserSearchFilter): AxiosRequestConfig => ({
+  // Everything that is in progress, in a single call
+  fetchRanked: (since: string | undefined): AxiosRequestConfig => ({
+    method: "GET",
+    url: "/v2/planner/ranked",
+    params: {since}
+  }),
+  fetchPairings: (userId: string): AxiosRequestConfig => ({
+    method: "GET",
+    url: `/v2/profile/${userId}/pairing`
+  }),
+  fetchPlanner: (since: string | undefined): AxiosRequestConfig => ({
     method: 'GET',
-    url: '/v2/user/search',
-    params: toParams(filter)
+    url: '/v2/planner',
+    params: {since}
+  }),
+  // Only answers once something changed, or after a while
+  waitForPlanner: (since: string): AxiosRequestConfig => ({
+    method: 'GET',
+    url: '/v2/planner/wait',
+    params: {since}
+  }),
+  fetchSyncWaiting: (): AxiosRequestConfig => ({
+    method: 'GET',
+    url: '/v2/admin/sync/waiting'
   }),
   syncUsers: (userIds: string[]): AxiosRequestConfig => ({
     method: 'POST',
@@ -76,7 +96,7 @@ const Api = {
   syncBeatmaps: (status: BeatmapStatus[]): AxiosRequestConfig => ({
     method: 'POST',
     url: '/v2/admin/sync/beatmaps/pending',
-    params: toParams({status})
+    params: {...toParams({status}), background: true}
   }),
   syncBeatmap: (id: string): AxiosRequestConfig => ({
     method: 'POST',

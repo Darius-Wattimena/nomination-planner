@@ -5,22 +5,29 @@ import Shell from "./ui/Shell";
 import {EmptyState, Loading, LoginButton} from "./ui/States";
 import {useSession} from "./utils/session";
 
-const Home = lazy(() => import("./pages/Home"));
+const Desk = lazy(() => import("./pages/Desk"));
 const Login = lazy(() => import("./pages/Login"));
 const Beatmaps = lazy(() => import("./pages/Beatmaps"));
-const Sync = lazy(() => import("./pages/Sync"));
+const Discover = lazy(() => import("./pages/Discover"));
+const Team = lazy(() => import("./pages/Team"));
+const Statistics = lazy(() => import("./pages/Statistics"));
+const Archive = lazy(() => import("./pages/Archive"));
+const Admin = lazy(() => import("./pages/Admin"));
 
 export default function AppRoutes() {
   return (
     <Suspense fallback={<Loading/>}>
       <Routes>
         <Route element={<Shell/>}>
-          <Route path="/" element={<Home/>}/>
+          <Route path="/" element={<Desk/>}/>
           <Route path="/login" element={<Login/>}/>
-          <Route path="/beatmaps" element={<RequireAuth><Beatmaps key="PENDING" page="PENDING"/></RequireAuth>}/>
-          <Route path="/graveyard" element={<RequireAuth><Beatmaps key="GRAVEYARD" page="GRAVEYARD"/></RequireAuth>}/>
-          <Route path="/ranked" element={<RequireAuth><Beatmaps key="RANKED" page="RANKED"/></RequireAuth>}/>
-          <Route path="/admin" element={<RequireAuth><Sync/></RequireAuth>}/>
+          <Route path="/beatmaps" element={<RequireAuth><Beatmaps/></RequireAuth>}/>
+          <Route path="/discover" element={<RequireAuth><Discover/></RequireAuth>}/>
+          <Route path="/team" element={<RequireAuth><Team/></RequireAuth>}/>
+          <Route path="/statistics" element={<RequireAuth><Statistics/></RequireAuth>}/>
+          <Route path="/ranked" element={<RequireAuth><Archive key="RANKED" page="RANKED"/></RequireAuth>}/>
+          <Route path="/graveyard" element={<RequireAuth><Archive key="GRAVEYARD" page="GRAVEYARD"/></RequireAuth>}/>
+          <Route path="/admin" element={<RequireAuth><Admin/></RequireAuth>}/>
           <Route path="*" element={<NotFound/>}/>
         </Route>
       </Routes>

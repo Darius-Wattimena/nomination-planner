@@ -55,6 +55,7 @@ export function canEdit(session: UserContext | undefined) {
   return !!session && session.permission.osuRole !== "Mapper"
 }
 
-export function isNat(session: UserContext | undefined) {
-  return session?.permission.osuRole === "NominationAssessment"
+/** The NAT and developers, the same permission the backend checks */
+export function isAdmin(session: UserContext | undefined) {
+  return !!session?.permission.roles.includes("ADMIN")
 }

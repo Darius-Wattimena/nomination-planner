@@ -35,6 +35,18 @@ export interface Beatmap {
   mapper: User
   status: BeatmapStatus
   gamemodes: BeatmapGamemode[]
+  dateAdded?: string | number
+  dateUpdated?: string | number
+  dateRanked?: string | number
+  /** The modes that can be the main one, unknown for what was not synced since */
+  mainGamemodes?: Gamemode[]
+}
+
+export interface Pairing {
+  name: string
+  pairingPending: number
+  pairingRanked: number
+  pairingGraved: number
 }
 
 export interface BeatmapGamemode {
@@ -46,12 +58,6 @@ export interface BeatmapGamemode {
 export interface BeatmapNominator {
   nominator: User
   hasNominated: boolean
-}
-
-export interface UserSearchFilter {
-  username: string
-  gamemodes: Gamemode[]
-  roles: UserRole[]
 }
 
 export interface BeatmapFilter {

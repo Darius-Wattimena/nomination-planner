@@ -1,0 +1,128 @@
+import {ReactNode} from "react";
+import {Link, useLocation} from "react-router-dom";
+import logo from "../assets/greaper.png";
+import {useNominators} from "../beatmaps/actions";
+import {useOpenMap} from "../beatmaps/useOpenMap";
+import MapView from "../beatmaps/MapView";
+import {MapRow} from "../beatmaps/MapRow";
+import {GAMEMODE_NAMES} from "../Constants";
+import {Beatmap, Gamemode, Pairing, User} from "../models/Types";
+import Api from "../resources/Api";
+import {useQuery} from "../resources/client";
+import {reloadPlanner, usePlanner} from "../resources/planner";
+import PageHeader from "../ui/PageHeader";
+import {Freshness} from "../ui/Help";
+import {LoginButton} from "../ui/States";
+import {canEdit, useSession} from "../utils/session";
+import {deskGroup, DeskGroup, stageOf, suggestions} from "../utils/workflow";
+
+const GROUPS: {id: DeskGroup, title: string, hint: string}[] = [
+  {id: "move", title: "Waiting for your nomination", hint: "The other nominator is done, or it has to be checked again"},
+  {id: "partner", title: "Looking for a second nominator", hint: "You plan to nominate these"},
+  {id: "checking", title: "Planned", hint: "You didn't nominate yet"},
+  {id: "waiting", title: "Waiting for the other nominator", hint: "You already nominated"},
+  {id: "qualified", title: "Qualified", hint: "Ranked soon, unless it gets disqualified"}
+]
+
+export default function Desk() {
+  const user = useSession()?.user
+  return user ? <Workspace user={user}/> : <Welcome/>
+}
+
+function Welcome() {
+  const loginFailed = (useLocation().state as {loginFailed?: boolean} | null)?.loginFailed
+  return (
+    <div className="welcome">
+      <img src={logo} alt=""/>
+      <h1>Nominate together</h1>
+      <p>See who plans to nominate which beatmap, and which ones are still looking for a nominator.</p>
+      <LoginButton/>
+      {loginFailed &&
+        <p className="alert alert-error" role="alert">Logging in with osu! did not work. Please try again, and contact Greaper if this keeps happening.</p>
+      }
+      <p className="muted">
+        By <a href="https://osu.ppy.sh/users/2369776">Greaper</a>, for <a href="https://osu.ppy.sh/wiki/en/People/Beatmap_Nominators">Beatmap Nominators</a>
+      </p>
+    </div>
+  )
+}
+
+function Workspace({user}: {user: User}) {
+  const session = useSession()
+  const {maps, error} = usePlanner()
+  const {selected, open, close} = useOpenMap()
+  const nominator = canEdit(session)
+  const pairings = useQuery<Pairing[]>(nominator ? Api.fetchPairings(user.osuId) : undefined)
+
+  const row = (beatmap: Beatmap, reason?: string, action?: ReactNode) => (
+    <MapRow key={beatmap.osuId} beatmap={beatmap} selected={selected === beatmap.osuId} onOpen={() => open(beatmap.osuId)} reason={reason}>{action}</MapRow>
+  )
+
+  const all = maps ?? []
+  const groups = GROUPS.map(group => ({...group, maps: all.filter(it => deskGroup(it, user.osuId) === group.id)}))
+  const moves = groups[0].maps.length
+  const busy = groups.some(it => it.maps.length > 0)
+  const mapped = all.filter(it => it.mapper.osuId === user.osuId).sort((a, b) => Number(stageOf(b) === "attention") - Number(stageOf(a) === "attention"))
+  const fits = nominator
+    ? suggestions(all, user, name => pairings.data?.find(it => it.name === name)?.pairingRanked ?? 0).slice(0, 6)
+    : []
+
+  // In the order of the page, every beatmap once
+  const troubled = mapped.filter(it => stageOf(it) === "attention").length
+  const title = !maps ? "Home"
+    : moves > 0 ? `${moves} ${moves === 1 ? "beatmap is" : "beatmaps are"} ready for your nomination`
+    : troubled > 0 ? `${troubled} of your beatmaps ${troubled === 1 ? "was" : "were"} disqualified or reset`
+    : mapped.length > 0 && !nominator ? `${mapped.length === 1 ? "Your beatmap is" : `Your ${mapped.length} beatmaps are`} on the way`
+    : "You're all caught up"
+
+  const ids = Array.from(new Set([...(nominator ? [] : mapped), ...groups.flatMap(it => it.maps), ...mapped, ...fits.map(it => it.map)].map(it => it.osuId)))
+
+  const own = mapped.length > 0 &&
+    <section className="desk-group">
+      <header><h2>Your own beatmaps</h2><span className="count">{mapped.length}</span><span className="muted">Where they are in the process</span></header>
+      <ul className="map-list">{mapped.map(it => row(it))}</ul>
+    </section>
+
+  return (
+    <div className="page">
+        <PageHeader title={title} subtitle={<>{user.username} <Freshness/></>}/>
+        {error && <p className="alert alert-error" role="alert">Could not refresh the planner. <button className="link" onClick={() => void reloadPlanner()}>Try again</button></p>}
+        {!maps && !error && <ul className="map-list" aria-busy aria-label="Loading">{[0, 1, 2, 3].map(it => <li key={it} className="map-row skeleton"/>)}</ul>}
+
+        {!nominator && own}
+        {groups.filter(it => it.maps.length > 0).map(({id, title: name, hint, maps: part}) => {
+          const heading = <><h2>{name}</h2><span className="count">{part.length}</span><span className="muted">{hint}</span></>
+          const list = <ul className="map-list">{part.map(it => row(it))}</ul>
+          // Nothing to do for these, so they stay out of the way
+          return (id === "waiting" || id === "qualified") && part.length > 3
+            ? <details key={id} className="desk-group"><summary>{heading}</summary>{list}</details>
+            : <section key={id} className={`desk-group desk-${id}`}><header>{heading}</header>{list}</section>
+        })}
+
+        {nominator && own}
+
+        {fits.length > 0 &&
+          <section className="desk-group">
+            <header><h2>Looking for a nominator</h2><span className="muted">In your modes, those with a nomination first</span></header>
+            <ul className="map-list">
+              {fits.map(({map, mode, reason}) => row(map, reason, <ClaimButton beatmap={map} mode={mode} user={user}/>))}
+            </ul>
+            <Link to="/discover">Listen to all of them</Link>
+          </section>
+        }
+
+        {maps && !busy && mapped.length === 0 && fits.length === 0 &&
+          <div className="desk-empty">
+            <p>You have no beatmaps in progress.</p>
+            <Link className="button button-primary" to="/beatmaps?q=">See all beatmaps</Link>
+          </div>
+        }
+      <MapView id={selected} ids={ids} onOpen={open} onClose={close}/>
+    </div>
+  )
+}
+
+function ClaimButton({beatmap, mode, user}: {beatmap: Beatmap, mode: Gamemode, user: User}) {
+  const {claim} = useNominators(beatmap)
+  return <button className="button button-tint" onClick={() => claim(mode, user)} aria-label={`I'll nominate ${beatmap.title} for ${GAMEMODE_NAMES[mode]}`}>I'll nominate</button>
+}

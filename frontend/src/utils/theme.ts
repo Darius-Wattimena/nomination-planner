@@ -3,9 +3,8 @@ import {useState} from "react";
 export type Theme = "dark" | "light"
 
 function preferredTheme(): Theme {
-  const stored = localStorage.getItem("theme")
-  if (stored === "dark" || stored === "light") return stored
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"
+  // The planner has always been dark, light is something to choose
+  return localStorage.getItem("theme") === "light" ? "light" : "dark"
 }
 
 export function applyTheme(theme: Theme = preferredTheme()) {

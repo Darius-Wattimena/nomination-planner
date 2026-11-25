@@ -1,111 +1,164 @@
-import {useEffect, useState} from "react";
-import {FaPlus} from "react-icons/fa6";
-import AddBeatmapDialog from "../beatmaps/AddBeatmapDialog";
-import BeatmapDetails from "../beatmaps/BeatmapDetails";
-import BeatmapRow from "../beatmaps/BeatmapRow";
-import FilterBar from "../beatmaps/FilterBar";
-import {PAGE_SIZES, useListState} from "../beatmaps/filters";
-import Pagination from "../beatmaps/Pagination";
-import {Beatmap, BeatmapPage} from "../models/Types";
-import Api from "../resources/Api";
-import {useQuery} from "../resources/client";
+import {useEffect, useMemo, useState} from "react";
+import {useSearchParams} from "react-router-dom";
+import {FaList, FaPlus, FaTableColumns, FaXmark} from "react-icons/fa6";
+import {useOpenMap} from "../beatmaps/useOpenMap";
+import MapView from "../beatmaps/MapView";
+import {MapCard, MapRow} from "../beatmaps/MapRow";
+import Filters from "../beatmaps/Filters";
+import {GAMEMODES} from "../Constants";
+import {Beatmap} from "../models/Types";
+import {reloadPlanner, usePlanner} from "../resources/planner";
+import {useAddBeatmap} from "../beatmaps/AddBeatmap";
+import {Freshness, RingLegend} from "../ui/Help";
 import PageHeader from "../ui/PageHeader";
 import {EmptyState} from "../ui/States";
+import {usePhone} from "../utils/phone";
+import {filterMaps, MODE_WORDS} from "../utils/query";
 import {canEdit, useSession} from "../utils/session";
+import {ageInDays, stageOf, STAGES} from "../utils/workflow";
 
-const TITLES: Record<BeatmapPage, string> = {
-  PENDING: "Pending beatmaps",
-  RANKED: "Ranked beatmaps",
-  GRAVEYARD: "Graveyard"
+const STEP = 60
+
+interface SavedView {
+  name: string
+  query: string
 }
 
-export default function Beatmaps({page}: {page: BeatmapPage}) {
+function readStored<T>(key: string, fallback: T): T {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
+export default function Beatmaps() {
   const session = useSession()
-  const {state, filter, update, clear, isFiltered} = useListState(page, session?.user)
-  const [adding, setAdding] = useState(false)
+  const user = session?.user
+  const {maps, error} = usePlanner()
+  const openAdd = useAddBeatmap()
+  const [params, setParams] = useSearchParams()
+  const phone = usePhone()
+  const [chosen, setLayout] = useState<"board" | "list">(() => readStored("boardLayout", "board"))
+  // Columns need room next to each other
+  const layout = phone ? "list" : chosen
+  const [saved, setSaved] = useState<SavedView[]>(() => readStored("savedViews", []))
+  const [naming, setNaming] = useState<string>()
+  const [limit, setLimit] = useState(STEP)
 
-  const total = useQuery<number>(Api.countBeatmaps(filter))
-  const beatmaps = useQuery<Beatmap[]>(Api.fetchBeatmaps(filter, state.pageNumber, state.limit))
+  const ownModes = GAMEMODES.filter(mode => user?.gamemodes.some(it => it.gamemode === mode)).map(it => `mode:${MODE_WORDS[it]}`).join(" ")
+  const query = params.get("q") ?? ownModes
+  const {selected, open, close} = useOpenMap()
 
-  function reload() {
-    total.reload()
-    beatmaps.reload()
+  const views: SavedView[] = [
+    {name: "Everything", query: ""},
+    ...(ownModes ? [{name: "My modes", query: ownModes}] : []),
+    ...(canEdit(session) ? [{name: "I'm nominating", query: "is:mine"}] : []),
+    {name: "Needs nominators", query: `${ownModes} is:open`.trim()},
+    {name: "Gone quiet", query: `${ownModes} is:stale`.trim()}
+  ]
+
+  function update(changes: {q: string}) {
+    const next = new URLSearchParams(params)
+    next.set("q", changes.q)
+    setParams(next, {replace: true})
   }
 
-  // Go back to a page that exists, for example after deleting the last beatmap of a page
-  useEffect(() => {
-    if (total.loading || total.error || total.data === undefined) return
-    const lastPage = Math.max(1, Math.ceil(total.data / PAGE_SIZES[state.limit]))
-    if (state.pageNumber > lastPage) update({pageNumber: lastPage})
-  }, [total.data, total.loading, total.error, state.pageNumber, state.limit])
+  function store(next: SavedView[]) {
+    setSaved(next)
+    localStorage.setItem("savedViews", JSON.stringify(next))
+  }
 
-  const count = total.data ?? 0
+  const found = useMemo(() => filterMaps(maps ?? [], query, user), [maps, query, user])
+  const columns = STAGES.map(stage => ({
+    ...stage,
+    maps: found.filter(it => stageOf(it) === stage.id).sort((a, b) => ageInDays(a) - ageInDays(b))
+  }))
+  const ordered = columns.flatMap(it => it.maps)
+
+  useEffect(() => setLimit(STEP), [query, layout])
+  const ids = (layout === "list" ? ordered.slice(0, limit) : columns.flatMap(it => it.maps.slice(0, limit))).map(it => it.osuId)
+
+  const isSaved = [...views, ...saved].some(it => it.query === query)
 
   return (
-    <>
-      <PageHeader
-        title={TITLES[page]}
-        subtitle={total.data !== undefined ? `${count} ${count === 1 ? "beatmap" : "beatmaps"}` : " "}
-      >
-        {page === "PENDING" && canEdit(session) &&
-          <button className="button button-primary" onClick={() => setAdding(true)}><FaPlus/>Add beatmap</button>
+    <div className="page">
+        <PageHeader title="Beatmaps" subtitle={maps ? <>{found.length} of {maps.length} in progress <Freshness/></> : " "}>
+          <div className="button-row">
+            {!phone && <div className="segmented" role="group" aria-label="Layout">
+              {(["board", "list"] as const).map(it => (
+                <button key={it} aria-pressed={layout === it} onClick={() => {
+                  setLayout(it)
+                  localStorage.setItem("boardLayout", JSON.stringify(it))
+                }}>{it === "board" ? <FaTableColumns/> : <FaList/>}{it === "board" ? "Columns" : "List"}</button>
+              ))}
+            </div>}
+            {canEdit(session) && <button className="button button-primary" onClick={() => openAdd()}><FaPlus/>Add beatmap</button>}
+          </div>
+        </PageHeader>
+
+        <div className="views" role="group" aria-label="Views">
+          {views.map(view => <button key={view.name} className="view" aria-pressed={view.query === query} onClick={() => update({q: view.query})}>{view.name}</button>)}
+          {saved.map(view => (
+            <span key={view.name} className="view view-saved" data-active={view.query === query || undefined}>
+              <button aria-pressed={view.query === query} onClick={() => update({q: view.query})}>{view.name}</button>
+              <button aria-label={`Delete view ${view.name}`} onClick={() => store(saved.filter(it => it !== view))}><FaXmark/></button>
+            </span>
+          ))}
+          {!isSaved && (naming === undefined
+            ? <button className="link" onClick={() => setNaming("")}>Save view</button>
+            : <form onSubmit={event => {
+                event.preventDefault()
+                const name = naming.trim()
+                if (name) store([...saved.filter(it => it.name !== name), {name, query}])
+                setNaming(undefined)
+              }}>
+                <input id="view-name" autoFocus aria-label="Name of the view" placeholder="Name, then Enter" value={naming} onChange={event => setNaming(event.target.value)} onBlur={() => setNaming(undefined)}/>
+              </form>
+          )}
+          <span className="views-end"><RingLegend/></span>
+        </div>
+        <Filters query={query} onChange={q => update({q})} maps={maps ?? []} stages={layout === "list"}/>
+
+        {error && <p className="alert alert-error" role="alert">Could not refresh the planner. <button className="link" onClick={() => void reloadPlanner()}>Try again</button></p>}
+        {!maps && !error && <ul className="map-list" aria-busy aria-label="Loading">{[0, 1, 2, 3, 4].map(it => <li key={it} className="map-row skeleton"/>)}</ul>}
+        {maps && found.length === 0 &&
+          <EmptyState title="Nothing matches">
+            <p className="muted">No beatmap in progress fits this search.</p>
+            {query && <button className="button" onClick={() => update({q: ""})}>Show everything</button>}
+          </EmptyState>
         }
-      </PageHeader>
 
-      <FilterBar page={page} state={state} update={update} clear={clear} isFiltered={isFiltered} beatmaps={beatmaps.data ?? []}/>
-
-      {beatmaps.error &&
-        <p className="alert alert-error" role="alert">
-          Could not load the beatmaps. <button className="link" onClick={reload}>Try again</button>
-        </p>
-      }
-      {!beatmaps.data && beatmaps.loading && <Skeleton/>}
-      {beatmaps.data && beatmaps.data.length === 0 && !beatmaps.loading && !beatmaps.error &&
-        <EmptyState title="No beatmaps found">
-          {isFiltered
-            ? <><p className="muted">Nothing matches the current filters.</p><button className="button" onClick={clear}>Clear filters</button></>
-            : <p className="muted">There is nothing here yet.</p>
-          }
-        </EmptyState>
-      }
-      {beatmaps.data && beatmaps.data.length > 0 &&
-        <>
-          <ul className="beatmaps" aria-busy={beatmaps.loading}>
-            {beatmaps.data.map(beatmap =>
-              <BeatmapRow key={beatmap.osuId} beatmap={beatmap} onOpen={() => update({map: beatmap.osuId})} onChanged={reload}/>
-            )}
-          </ul>
-          <Pagination
-            total={count}
-            pageNumber={state.pageNumber}
-            limit={state.limit}
-            onPage={pageNumber => {
-              update({pageNumber})
-              window.scrollTo({top: 0})
-            }}
-            onLimit={limit => update({limit})}
-          />
-        </>
-      }
-
-      <BeatmapDetails id={state.map} onClose={() => update({map: undefined})} onChanged={reload}/>
-      <AddBeatmapDialog
-        open={adding}
-        onClose={() => setAdding(false)}
-        onAdded={id => {
-          setAdding(false)
-          reload()
-          update({map: id})
-        }}
-      />
-    </>
-  )
-}
-
-function Skeleton() {
-  return (
-    <ul className="beatmaps" aria-label="Loading beatmaps" aria-busy>
-      {Array.from({length: 6}, (_, index) => <li key={index} className="beatmap skeleton"/>)}
-    </ul>
+        {found.length > 0 && layout === "board" &&
+          <div className="board" role="group" aria-label="Stages">
+            {columns.map(column => (
+              <section key={column.id} className={`column column-${column.id}`}>
+                <header><h2>{column.label}</h2><span className="count">{column.maps.length}</span></header>
+                <p className="muted">{column.hint}</p>
+                <ul>
+                  {column.maps.slice(0, limit).map(it => <MapCard key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={() => open(it.osuId)}/>)}
+                </ul>
+                {column.maps.length > limit && <button className="button" onClick={() => setLimit(limit + STEP)}>Show more</button>}
+              </section>
+            ))}
+          </div>
+        }
+        {found.length > 0 && layout === "list" &&
+          <>
+            {columns.map(column => {
+              const before = columns.slice(0, columns.indexOf(column)).reduce((sum, it) => sum + it.maps.length, 0)
+              const shown = column.maps.slice(0, Math.max(0, limit - before))
+              return shown.length === 0 ? null : (
+                <section key={column.id} className="desk-group">
+                  <header><h2>{column.label}</h2><span className="count">{column.maps.length}</span></header>
+                  <ul className="map-list">{shown.map((it: Beatmap) => <MapRow key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={() => open(it.osuId)}/>)}</ul>
+                </section>
+              )
+            })}
+            {ordered.length > limit && <button className="button" onClick={() => setLimit(limit + STEP)}>Show more</button>}
+          </>
+        }
+      <MapView id={selected} ids={ids} onOpen={open} onClose={close}/>
+    </div>
   )
 }

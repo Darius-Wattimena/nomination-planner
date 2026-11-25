@@ -22,14 +22,8 @@ export function isNominator(mode: BeatmapGamemode, userId: string) {
   return mode.nominators.some(it => it.nominator.osuId === userId)
 }
 
-/** Whether the user can take one of the open slots of this mode */
-export function canClaim(beatmap: Beatmap, mode: BeatmapGamemode, user: User | undefined) {
-  return !!user
-    && beatmap.status !== "Ranked"
-    && beatmap.status !== "Graved"
-    && beatmap.mapper.osuId !== user.osuId
-    && canNominate(user, mode.gamemode)
-    && !isNominator(mode, user.osuId)
+export function onProbation(user: User, gamemode: Gamemode) {
+  return highestRole(user, gamemode) === "Probation"
 }
 
 export function sortedModes(beatmap: Beatmap) {

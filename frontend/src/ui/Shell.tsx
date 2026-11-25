@@ -1,70 +1,65 @@
 import {ReactNode} from "react";
 import {Link, NavLink, Outlet} from "react-router-dom";
-import {FaArrowsRotate, FaBoxArchive, FaHouse, FaMoon, FaMusic, FaRightFromBracket, FaSun, FaTrophy} from "react-icons/fa6";
+import {FaBoxArchive, FaChartColumn, FaHeadphones, FaHouse, FaMagnifyingGlass, FaMoon, FaPeopleGroup, FaShieldHalved, FaSun, FaTableColumns} from "react-icons/fa6";
 import logo from "../assets/greaper.png";
-import {isNat, setSession, useSession} from "../utils/session";
+import {usePlanner, usePlannerRefresh} from "../resources/planner";
+import {canEdit, isAdmin, useSession} from "../utils/session";
 import {useTheme} from "../utils/theme";
-import {Avatar, RoleBadges} from "./Person";
+import {deskGroup} from "../utils/workflow";
+import AccountMenu from "./AccountMenu";
+import {useFind} from "./Find";
 import {LoginButton} from "./States";
 
 export default function Shell() {
   const session = useSession()
   const user = session?.user
+  const openFind = useFind()
+  const {theme, toggle} = useTheme()
+  const {maps} = usePlanner()
+  usePlannerRefresh()
+
+  const moves = maps?.filter(it => deskGroup(it, user?.osuId) === "move").length ?? 0
+  const themeLabel = theme === "dark" ? "Use the light theme" : "Use the dark theme"
 
   return (
     <div className="shell">
       <a className="skip-link" href="#content">Skip to content</a>
-      <aside className="sidebar">
-        <Link to="/" className="brand">
-          <img src={logo} alt=""/>
-          <span>Nomination<br/>Planner</span>
-        </Link>
-        <nav className="nav" aria-label="Main">
-          <Item to="/" icon={<FaHouse/>} label="Home"/>
-          {user && <>
-            <Item to="/beatmaps" icon={<FaMusic/>} label="Pending"/>
-            <Item to="/ranked" icon={<FaTrophy/>} label="Ranked"/>
-            <Item to="/graveyard" icon={<FaBoxArchive/>} label="Graveyard"/>
-            {isNat(session) && <Item to="/admin" icon={<FaArrowsRotate/>} label="Sync"/>}
-          </>}
-        </nav>
-        <div className="account">
+      <header className="topbar">
+        <Link to="/" className="brand"><img src={logo} alt=""/><span>Nomination Planner</span></Link>
+        {user &&
+          <nav className="nav" aria-label="Main">
+            <Item to="/" icon={<FaHouse/>} label="Home" badge={moves}/>
+            <Item to="/beatmaps" icon={<FaTableColumns/>} label="Beatmaps"/>
+            {canEdit(session) && <Item to="/discover" icon={<FaHeadphones/>} label="Discover"/>}
+            <Item to="/team" icon={<FaPeopleGroup/>} label="Nominators"/>
+            <Item to="/statistics" icon={<FaChartColumn/>} label="Stats"/>
+            <Item to="/ranked" icon={<FaBoxArchive/>} label="Archive"/>
+            {isAdmin(session) && <Item to="/admin" icon={<FaShieldHalved/>} label="Admin" className="nav-admin"/>}
+          </nav>
+        }
+        <div className="topbar-end">
           {user
-            ? <div className="account-user">
-                <Avatar user={user} size="large"/>
-                <div className="account-name"><strong>{user.username}</strong><RoleBadges user={user}/></div>
-              </div>
-            : <LoginButton/>
+            ? <>
+                {isAdmin(session) && <NavLink to="/admin" className={({isActive}) => isActive ? "search-button admin-button active" : "search-button admin-button"}><FaShieldHalved aria-hidden/>Admin</NavLink>}
+                <button className="search-button" aria-label="Find a beatmap or nominator" onClick={openFind}><FaMagnifyingGlass aria-hidden/><span>Find</span></button>
+                <AccountMenu user={user}/>
+              </>
+            : <>
+                <button className="icon-button" aria-label={themeLabel} title={themeLabel} onClick={toggle}>{theme === "dark" ? <FaSun/> : <FaMoon/>}</button>
+                <LoginButton/>
+              </>
           }
-          <div className="account-actions">
-            <ThemeButton/>
-            {user &&
-              <button className="icon-button" aria-label="Log out" title="Log out" onClick={() => setSession(undefined)}>
-                <FaRightFromBracket/>
-              </button>
-            }
-          </div>
         </div>
-      </aside>
+      </header>
       <main id="content" className="content" tabIndex={-1}><Outlet/></main>
     </div>
   )
 }
 
-function Item({to, icon, label}: {to: string, icon: ReactNode, label: string}) {
+function Item({to, icon, label, badge, className = ""}: {to: string, icon: ReactNode, label: string, badge?: number, className?: string}) {
   return (
-    <NavLink to={to} end className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-      {icon}<span>{label}</span>
+    <NavLink to={to} end className={({isActive}) => `nav-item ${className} ${isActive ? "active" : ""}`}>
+      {icon}<span>{label}</span>{!!badge && <span className="nav-badge" aria-label={`${badge} waiting for you`}>{badge}</span>}
     </NavLink>
-  )
-}
-
-function ThemeButton() {
-  const {theme, toggle} = useTheme()
-  const label = theme === "dark" ? "Use light theme" : "Use dark theme"
-  return (
-    <button className="icon-button" aria-label={label} title={label} onClick={toggle}>
-      {theme === "dark" ? <FaSun/> : <FaMoon/>}
-    </button>
   )
 }
