@@ -16,10 +16,8 @@ export default defineConfig({
         manualChunks: {
           react: ['react', 'react-dom'],
           router: ['react-router-dom'],
-          utils: ['axios', 'axios-hooks', 'lodash-es', 'usehooks-ts'],
-          ui: ['react-select', 'react-modal', 'react-tooltip', 'react-icons', 'react-collapsible'],
-          virtual: ['react-virtualized'],
-          infinite: ['react-infinite-scroll-component'],
+          utils: ['axios'],
+          ui: ['react-modal'],
         }
       }
     }

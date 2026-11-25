@@ -1,102 +1,64 @@
-import React, {FunctionComponent, ReactElement, SVGProps} from "react";
-
 export type UserRole = 'Mapper' | 'Nominator' | 'Probation' | 'NominationAssessment'
-export type ViewMode = 'CARDS' | 'TABLE'
 export type PageLimit = 'TEN' | 'TWENTY' | 'FIFTY'
 export type BeatmapPage = 'PENDING' | 'RANKED' | 'GRAVEYARD'
 
 export interface UserContext {
-  user: User,
-  accessToken: string,
-  refreshToken: string,
+  // The backend leaves the user out when it could not be found
+  user?: User
+  accessToken: string
+  refreshToken: string
   validUntilEpochMilli: number
   permission: RolePermission
 }
 
 export interface RolePermission {
-  osuRole: UserRole,
+  osuRole: UserRole
   roles: string[]
 }
 
 export interface User {
-  osuId: string,
-  username: string,
+  osuId: string
+  username: string
   gamemodes: UserGamemode[]
 }
 
 export interface UserGamemode {
-  gamemode: Gamemode,
+  gamemode: Gamemode
   role: UserRole
 }
 
 export interface Beatmap {
-  osuId: number
+  osuId: string
   artist: string
   title: string
-  note: string,
-  mapper: User,
+  note: string
+  mapper: User
   status: BeatmapStatus
   gamemodes: BeatmapGamemode[]
 }
 
-export interface NewBeatmap {
-  osuId: string
-  gamemodes: Gamemode[]
-}
-
 export interface BeatmapGamemode {
-  gamemode: Gamemode,
-  nominators: BeatmapNominator[],
+  gamemode: Gamemode
+  nominators: BeatmapNominator[]
   isReady: boolean
 }
 
 export interface BeatmapNominator {
-  nominator: User,
+  nominator: User
   hasNominated: boolean
 }
 
-export interface FrontendUserRole {
-  id: string
-  name: string
-  short: string
-  className: string
-}
-
-export interface SelectFilterItem {
-  index: number
-  label: string
-  value: any
-  selected: boolean
-  disabled?: boolean
-}
-
-export interface AvailableQuickFilter<T> extends JSX.Element {
-  icon?: JSX.Element
-  value?: T
-  label: string
-  description: string
-  disabled: boolean
-  selected: boolean
-  setSelected: React.Dispatch<React.SetStateAction<boolean>>
-  onSelect: (value: T, beatmapFilter: BeatmapFilter) => BeatmapFilter
-  onRemove: (value: T, beatmapFilter: BeatmapFilter) => BeatmapFilter
-  shouldBeSelected: (value: T, beatmapFilter: BeatmapFilter) => boolean
-}
-
 export interface UserSearchFilter {
-  username: string | null,
-  gamemodes: Gamemode[],
+  username: string
+  gamemodes: Gamemode[]
   roles: UserRole[]
 }
 
 export interface BeatmapFilter {
-  search: string | null,
-  artist: string | null,
-  title: string | null,
-  mapper: string | null,
-  status: BeatmapStatus[],
-  page: BeatmapPage,
-  nominators: string[],
+  search: string
+  status: BeatmapStatus[]
+  page: BeatmapPage
+  nominators: string[]
   gamemodes: Gamemode[]
   missingNominator: Gamemode[]
 }
@@ -122,9 +84,4 @@ export enum BeatmapStatus {
 export interface SyncInfo {
   duration: number
   totalSynced: number
-}
-
-export interface ProfileStatisticsPairInfo {
-  otherNominatorName: string
-  amountOfPairing: number
 }

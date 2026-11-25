@@ -1,87 +1,55 @@
-import React, { JSX, useEffect, Suspense, lazy } from "react";
-import { Outlet, Route, Routes } from 'react-router-dom';
-import Nav from "./component/nav/Nav";
-import { UserContext, ViewMode } from "./models/Types";
-import { CONFIG } from "./Settings";
-import Loading from "./component/loading/Loading";
+import {lazy, ReactNode, Suspense} from "react";
+import {Link, Route, Routes, useLocation} from 'react-router-dom';
+import PageHeader from "./ui/PageHeader";
+import Shell from "./ui/Shell";
+import {EmptyState, Loading, LoginButton} from "./ui/States";
+import {useSession} from "./utils/session";
 
-// Lazy-loaded pages
-const Home = lazy(() => import("./component/home/Home"));
-const Login = lazy(() => import("./component/login/Login"));
-const BeatmapsContainer = lazy(() => import("./component/beatmaps/BeatmapsContainer"));
-const Admin = lazy(() => import("./component/admin/Admin"));
+const Home = lazy(() => import("./pages/Home"));
+const Login = lazy(() => import("./pages/Login"));
+const Beatmaps = lazy(() => import("./pages/Beatmaps"));
+const Sync = lazy(() => import("./pages/Sync"));
 
-export const osuUrl = `https://osu.ppy.sh/oauth/authorize?response_type=code&client_id=${CONFIG.osu_id}&redirect_uri=${CONFIG.osu_redirect}&scope=identify public`;
-
-interface RoutesProps {
-  viewMode: ViewMode;
-  userContext: UserContext | undefined;
-  setUserContext: React.Dispatch<React.SetStateAction<UserContext | undefined>>;
+export default function AppRoutes() {
+  return (
+    <Suspense fallback={<Loading/>}>
+      <Routes>
+        <Route element={<Shell/>}>
+          <Route path="/" element={<Home/>}/>
+          <Route path="/login" element={<Login/>}/>
+          <Route path="/beatmaps" element={<RequireAuth><Beatmaps key="PENDING" page="PENDING"/></RequireAuth>}/>
+          <Route path="/graveyard" element={<RequireAuth><Beatmaps key="GRAVEYARD" page="GRAVEYARD"/></RequireAuth>}/>
+          <Route path="/ranked" element={<RequireAuth><Beatmaps key="RANKED" page="RANKED"/></RequireAuth>}/>
+          <Route path="/admin" element={<RequireAuth><Sync/></RequireAuth>}/>
+          <Route path="*" element={<NotFound/>}/>
+        </Route>
+      </Routes>
+    </Suspense>
+  )
 }
 
-function AppRoutes({ viewMode, userContext, setUserContext }: RoutesProps) {
-  const Layout = () => (
-      <>
-        <Nav userContext={userContext} setUserContext={setUserContext} />
-        <div className="content-container">
-          <Outlet />
-        </div>
-      </>
-  );
+function RequireAuth({children}: {children: ReactNode}) {
+  const session = useSession()
+  const location = useLocation()
 
-  function RequireAuth({ children }: { children: JSX.Element }) {
-    useEffect(() => {
-      if (!userContext || !userContext.user) {
-        window.location.href = osuUrl;
-      }
-    }, []);
-
-    return children;
-  }
+  if (session?.user) return <>{children}</>
 
   return (
-    <div className="container">
-      <Suspense fallback={<Loading />}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Home userContext={userContext} />} />
-            <Route path="/login" element={<Login userContext={userContext} setUserContext={setUserContext} />} />
-            <Route path="/beatmaps" element={
-              <RequireAuth>
-                <BeatmapsContainer viewMode={viewMode} userContext={userContext} page="PENDING" />
-              </RequireAuth>
-            }
-            />
-            <Route
-                path="/graveyard"
-                element={
-                  <RequireAuth>
-                    <BeatmapsContainer viewMode={viewMode} userContext={userContext} page="GRAVEYARD" />
-                  </RequireAuth>
-                }
-            />
-            <Route
-                path="/ranked"
-                element={
-                  <RequireAuth>
-                    <BeatmapsContainer viewMode={viewMode} userContext={userContext} page="RANKED" />
-                  </RequireAuth>
-                }
-            />
-            <Route
-                path="/admin"
-                element={
-                  <RequireAuth>
-                    <Admin userContext={userContext} />
-                  </RequireAuth>
-                }
-            />
-            <Route path="*" element={<div>TODO : NOT FOUND</div>} />
-          </Route>
-        </Routes>
-      </Suspense>
-    </div>
-  );
+    <EmptyState title="Log in to continue">
+      <p className="muted">This page is only available to logged-in osu! users.</p>
+      <LoginButton returnTo={location.pathname + location.search}/>
+    </EmptyState>
+  )
 }
 
-export default AppRoutes;
+function NotFound() {
+  return (
+    <>
+      <PageHeader title="Page not found"/>
+      <EmptyState title="There is nothing here">
+        <p className="muted">The link may be old, or the page has moved.</p>
+        <Link to="/" className="button button-primary">Back to home</Link>
+      </EmptyState>
+    </>
+  )
+}
