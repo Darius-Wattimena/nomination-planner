@@ -1,5 +1,6 @@
 package nl.greaper.bnplanner.auth
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -7,7 +8,6 @@ import nl.greaper.bnplanner.config.AiessProperties
 import nl.greaper.bnplanner.service.UserService
 import nl.greaper.bnplanner.util.getAiessRole
 import nl.greaper.bnplanner.util.getHighestRoleForUser
-import nl.greaper.bnplanner.util.parseJwtToken
 import org.springframework.http.HttpHeaders.AUTHORIZATION
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
@@ -15,12 +15,16 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
+import java.security.MessageDigest
 
 @Component
 class JwtTokenFilter(
     private val aiess: AiessProperties,
     private val userService: UserService,
+    private val tokenVerifier: OsuTokenVerifier,
 ) : OncePerRequestFilter() {
+    private val log = KotlinLogging.logger { }
+
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
@@ -42,7 +46,7 @@ class JwtTokenFilter(
                         .getOrNull(1)
                         ?.trim()
 
-                if (aiess.token == token) {
+                if (isAiessToken(token)) {
                     val permission = getAiessRole()
 
                     val authentication =
@@ -71,14 +75,21 @@ class JwtTokenFilter(
                     return
                 }
 
-                val claims = parseJwtToken(token)
+                val osuId =
+                    try {
+                        tokenVerifier.verify(token)
+                    } catch (ex: OsuUnavailableException) {
+                        log.warn(ex) { "Unable to verify a token, osu! is unavailable" }
+                        // Not using sendError, as the error page would turn this into an unauthorized response
+                        response.status = HttpServletResponse.SC_SERVICE_UNAVAILABLE
+                        return
+                    }
 
-                if (claims == null) {
+                if (osuId == null) {
                     chain.doFilter(request, response)
                     return
                 }
 
-                val osuId = claims.subject
                 val user = userService.findUserById(osuId)
 
                 if (user == null) {
@@ -105,5 +116,14 @@ class JwtTokenFilter(
 
         chain.doFilter(request, response)
         return
+    }
+
+    private fun isAiessToken(token: String?): Boolean {
+        // Without a configured token nobody can be Aiess, instead of everyone providing an empty token
+        if (token.isNullOrBlank() || aiess.token.isBlank()) {
+            return false
+        }
+
+        return MessageDigest.isEqual(aiess.token.toByteArray(), token.toByteArray())
     }
 }

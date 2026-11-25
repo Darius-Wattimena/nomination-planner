@@ -3,6 +3,7 @@ package nl.greaper.bnplanner.client
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.github.oshai.kotlinlogging.KotlinLogging
+import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.model.osu.AuthToken
 import nl.greaper.bnplanner.model.osu.BeatmapSet
@@ -16,8 +17,10 @@ import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpClientErrorException
+import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestTemplate
 import org.springframework.web.client.postForEntity
 
@@ -30,6 +33,13 @@ class OsuHttpClient(
 
     private val rest = RestTemplate()
     private val authRest = RestTemplate()
+    internal val verifyRest =
+        RestTemplate(
+            SimpleClientHttpRequestFactory().apply {
+                setConnectTimeout(5_000)
+                setReadTimeout(5_000)
+            },
+        )
     private val headers = HttpHeaders()
     private val authHeaders = HttpHeaders()
     private val tokenUri = "https://osu.ppy.sh/oauth/token"
@@ -85,6 +95,29 @@ class OsuHttpClient(
             } else {
                 throw ex
             }
+        }
+    }
+
+    /**
+     * Ask osu! who the owner of a token is, null when osu! does not accept the token
+     *
+     * @throws OsuUnavailableException when osu! gave no clear answer
+     */
+    fun findTokenOwnerId(token: String): String? {
+        // Never share these headers between calls, as this decides who the user is
+        val request = HttpEntity<Void>(HttpHeaders().apply { setBearerAuth(token) })
+
+        return try {
+            val response = verifyRest.exchange("https://osu.ppy.sh/api/v2/me", HttpMethod.GET, request, Me::class.java)
+            response.body?.id
+        } catch (ex: HttpClientErrorException) {
+            if (ex.statusCode == HttpStatus.UNAUTHORIZED || ex.statusCode == HttpStatus.FORBIDDEN) {
+                null
+            } else {
+                throw OsuUnavailableException(ex)
+            }
+        } catch (ex: RestClientException) {
+            throw OsuUnavailableException(ex)
         }
     }
 
