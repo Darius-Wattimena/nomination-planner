@@ -14,6 +14,7 @@ class FixService(
     private val beatmapDataSource: BeatmapDataSource,
     private val userService: UserService,
     private val beatmapService: BeatmapService,
+    private val jobs: OsuJobs,
     private val sleeper: Sleeper = Sleeper.THREAD,
 ) {
     val log = KotlinLogging.logger { }
@@ -48,6 +49,30 @@ class FixService(
 
         return syncBeatmaps(osuToken, beatmaps)
     }
+
+    /** Nobody waits for it, the planner shows the results as they come in */
+    fun syncBeatmapsInBackground(
+        osuToken: String,
+        page: BeatmapPage,
+        status: Set<BeatmapStatus>,
+    ): SyncInfo {
+        val beatmaps =
+            beatmapService.findBeatmapsIds(
+                search = null,
+                artist = null,
+                title = null,
+                mapper = null,
+                status = status,
+                nominators = emptySet(),
+                page = page,
+                gamemodes = emptySet(),
+                missingNominator = emptySet(),
+            )
+
+        return SyncInfo(duration = 0, totalSynced = jobs.syncBeatmaps(osuToken, beatmaps))
+    }
+
+    fun findWaiting(): Int = jobs.waiting
 
     fun syncSingleBeatmap(
         osuToken: String,
@@ -148,11 +173,6 @@ class FixService(
                 users.forEachIndexed { index, userId ->
                     val currentUser = userService.findUserById(userId)
                     if (force || currentUser == null || currentUser.restricted == true) {
-                        // Remove the users when we already know it
-                        if (force && currentUser != null) {
-                            userService.deleteUser(currentUser)
-                        }
-
                         userService.forceFindUserById(token, userId)
                         log.info { "[${index + 1}/$totalUsers] User $userId synced, sleeping." }
                         sleeper.sleep(1_000L + Random.nextInt(0, 1000))

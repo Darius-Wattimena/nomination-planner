@@ -158,9 +158,10 @@ class BeatmapController(
     @RolesAllowed(RolePermission.EDITOR)
     fun updateNote(
         @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
-        @RequestBody body: String,
+        // There is no body when clearing the note
+        @RequestBody(required = false) body: String?,
         @PathVariable("id") id: String,
-    ): Boolean = service.updateBeatmapNote(osuApiToken, id, body)
+    ): Boolean = service.updateBeatmapNote(osuApiToken, id, body ?: "")
 
     @DeleteMapping("/{id}/delete")
     @RolesAllowed(RolePermission.EDITOR)

@@ -42,7 +42,7 @@ class UserServiceTest {
             """
             [{"id":28,"identifier":"bng","name":"Beatmap Nominators","playmodes":["osu","Mania"]},
             {"id":32,"playmodes":["taiko"]},{"id":7,"playmodes":["fruits"]},
-            {"id":11,"playmodes":["osu"]},{"id":16,"playmodes":null},{"id":28,"playmodes":null},{"id":7}]
+            {"id":11,"playmodes":["osu"]},{"id":16,"playmodes":null},{"id":28,"playmodes":null}]
             """,
         )
         val expected =
@@ -61,6 +61,19 @@ class UserServiceTest {
         assertEquals(expected, service.findUserById("5"))
         assertEquals(listOf(expected), planner.users.list())
         assertEquals(sent("Created user 5, with username: BN", EmbedColor.BLUE), planner.discord.single())
+    }
+
+    @Test
+    fun `Should give NAT without a gamemode all gamemodes`() {
+        FakeOsu.user("5", "NAT", """[{"id":7,"playmodes":[]}]""")
+        FakeOsu.user("6", "NAT", """[{"id":7,"playmodes":null}]""")
+        FakeOsu.user("7", "BN", """[{"id":28,"playmodes":[]}]""")
+
+        val expected = Gamemode.values().map { UserGamemode(it, Role.NominationAssessment) }
+
+        assertEquals(expected, service.forceFindUserById(TOKEN, "5")!!.gamemodes)
+        assertEquals(expected, service.forceFindUserById(TOKEN, "6")!!.gamemodes)
+        assertEquals(emptyList<UserGamemode>(), service.forceFindUserById(TOKEN, "7")!!.gamemodes)
     }
 
     @Test
@@ -83,11 +96,16 @@ class UserServiceTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - A known user becomes restricted when osu is unavailable`() {
-        planner.user("5", "BN", nominator(Gamemode.osu))
+    fun `Should keep what is known about a user when osu is unavailable`() {
+        val user = planner.user("5", "BN", nominator(Gamemode.osu))
         FakeOsu.respond("GET /api/v2/users/5?key=id", "", status = 503)
+        FakeOsu.respond("GET /api/v2/users/6?key=id", "", status = 503)
 
-        assertEquals(User("5", "RESTRICTED", emptyList(), restricted = true), force())
+        assertNull(force())
+        assertNull(force("6"))
+        assertEquals(listOf(user), planner.users.list())
+        assertEquals(user, service.findUserById("5"))
+        assertEquals(emptyList<Sent>(), planner.discord.sent)
     }
 
     @Test

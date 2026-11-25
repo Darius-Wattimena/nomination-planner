@@ -24,6 +24,7 @@ import nl.greaper.bnplanner.service.AiessService
 import nl.greaper.bnplanner.service.AuthService
 import nl.greaper.bnplanner.service.BeatmapService
 import nl.greaper.bnplanner.service.FixService
+import nl.greaper.bnplanner.service.OsuJobs
 import nl.greaper.bnplanner.service.OsuService
 import nl.greaper.bnplanner.service.ProfileService
 import nl.greaper.bnplanner.service.UserService
@@ -45,7 +46,7 @@ class Planner(
     val sleeps = mutableListOf<Long>()
     private val sleeper = Sleeper { sleeps += it }
 
-    val beatmaps = BeatmapDataSource(TestMongo.database)
+    val beatmaps = BeatmapDataSource(TestMongo.database, true)
     val users = UserDataSource(TestMongo.database)
     val recalculations = UserRecalculateDataSource(TestMongo.database)
     val tokens = OsuTokenDataSource(TestMongo.database)
@@ -56,7 +57,8 @@ class Planner(
     val aiessService = AiessService(beatmapService, beatmaps, userService, users, discordClient)
     val osuService = OsuService(osuClient, userService, tokens)
     val authService = AuthService(osuService, discordClient)
-    val fixService = FixService(beatmaps, userService, beatmapService, sleeper)
+    val osuJobs = OsuJobs(beatmapService, sleeper)
+    val fixService = FixService(beatmaps, userService, beatmapService, osuJobs, sleeper)
     val profileService = ProfileService(beatmapService, userService)
 
     fun user(
@@ -106,7 +108,8 @@ class Planner(
             note: String = "",
             updated: Instant = UPDATED,
             ranked: Instant? = null,
-        ) = Beatmap(id, artist, title, note, mapper, mapperId, status, gamemodes.toList(), ADDED, updated, ranked)
+            main: List<Gamemode>? = null,
+        ) = Beatmap(id, artist, title, note, mapper, mapperId, status, gamemodes.toList(), ADDED, updated, ranked, main)
 
         fun nominator(gamemode: Gamemode) = UserGamemode(gamemode, Role.Nominator)
 

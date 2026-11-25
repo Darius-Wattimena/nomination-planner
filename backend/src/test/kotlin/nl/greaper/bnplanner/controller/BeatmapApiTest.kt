@@ -281,6 +281,8 @@ class BeatmapApiTest : ApiTest() {
         assertEquals(listOf("osu [2, 3]", "mania [3, 0]"), nominators(patch("1/mania/nominator?old=0&new=3")))
         assertEquals(listOf("osu [2, 3]"), nominators(patch("1/mania/nominator?old=3&new=0")))
         patch("2/osu/nominator?old=0&new=2").assertEmpty()
+        // Already replaced by someone else
+        patch("1/osu/nominator?old=0&new=1").assertEmpty()
     }
 
     // Status
@@ -306,17 +308,21 @@ class BeatmapApiTest : ApiTest() {
     }
 
     @Test
-    fun `SUSPECTED BUG - A note can not be cleared as an empty body is refused`() {
+    fun `Should clear the note`() {
         beatmaps.insertOne(beatmap("1", mapperId = "1", note = "old"))
-        val response = patch("1/note", body = "", contentType = "text/plain")
 
-        assertEquals(400, response.status)
-        assertEquals("application/problem+json", response.contentType)
-        assertEquals("Failed to read request", JSONObject(response.contentAsString).getString("detail"))
-        assertEquals("old", beatmaps.findById("1")!!.note)
-        // While only a space is fine
-        patch("1/note", body = " ", contentType = "text/plain").assertJson("true")
-        assertEquals(" ", beatmaps.findById("1")!!.note)
+        patch("1/note", body = "", contentType = "text/plain").assertJson("true")
+        assertEquals("", beatmaps.findById("1")!!.note)
+    }
+
+    @Test
+    fun `Should clear the note through an actual server`() {
+        beatmaps.insertOne(beatmap("1", mapperId = "1", note = "old"))
+        FakeOsu.respond("GET /api/v2/me", """{"id":2,"username":"Editor"}""")
+
+        val headers = mapOf("Authorization" to As.EDITOR.header!!, "Content-Type" to "text/plain")
+        assertEquals("true", http("PATCH", "/v2/beatmap/1/note", headers, "").body())
+        assertEquals("", beatmaps.findById("1")!!.note)
     }
 
     @Test

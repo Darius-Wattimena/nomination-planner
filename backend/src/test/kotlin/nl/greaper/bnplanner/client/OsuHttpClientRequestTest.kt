@@ -23,6 +23,7 @@ import org.springframework.http.HttpMethod
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClientException
 import java.time.Instant
+import kotlin.concurrent.thread
 
 /** The exact requests osu! gets, by sending them to a local server */
 class OsuHttpClientRequestTest {
@@ -181,13 +182,20 @@ class OsuHttpClientRequestTest {
     }
 
     @Test
-    fun `Should find no user when osu fails or gives an unexpected answer`() {
-        FakeOsu.respond("GET /api/v2/users/5?key=id", "{}", 500)
-        FakeOsu.respond("GET /api/v2/users/6?key=id", "", 200)
-        FakeOsu.respond("GET /api/v2/users/7?key=id", "not json")
-        FakeOsu.respond("GET /api/v2/users/8?key=id", "{}")
+    fun `Should find no user when osu does not know them`() {
+        assertNull(client.findUserWithId("token", "4"))
+    }
 
-        listOf("4", "5", "6", "7", "8").forEach { assertNull(client.findUserWithId("token", it)) }
+    @Test
+    fun `Should fail to find a user when osu fails or gives an unexpected answer`() {
+        listOf(400, 401, 403, 429, 500, 503).forEach {
+            FakeOsu.respond("GET /api/v2/users/5?key=id", "{}", it)
+            assertThrows<OsuRequestException> { client.findUserWithId("token", "5") }
+        }
+        listOf("", "not json", "{}").forEach {
+            FakeOsu.respond("GET /api/v2/users/5?key=id", it)
+            assertThrows<OsuRequestException> { client.findUserWithId("token", "5") }
+        }
     }
 
     private val beatmapSet =
@@ -278,16 +286,11 @@ class OsuHttpClientRequestTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - Headers are shared between calls, so simultaneous calls can use the token of each other`() {
-        val headers = OsuHttpClient::class.java.getDeclaredField("headers").apply { isAccessible = true }
-        val before = headers.get(client)
-        FakeOsu.user("5", "BN")
-        client.findUserWithId("first", "5")
+    fun `Should use its own token for every simultaneous call`() {
+        (1..8).forEach { FakeOsu.user("$it", "User") }
+        (1..8).map { id -> thread { repeat(50) { client.findUserWithId("token$id", "$id") } } }.forEach { it.join() }
 
-        assertTrue(before === headers.get(client))
-        assertTrue(headers.get(client).toString().contains("Bearer first"))
-        client.findUserWithId("second", "5")
-        assertTrue(headers.get(client).toString().contains("Bearer second"))
-        assertEquals(listOf("Bearer first", "Bearer second"), FakeOsu.requests.map { it.header("Authorization") })
+        assertEquals(400, FakeOsu.requests.size)
+        assertTrue(FakeOsu.requests.all { it.uri.contains("/users/${it.header("Authorization")!!.removePrefix("Bearer token")}?") })
     }
 }

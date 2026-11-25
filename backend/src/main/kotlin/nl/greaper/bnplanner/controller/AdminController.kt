@@ -6,6 +6,7 @@ import nl.greaper.bnplanner.model.beatmap.BeatmapPage
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.service.FixService
 import org.springframework.http.HttpHeaders
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
@@ -37,12 +38,20 @@ class AdminController(
     fun syncBeatmapsByStatus(
         @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
         @RequestParam(required = false) status: Set<BeatmapStatus>? = null,
+        @RequestParam(required = false) background: Boolean? = null,
     ): FixService.SyncInfo =
-        if (status == null) {
+        if (background == true) {
+            fixService.syncBeatmapsInBackground(osuApiToken, BeatmapPage.PENDING, status.orEmpty())
+        } else if (status == null) {
             fixService.syncAllBeatmaps(osuApiToken, BeatmapPage.PENDING)
         } else {
             fixService.syncBeatmaps(osuApiToken, BeatmapPage.PENDING, status)
         }
+
+    /** How many beatmaps are still waiting to be synced in the background */
+    @GetMapping("/sync/waiting")
+    @RolesAllowed(RolePermission.ADMIN)
+    fun findWaiting(): Int = fixService.findWaiting()
 
     @PostMapping("/sync/beatmaps/single")
     @RolesAllowed(RolePermission.EDITOR)

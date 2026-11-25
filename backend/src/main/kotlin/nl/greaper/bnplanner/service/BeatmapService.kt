@@ -17,7 +17,6 @@ import nl.greaper.bnplanner.model.beatmap.BeatmapGamemode
 import nl.greaper.bnplanner.model.beatmap.BeatmapNominator
 import nl.greaper.bnplanner.model.beatmap.BeatmapPage
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
-import nl.greaper.bnplanner.model.beatmap.BeatmapStatus.Companion.toPriorityStatus
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmap
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmapGamemode
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmapNominator
@@ -26,21 +25,14 @@ import nl.greaper.bnplanner.model.beatmap.NewBeatmap
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
+import nl.greaper.bnplanner.model.osu.BeatmapSet
 import nl.greaper.bnplanner.service.UserService.Companion.MISSING_USER_ID
 import nl.greaper.bnplanner.util.Sleeper
+import nl.greaper.bnplanner.util.findMainGamemodes
 import nl.greaper.bnplanner.util.getEmojiIcon
-import nl.greaper.bnplanner.util.hasAllNominations
 import nl.greaper.bnplanner.util.hasAnyNomination
-import nl.greaper.bnplanner.util.quote
+import nl.greaper.bnplanner.util.hasEnoughNominations
 import nl.greaper.bnplanner.util.toReadableName
-import org.bson.conversions.Bson
-import org.litote.kmongo.and
-import org.litote.kmongo.bson
-import org.litote.kmongo.div
-import org.litote.kmongo.eq
-import org.litote.kmongo.`in`
-import org.litote.kmongo.or
-import org.litote.kmongo.regex
 import org.springframework.stereotype.Service
 import java.lang.StringBuilder
 import java.time.Instant
@@ -77,10 +69,8 @@ class BeatmapService(
         osuId: String,
     ) {
         val databaseBeatmap = dataSource.findById(osuId) ?: return
-        dataSource.deleteById(osuId).also {
-            if (it.deletedCount > 0) {
-                logBeatmapDelete(osuApiToken, databaseBeatmap)
-            }
+        if (dataSource.deleteById(osuId)) {
+            logBeatmapDelete(osuApiToken, databaseBeatmap)
         }
     }
 
@@ -191,7 +181,13 @@ class BeatmapService(
         if (databaseUser == null || databaseUser.restricted == true) {
             // Sleep the thread if we need to find the user as well to avoid the call being blocked
             sleeper.sleep(1_000)
-            userService.forceFindUserById(parsedToken, osuBeatmap.user_id)
+            val mapper = userService.forceFindUserById(parsedToken, osuBeatmap.user_id) ?: databaseUser
+
+            if (mapper == null) {
+                // A beatmap without a known mapper would never be shown
+                log.warn { "Could not add beatmap as the mapper could not be found (osuId: ${input.osuId})" }
+                return null
+            }
         }
 
         val newBeatmap =
@@ -207,6 +203,7 @@ class BeatmapService(
                 dateAdded = addDate,
                 dateUpdated = addDate,
                 dateRanked = null,
+                mainGamemodes = osuBeatmap.findMainGamemodes(),
             )
 
         dataSource.insertOne(newBeatmap).also { logBeatmapAdded(parsedToken, newBeatmap) }
@@ -231,6 +228,34 @@ class BeatmapService(
             return
         }
 
+        val nominators =
+            osuBeatmap.currentNominations
+                .map { currentNomination ->
+                    val userId = currentNomination.userId.toString()
+                    val user =
+                        userService.findUserById(userId)
+                            ?: userService.forceFindUserById(parsedToken, userId)
+
+                    if (user == null) {
+                        // Leaving out a nominator would reset their nomination
+                        log.warn { "Could not sync beatmap as nominator $userId could not be found (osuId: ${beatmap.osuId})" }
+                        return
+                    }
+
+                    val nominatedGamemodes = currentNomination.rulesets.map { ruleset -> Gamemode.valueOf(ruleset) }
+                    nominatedGamemodes.map { user.osuId to it }
+                }.flatten()
+                .groupBy({ it.second }, { it.first })
+
+        // Asking osu! took a while, so use what is stored by now
+        dataSource.modify(beatmap.osuId) { current -> applySync(current, osuBeatmap, nominators) }
+    }
+
+    private fun applySync(
+        beatmap: Beatmap,
+        osuBeatmap: BeatmapSet,
+        nominators: Map<Gamemode, List<String>>,
+    ): Beatmap {
         val newStatus =
             when (osuBeatmap.ranked) {
                 1, 2 -> BeatmapStatus.Ranked
@@ -241,7 +266,7 @@ class BeatmapService(
                     } else {
                         if (beatmap.gamemodes.any { it.hasAnyNomination() }) {
                             BeatmapStatus.Disqualified.takeIf {
-                                beatmap.gamemodes.all { it.hasAllNominations() }
+                                beatmap.hasEnoughNominations()
                             } ?: BeatmapStatus.Reset
                         } else {
                             // Don't update, if set on reset we don't want to change this
@@ -257,23 +282,6 @@ class BeatmapService(
             } else {
                 null
             }
-
-        val nominators =
-            osuBeatmap.currentNominations
-                .mapNotNull { currentNomination ->
-                    val userId = currentNomination.userId.toString()
-                    val user =
-                        userService.findUserById(userId)
-                            ?: userService.forceFindUserById(parsedToken, userId)
-
-                    if (user != null) {
-                        val nominatedGamemodes = currentNomination.rulesets.map { ruleset -> Gamemode.valueOf(ruleset) }
-                        nominatedGamemodes.map { user.osuId to it }
-                    } else {
-                        null
-                    }
-                }.flatten()
-                .groupBy({ it.second }, { it.first })
 
         val newGamemodes =
             nominators
@@ -342,21 +350,19 @@ class BeatmapService(
                 beatmapGamemode.copy(nominators = updatedNomiantorPair.toList())
             }
 
-        val updatedBeatmap =
-            beatmap.copy(
-                artist = osuBeatmap.artist,
-                title = osuBeatmap.title,
-                mapper = osuBeatmap.creator,
-                status = newStatus ?: beatmap.status,
-                gamemodes = updatedBeatmapGamemodes + newGamemodes,
-                dateUpdated = osuBeatmap.last_updated,
-                dateRanked = dateRanked,
-            )
-
-        dataSource.update(updatedBeatmap)
+        return beatmap.copy(
+            artist = osuBeatmap.artist,
+            title = osuBeatmap.title,
+            mapper = osuBeatmap.creator,
+            status = newStatus ?: beatmap.status,
+            gamemodes = updatedBeatmapGamemodes + newGamemodes,
+            dateUpdated = osuBeatmap.last_updated,
+            dateRanked = dateRanked,
+            mainGamemodes = osuBeatmap.findMainGamemodes() ?: beatmap.mainGamemodes,
+        )
     }
 
-    internal fun setupFilter(
+    fun setupFilter(
         artist: String? = null,
         title: String? = null,
         mapper: String? = null,
@@ -366,91 +372,41 @@ class BeatmapService(
         gamemodes: Set<Gamemode> = emptySet(),
         missingNominator: Set<Gamemode> = emptySet(),
         search: String? = null,
-    ): Bson {
-        val filters = mutableListOf<Bson>()
+    ): (Beatmap) -> Boolean {
+        val statuses = page?.let { findStatuses(it, status) } ?: BeatmapStatus.entries.toSet()
 
-        artist?.let { filters += Beatmap::artist regex quote(it).toRegex(RegexOption.IGNORE_CASE) }
-        title?.let { filters += Beatmap::title regex quote(it).toRegex(RegexOption.IGNORE_CASE) }
-        mapper?.let { filters += Beatmap::mapper regex quote(it).toRegex(RegexOption.IGNORE_CASE) }
-        search?.let {
-            filters +=
-                or(
-                    Beatmap::artist regex quote(search).toRegex(RegexOption.IGNORE_CASE),
-                    Beatmap::title regex quote(search).toRegex(RegexOption.IGNORE_CASE),
-                    Beatmap::mapper regex quote(search).toRegex(RegexOption.IGNORE_CASE),
-                )
+        return { beatmap ->
+            beatmap.status in statuses &&
+                beatmap.artist.contains(artist.orEmpty(), true) &&
+                beatmap.title.contains(title.orEmpty(), true) &&
+                beatmap.mapper.contains(mapper.orEmpty(), true) &&
+                listOf(beatmap.artist, beatmap.title, beatmap.mapper).any { it.contains(search.orEmpty(), true) } &&
+                isEmptyOrAny(nominators, beatmap.gamemodes.flatMap { it.nominators }.map { it.nominatorId }) &&
+                isEmptyOrAny(gamemodes, beatmap.gamemodes.map { it.gamemode }) &&
+                isEmptyOrAny(missingNominator, beatmap.gamemodes.filter { it.isMissingNominator() }.map { it.gamemode })
         }
+    }
 
-        if (nominators.isNotEmpty()) {
-            filters += Beatmap::gamemodes / BeatmapGamemode::nominators / BeatmapNominator::nominatorId `in` nominators
-        }
+    private fun <T> isEmptyOrAny(
+        wanted: Set<T>,
+        found: List<T>,
+    ): Boolean = wanted.isEmpty() || found.any { it in wanted }
 
-        if (gamemodes.isNotEmpty()) {
-            filters += Beatmap::gamemodes / BeatmapGamemode::gamemode `in` gamemodes
-        }
+    private fun BeatmapGamemode.isMissingNominator(): Boolean = nominators.any { it.nominatorId == MISSING_USER_ID }
 
-        if (missingNominator.isNotEmpty()) {
-            val missingNominatorFilters =
-                missingNominator.map { gamemode ->
-                    and(
-                        Beatmap::gamemodes / BeatmapGamemode::gamemode eq gamemode,
-                        Beatmap::gamemodes / BeatmapGamemode::nominators / BeatmapNominator::nominatorId eq MISSING_USER_ID,
-                    )
-                }
+    /** The wanted statuses of a page, or all of them when there are none */
+    private fun findStatuses(
+        page: BeatmapPage,
+        wanted: Set<BeatmapStatus>,
+    ): Set<BeatmapStatus> {
+        val ofPage =
+            when (page) {
+                BeatmapPage.PENDING -> BeatmapStatus.entries - BeatmapStatus.Ranked - BeatmapStatus.Graved
+                BeatmapPage.RANKED -> listOf(BeatmapStatus.Ranked)
+                BeatmapPage.GRAVEYARD -> listOf(BeatmapStatus.Graved)
+            }.toSet()
 
-            filters += or(missingNominatorFilters)
-        }
-
-        val parsedStatus =
-            status.mapNotNull {
-                when (page) {
-                    BeatmapPage.PENDING -> {
-                        if (it == BeatmapStatus.Ranked || it == BeatmapStatus.Graved) {
-                            null
-                        } else {
-                            it
-                        }
-                    }
-                    BeatmapPage.RANKED -> {
-                        if (it != BeatmapStatus.Ranked) {
-                            null
-                        } else {
-                            it
-                        }
-                    }
-                    BeatmapPage.GRAVEYARD -> {
-                        if (it != BeatmapStatus.Graved) {
-                            null
-                        } else {
-                            it
-                        }
-                    }
-                    null -> null
-                }
-            }
-
-        if (page != null) {
-            filters +=
-                if (parsedStatus.isNotEmpty()) {
-                    or(
-                        status.map {
-                            "{ status : ${it.toPriorityStatus()} }".bson
-                        },
-                    )
-                } else {
-                    when (page) {
-                        BeatmapPage.PENDING ->
-                            and(
-                                "{ status : { \$ne : ${BeatmapStatus.Ranked.toPriorityStatus()} } }".bson,
-                                "{ status : { \$ne : ${BeatmapStatus.Graved.toPriorityStatus()} } }".bson,
-                            )
-                        BeatmapPage.RANKED -> "{ status : ${BeatmapStatus.Ranked.toPriorityStatus()} }".bson
-                        BeatmapPage.GRAVEYARD -> "{ status : ${BeatmapStatus.Graved.toPriorityStatus()} }".bson
-                    }
-                }
-        }
-
-        return and(filters)
+        return ofPage.intersect(wanted).ifEmpty { ofPage }
     }
 
     @Deprecated("Endpoint has been removed, to be removed")
@@ -464,23 +420,14 @@ class BeatmapService(
         osuId: String,
         newNote: String,
     ): Boolean {
-        val databaseBeatmap = findBeatmap(osuId) ?: return false
-
-        if (databaseBeatmap.note == newNote) {
-            // Nothing to update
-            return true
-        }
-
         val updatedBeatmap =
-            databaseBeatmap.copy(
-                note = newNote,
-                dateUpdated = Instant.now(),
-            )
+            dataSource.modify(osuId) { current ->
+                current.copy(note = newNote, dateUpdated = Instant.now()).takeIf { current.note != newNote }
+            }
 
-        dataSource.update(updatedBeatmap)
-        logBeatmapNoteChange(osuApiToken, updatedBeatmap)
+        updatedBeatmap?.let { logBeatmapNoteChange(osuApiToken, it) }
 
-        return true
+        return findBeatmap(osuId) != null
     }
 
     fun updateBeatmapStatus(
@@ -488,23 +435,14 @@ class BeatmapService(
         osuId: String,
         newStatus: BeatmapStatus,
     ): Boolean {
-        val databaseBeatmap = findBeatmap(osuId) ?: return false
-
-        if (databaseBeatmap.status == newStatus) {
-            // Nothing to update
-            return true
-        }
-
         val updatedBeatmap =
-            databaseBeatmap.copy(
-                status = newStatus,
-                dateUpdated = Instant.now(),
-            )
+            dataSource.modify(osuId) { current ->
+                current.copy(status = newStatus, dateUpdated = Instant.now()).takeIf { current.status != newStatus }
+            }
 
-        dataSource.update(updatedBeatmap)
-        logBeatmapStatusChange(osuApiToken, updatedBeatmap)
+        updatedBeatmap?.let { logBeatmapStatusChange(osuApiToken, it) }
 
-        return true
+        return findBeatmap(osuId) != null
     }
 
     fun updateBeatmapNominators(
@@ -533,44 +471,53 @@ class BeatmapService(
         oldNominator: String,
         newNominator: String,
     ): ExposedBeatmap? {
-        val databaseBeatmap = findBeatmap(osuId) ?: return null
+        // Log to all gamemodes, even the deleted ones
+        var gamemodesBeforeUpdate = emptyList<Gamemode>()
 
         val updatedBeatmap =
-            updateBeatmapGamemode(databaseBeatmap, gamemode) { updatingGamemode ->
-                val (currentFirstNominator, currentSecondNominator) =
-                    updatingGamemode.nominators.let {
-                        it[0] to it[1]
-                    }
-
-                val (newFirstNominator, newSecondNominator) =
-                    if (currentFirstNominator.nominatorId == oldNominator) {
-                        BeatmapNominator(newNominator, false) to currentSecondNominator
-                    } else {
-                        currentFirstNominator to BeatmapNominator(newNominator, false)
-                    }
-
-                // Update the BeatmapGamemode to null when both nominators are missing and this is not the last gamemode of the beatmap set
-                if (newFirstNominator.nominatorId == MISSING_USER_ID &&
-                    newSecondNominator.nominatorId == MISSING_USER_ID &&
-                    databaseBeatmap.gamemodes.size > 1
-                ) {
-                    null
-                } else {
-                    val updatedGamemode =
-                        updatingGamemode.copy(
-                            nominators = listOf(newFirstNominator, newSecondNominator),
-                        )
-
-                    updatedGamemode
-                }
+            dataSource.modify(osuId) { current ->
+                gamemodesBeforeUpdate = current.gamemodes.map { it.gamemode }
+                replaceNominator(current, gamemode, oldNominator, newNominator)
             } ?: return null
 
-        // Use the databaseBeatmap here, so we always log to all gamemodes even the deleted ones
-        val gamemodesBeforeUpdate = databaseBeatmap.gamemodes.map { it.gamemode }
-        dataSource.update(updatedBeatmap)
         logUpdatedNominators(osuApiToken, updatedBeatmap, oldNominator, newNominator, gamemode, gamemodesBeforeUpdate)
 
         return updatedBeatmap.toExposedBeatmap()
+    }
+
+    /** Null when someone else already replaced the old nominator, or the new one already is part of the gamemode */
+    private fun replaceNominator(
+        beatmap: Beatmap,
+        gamemode: Gamemode,
+        oldNominator: String,
+        newNominator: String,
+    ): Beatmap? {
+        // A gamemode that is about to be added only has missing nominators
+        val nominatorIds =
+            beatmap.gamemodes
+                .filter { it.gamemode == gamemode }
+                .flatMap { it.nominators }
+                .map { it.nominatorId }
+                .ifEmpty { listOf(MISSING_USER_ID) }
+
+        if (oldNominator !in nominatorIds || (newNominator != MISSING_USER_ID && newNominator in nominatorIds)) {
+            return null
+        }
+
+        return updateBeatmapGamemode(beatmap, gamemode) { updatingGamemode ->
+            val (first, second) = updatingGamemode.nominators.let { it[0] to it[1] }
+            val newNominators =
+                if (first.nominatorId == oldNominator) {
+                    listOf(BeatmapNominator(newNominator, false), second)
+                } else {
+                    listOf(first, BeatmapNominator(newNominator, false))
+                }
+
+            // Remove the gamemode when both nominators are missing and this is not the last gamemode of the beatmap set
+            updatingGamemode
+                .copy(nominators = newNominators)
+                .takeUnless { beatmap.gamemodes.size > 1 && newNominators.all { it.nominatorId == MISSING_USER_ID } }
+        }
     }
 
     fun updateBeatmapGamemode(
@@ -689,10 +636,16 @@ class BeatmapService(
         val editor = userService.getEditor(osuApiToken)
         log.info { "[UPDATE] ${editor?.username} changed note (beatmap = ${beatmap.osuId})" }
 
+        val noteText =
+            if (beatmap.note.isBlank()) {
+                "$CHANGE_BEATMAP_NOTE_ICON **Removed note**"
+            } else {
+                "$CHANGE_BEATMAP_NOTE_ICON **Updated note**\n```${beatmap.note.replace("""\n  +""".toRegex(), "\n")}```"
+            }
+
         val message =
             StringBuilder()
-                .append("$CHANGE_BEATMAP_NOTE_ICON **Updated note**")
-                .append("\n```${beatmap.note.replace("""\n  +""".toRegex(), "\n")}```")
+                .append(noteText)
                 .append("\n**[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})**")
                 .append("\nMapped by [${beatmap.mapper}](https://osu.ppy.sh/users/${beatmap.mapperId})")
 
@@ -987,6 +940,7 @@ class BeatmapService(
             dateAdded = dateAdded,
             dateUpdated = dateUpdated,
             dateRanked = dateRanked,
+            mainGamemodes = mainGamemodes,
         )
     }
 }

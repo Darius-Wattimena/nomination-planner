@@ -23,6 +23,8 @@ data class Beatmap(
     val dateAdded: Instant,
     val dateUpdated: Instant,
     val dateRanked: Instant?,
+    /** The gamemodes that can be the main one, which is the only one that needs two nominations. Null when unknown. */
+    val mainGamemodes: List<Gamemode>? = null,
 )
 
 data class BeatmapGamemode(

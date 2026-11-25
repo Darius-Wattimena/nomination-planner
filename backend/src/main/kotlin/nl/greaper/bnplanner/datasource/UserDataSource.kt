@@ -8,14 +8,17 @@ import nl.greaper.bnplanner.model.User
 import org.litote.kmongo.getCollection
 import org.litote.kmongo.save
 import org.springframework.stereotype.Component
+import java.util.concurrent.ConcurrentHashMap
 
 @Component
 class UserDataSource(
     private val database: MongoDatabase,
 ) : BaseDataSource<User>() {
-    // Keep users in memory to speed up requests
-    final val usersByOsuId: MutableMap<String, User> = mutableMapOf()
-    final val usersByGamemode: MutableMap<Gamemode, Set<String>> = mutableMapOf()
+    // Keep users in memory to speed up requests, these are used by several requests at once
+    final val usersByOsuId: MutableMap<String, User> = ConcurrentHashMap()
+    final val usersByGamemode: MutableMap<Gamemode, Set<String>> = ConcurrentHashMap()
+
+    final val changes = ChangeLog()
 
     init {
         Gamemode.entries.forEach { gamemode ->
@@ -29,6 +32,7 @@ class UserDataSource(
 
     override fun initCollection(): MongoCollection<User> = database.getCollection<User>("users")
 
+    @Synchronized
     fun removeInMemoryUser(user: User) {
         usersByOsuId.remove(user.osuId)
 
@@ -39,8 +43,11 @@ class UserDataSource(
                 usersByGamemode[gamemode] = userIdsWithoutDeleted
             }
         }
+
+        changes.mark(user.osuId)
     }
 
+    @Synchronized
     fun addInMemoryUser(user: User) {
         usersByOsuId[user.osuId] = user
 
@@ -59,6 +66,8 @@ class UserDataSource(
             // Replace all users of our map
             usersByGamemode[gamemode] = gamemodeUsers
         }
+
+        changes.mark(user.osuId)
     }
 
     fun searchUser(
@@ -99,11 +108,13 @@ class UserDataSource(
 
     fun findUser(osuId: String): User? = usersByOsuId[osuId]
 
+    @Synchronized
     fun saveUser(user: User) {
         collection.save(user)
         addInMemoryUser(user)
     }
 
+    @Synchronized
     fun deleteUser(user: User) {
         removeInMemoryUser(user)
         deleteById(user.osuId)

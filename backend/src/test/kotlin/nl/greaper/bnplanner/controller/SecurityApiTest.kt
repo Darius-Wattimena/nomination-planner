@@ -14,6 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.http.HttpHeaders.AUTHORIZATION
+import org.springframework.security.authorization.AuthorizationDeniedException
 
 class SecurityApiTest : ApiTest() {
     @ParameterizedTest
@@ -24,6 +25,11 @@ class SecurityApiTest : ApiTest() {
             "VIEWER | GET    | /v2/beatmap/count?page=PENDING                               | ",
             "VIEWER | GET    | /v2/beatmap/find?page=PENDING&from=0&to=10                   | ",
             "VIEWER | GET    | /v2/beatmap/find/table?page=PENDING&pageNumber=1&pageLimit=TEN | ",
+            "VIEWER | GET    | /v2/planner                                                  | ",
+            "VIEWER | GET    | /v2/planner/ranked                                           | ",
+            "VIEWER | GET    | /v2/planner/wait                                             | ",
+            "ADMIN  | GET    | /v2/admin/sync/waiting                                       | ",
+            "ADMIN  | POST   | /v2/admin/sync/beatmaps/pending?background=true              | ",
             "VIEWER | GET    | /v2/user/search                                              | ",
             "VIEWER | GET    | /v2/profile/1/pairing                                        | ",
             "EDITOR | POST   | /v2/beatmap/add              | {\"osuId\":\"1\",\"gamemodes\":[]}",
@@ -188,9 +194,9 @@ class SecurityApiTest : ApiTest() {
 
     @Test
     fun `SUSPECTED BUG - Any exception becomes a 400`() {
-        get("/v2/beatmap/find?page=PENDING&from=0&to=10&title=%5CE(").assertUnableToHandle()
+        call(As.VIEWER, "DELETE", "/v2/beatmap/1/delete").assertUnableToHandle()
         val sent = discord.single()
-        assertTrue(sent.description.startsWith("**ERROR:**\n```\njava.util.regex.PatternSyntaxException: "))
+        assertTrue(sent.description.startsWith("**ERROR:**\n```\n${AuthorizationDeniedException::class.java.name}: "))
         assertTrue(sent.description.endsWith("\n```"))
         assertTrue(sent.description.length <= "**ERROR:**\n```\n\n```".length + 1600)
         assertEquals(

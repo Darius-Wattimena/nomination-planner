@@ -13,6 +13,7 @@ import nl.greaper.bnplanner.model.aiess.AiessUserEvent
 import nl.greaper.bnplanner.model.aiess.AiessUserEventType
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.service.AiessService
+import nl.greaper.bnplanner.service.OsuJobs
 import nl.greaper.bnplanner.support.ApiTest
 import nl.greaper.bnplanner.support.FakeOsu
 import nl.greaper.bnplanner.support.Planner.Companion.beatmap
@@ -22,11 +23,15 @@ import org.json.JSONObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.mock.web.MockHttpServletResponse
 import java.time.Instant
 
 /** Contracts of everything except beatmaps */
 class OtherApiTest : ApiTest() {
+    @Autowired
+    lateinit var jobs: OsuJobs
+
     // Login
 
     private val token = createToken(subject = "2")
@@ -251,7 +256,10 @@ class OtherApiTest : ApiTest() {
         )
 
         userEvent("remove").assertJson("""{"result":true}""")
-        assertEquals(listOf(UserGamemode(Gamemode.osu, Role.Nominator)), users.findUser("2")!!.gamemodes)
+        assertEquals(
+            listOf(UserGamemode(Gamemode.osu, Role.Nominator), UserGamemode(Gamemode.taiko, Role.NominationAssessment)),
+            users.findUser("2")!!.gamemodes,
+        )
         assertEquals(400, userEvent("move").status)
         assertEquals(400, userEvent(mode = "catch").status)
     }
@@ -312,6 +320,50 @@ class OtherApiTest : ApiTest() {
         assertSynced(2, sync(As.ADMIN, "beatmaps/pending?status=Qualified,Reset"))
         assertEquals(setOf("1", "4"), synced())
         assertEquals(400, sync(As.ADMIN, "beatmaps/pending?status=Other").status)
+    }
+
+    @Test
+    fun `Should sync pending beatmaps in the background`() {
+        saveEveryStatus()
+
+        assertSynced(2, sync(As.ADMIN, "beatmaps/pending?status=Qualified,Reset&background=true"))
+        jobs.finish()
+        assertEquals(setOf("1", "4"), synced())
+        get("/v2/admin/sync/waiting", As.ADMIN).assertJson("0")
+    }
+
+    // Live updates
+
+    private fun waitForChanges(since: String): Pair<Long, JSONObject> {
+        FakeOsu.respond("GET /api/v2/me", """{"id":1,"username":"Viewer"}""")
+        val start = System.currentTimeMillis()
+        val response = http("GET", "/v2/planner/wait?since=$since", mapOf("Authorization" to As.VIEWER.header!!))
+        assertEquals(200, response.statusCode(), response.body())
+        return (System.currentTimeMillis() - start) to JSONObject(response.body())
+    }
+
+    @Test
+    fun `Should answer when nothing changed for a while`() {
+        val token = JSONObject(get("/v2/planner").contentAsString).getString("token")
+
+        val (duration, update) = waitForChanges(token)
+        assertTrue(duration >= 350, "$duration")
+        assertEquals(token, update.getString("token"))
+        assertEquals(0, update.getJSONArray("beatmaps").length())
+    }
+
+    @Test
+    fun `Should answer as soon as something changed`() {
+        beatmaps.insertOne(beatmap("1", mapperId = "1"))
+        val token = JSONObject(get("/v2/planner").contentAsString).getString("token")
+        Thread {
+            Thread.sleep(100)
+            beatmaps.update(beatmap("1", note = "changed", mapperId = "1"))
+        }.start()
+
+        val (duration, update) = waitForChanges(token)
+        assertTrue(duration < 350, "$duration")
+        assertEquals("changed", update.getJSONArray("beatmaps").getJSONObject(0).getString("note"))
     }
 
     @Test

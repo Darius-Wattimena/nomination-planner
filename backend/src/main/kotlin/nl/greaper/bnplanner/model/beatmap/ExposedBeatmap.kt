@@ -15,6 +15,7 @@ data class ExposedBeatmap(
     val dateAdded: Instant,
     val dateUpdated: Instant,
     val dateRanked: Instant?,
+    val mainGamemodes: List<Gamemode>? = null,
 )
 
 data class ExposedBeatmapGamemode(

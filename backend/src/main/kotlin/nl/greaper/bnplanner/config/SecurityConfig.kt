@@ -1,5 +1,6 @@
 package nl.greaper.bnplanner.config
 
+import jakarta.servlet.DispatcherType
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import nl.greaper.bnplanner.auth.JwtTokenFilter
@@ -35,6 +36,9 @@ class SecurityConfig(
                 }
             }.authorizeHttpRequests { registry ->
                 registry
+                    // Answering a request that waited, which was checked when it came in
+                    .dispatcherTypeMatchers(DispatcherType.ASYNC)
+                    .permitAll()
                     .requestMatchers("/v2/auth", "/v2/auth/refresh", "/actuator/health")
                     .permitAll()
                     .anyRequest()

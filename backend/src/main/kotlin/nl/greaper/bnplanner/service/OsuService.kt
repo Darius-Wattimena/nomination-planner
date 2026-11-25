@@ -79,6 +79,23 @@ class OsuService(
         return null
     }
 
+    private var clientToken: Pair<String, Instant>? = null
+
+    /** Kept until shortly before it expires */
+    @Synchronized
+    fun findClientToken(): String? {
+        val known = clientToken?.takeIf { it.second.isAfter(Instant.now()) }
+
+        if (known != null) {
+            return known.first
+        }
+
+        val token = client.findClientToken() ?: return null
+        clientToken = token.access_token to Instant.now().plusSeconds(token.expires_in.toLong()).minus(5, ChronoUnit.MINUTES)
+
+        return token.access_token
+    }
+
     fun getUserContextByToken(token: AuthToken): UserContext? {
         val tokenExpires =
             Instant
@@ -89,7 +106,11 @@ class OsuService(
         val claims = parseJwtToken(token.access_token) ?: return null
 
         val osuId = claims.subject
-        val user = userService.forceFindUserById(token.access_token, osuId, logEventToDiscord = false)
+        val user =
+            userService.forceFindUserById(token.access_token, osuId, logEventToDiscord = false)
+                // Use what we know when osu! is unavailable
+                ?: userService.findUserById(osuId)
+                ?: return null
 
         return UserContext(user, token.access_token, token.refresh_token, tokenExpires.toEpochMilli(), getHighestRoleForUser(user))
     }

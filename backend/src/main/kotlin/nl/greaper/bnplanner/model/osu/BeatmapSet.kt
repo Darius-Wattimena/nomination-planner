@@ -17,7 +17,14 @@ data class BeatmapSet(
     val ranked_date: Instant? = null,
     val last_updated: Instant,
     val beatmaps: List<Beatmap> = emptyList(),
+    @JsonProperty("nominations_summary")
+    val nominationsSummary: NominationsSummary? = null,
 ) {
+    data class NominationsSummary(
+        @JsonProperty("eligible_main_rulesets")
+        val eligibleMainRulesets: List<String>? = null,
+    )
+
     data class CurrentNomination(
         val rulesets: List<String>,
         val reset: Boolean,

@@ -3,6 +3,7 @@ package nl.greaper.bnplanner.service
 import io.github.oshai.kotlinlogging.KotlinLogging
 import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.client.OsuHttpClient
+import nl.greaper.bnplanner.client.OsuRequestException
 import nl.greaper.bnplanner.datasource.UserDataSource
 import nl.greaper.bnplanner.datasource.UserRecalculateDataSource
 import nl.greaper.bnplanner.model.Gamemode
@@ -55,9 +56,9 @@ class UserService(
                 osuUser.groups
                     ?.mapNotNull { osuGroup ->
                         if (MeGroup.SupportedGroups.contains(osuGroup.id)) {
-                            osuGroup.playmodes?.map { playmode ->
+                            findGamemodes(osuGroup).map { gamemode ->
                                 UserGamemode(
-                                    gamemode = Gamemode.valueOf(playmode.lowercase()),
+                                    gamemode = gamemode,
                                     role = Role.fromOsuId(osuGroup.id),
                                 )
                             }
@@ -67,6 +68,17 @@ class UserService(
                         }
                     }?.flatten() ?: emptyList(),
         )
+
+    private fun findGamemodes(osuGroup: MeGroup): List<Gamemode> {
+        val playmodes = osuGroup.playmodes.orEmpty()
+
+        // NAT members without a gamemode have access to all of them
+        if (osuGroup.id == MeGroup.NAT && playmodes.isEmpty()) {
+            return Gamemode.values().toList()
+        }
+
+        return playmodes.map { Gamemode.valueOf(it.lowercase()) }
+    }
 
     fun createUserByAiessEvent(event: AiessUserEvent): User = User(event.userId, event.username, emptyList())
 
@@ -79,6 +91,8 @@ class UserService(
 
     /**
      * Find an osu user via the API and save them in the database for later use
+     *
+     * Returns null, leaving what we know about the user as is, when osu! gave no clear answer
      */
     fun forceFindUserById(
         osuApiToken: String,
@@ -86,7 +100,13 @@ class UserService(
         logEventToDiscord: Boolean = true,
     ): User? {
         val editor = getEditor(osuApiToken)
-        val osuUser = osuHttpClient.findUserWithId(osuApiToken, osuId)
+        val osuUser =
+            try {
+                osuHttpClient.findUserWithId(osuApiToken, osuId)
+            } catch (ex: OsuRequestException) {
+                log.error(ex) { "Unable to update user (osuId = $osuId)" }
+                return null
+            }
 
         if (osuUser == null) {
             // Should only end up here if the user is restricted or the provided id is invalid

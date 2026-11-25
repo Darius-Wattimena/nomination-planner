@@ -10,7 +10,6 @@ import nl.greaper.bnplanner.support.Planner.Companion.TOKEN
 import nl.greaper.bnplanner.support.Planner.Companion.beatmap
 import nl.greaper.bnplanner.support.Planner.Companion.mode
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -141,11 +140,21 @@ class FixServiceTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - A forced sync deletes a user first and loses their gamemodes when osu is unavailable`() {
+    fun `Should keep a user when osu is unavailable during a forced sync`() {
+        val user = planner.user("10", "BN", Planner.nominator(Gamemode.osu))
+        FakeOsu.respond("GET /api/v2/users/10?key=id", "{}", status = 503)
+        service.syncUsers(TOKEN, setOf("10"), force = true)
+
+        assertEquals(listOf(user), planner.users.list())
+        assertEquals(setOf("10"), planner.users.usersByGamemode[Gamemode.osu])
+    }
+
+    @Test
+    fun `Should remove the gamemodes of a restricted user during a forced sync`() {
         planner.user("10", "BN", Planner.nominator(Gamemode.osu))
         service.syncUsers(TOKEN, setOf("10"), force = true)
 
         assertEquals(listOf(User("10", "RESTRICTED", emptyList(), true)), planner.users.list())
-        assertNull(planner.users.usersByGamemode[Gamemode.osu]!!.find { it == "10" })
+        assertEquals(emptySet<String>(), planner.users.usersByGamemode[Gamemode.osu])
     }
 }

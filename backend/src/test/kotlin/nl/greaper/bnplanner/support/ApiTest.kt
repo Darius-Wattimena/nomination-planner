@@ -115,6 +115,7 @@ abstract class ApiTest {
     @BeforeEach
     fun clear() {
         TestMongo.clear()
+        beatmaps.load()
         FakeOsu.reset()
         discord.sent.clear()
         sleeper.sleeps.clear()

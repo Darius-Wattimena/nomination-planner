@@ -13,6 +13,7 @@ import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
+import org.bson.Document
 import org.bson.conversions.Bson
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.TestConfiguration
@@ -73,7 +74,14 @@ class DefaultTestConfiguration {
                     on { find() } doReturn iterable
                     on { find(any<Bson>()) } doReturn iterable
                 }
+            val documents = getMockIterable<Document>()
+            val mockDocuments =
+                mock<MongoCollection<Document>> {
+                    on { find() } doReturn documents
+                    on { find(any<Bson>()) } doReturn documents
+                }
             on { getCollection(any(), any<Class<Any>>()) } doReturn mockCollection
+            on { getCollection(any()) } doReturn mockDocuments
             on { listCollectionNames() } doReturn mock()
         }
 }

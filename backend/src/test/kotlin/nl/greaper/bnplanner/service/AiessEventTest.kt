@@ -416,11 +416,25 @@ class AiessEventTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - Removing one role removes every role of that gamemode`() {
-        planner.user("5", "BN", bn, UserGamemode(Gamemode.osu, Role.NominationAssessment))
+    fun `Should only remove the role of the group`() {
+        val nat = UserGamemode(Gamemode.osu, Role.NominationAssessment)
+        planner.user("5", "BN", bn, nat)
         userEvent(AiessUserEventType.remove)
 
-        assertUser()
+        assertUser(nat)
+    }
+
+    @Test
+    fun `Should move a user to another group, regardless of the order of the events`() {
+        val nat = UserGamemode(Gamemode.osu, Role.NominationAssessment)
+        planner.user("5", "BN", bn)
+        userEvent(AiessUserEventType.add, "7")
+        userEvent(AiessUserEventType.remove, "28")
+        assertUser(nat)
+
+        userEvent(AiessUserEventType.remove, "7")
+        userEvent(AiessUserEventType.add, "28")
+        assertUser(bn)
     }
 
     @Test

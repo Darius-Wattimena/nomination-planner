@@ -1,6 +1,5 @@
 package nl.greaper.bnplanner.service
 
-import com.nhaarman.mockitokotlin2.mock
 import nl.greaper.bnplanner.auth.OsuTokenVerifierTest.Companion.createToken
 import nl.greaper.bnplanner.auth.RolePermission
 import nl.greaper.bnplanner.model.Gamemode
@@ -201,6 +200,25 @@ class LoginServiceTest {
     }
 
     @Test
+    fun `Should log in a known user with their roles when osu fails to find them`() {
+        planner.users.saveUser(user)
+        FakeOsu.token(token, "new-refresh", 86400)
+        FakeOsu.respond("GET /api/v2/users/5?key=id", "{}", status = 503)
+
+        assertContext(auth.login("code="))
+        assertEquals(listOf(user), planner.users.list())
+    }
+
+    @Test
+    fun `Should not log in an unknown user when osu fails to find them`() {
+        FakeOsu.token(token, "new-refresh", 86400)
+        FakeOsu.respond("GET /api/v2/users/5?key=id", "{}", status = 503)
+
+        assertNull(auth.login("code="))
+        assertEquals(emptyList<User>(), planner.users.list())
+    }
+
+    @Test
     fun `Should log in without Discord`() {
         val auth = Planner(withDiscord = false).authService
         osuKnowsUser()
@@ -346,14 +364,21 @@ class LoginServiceTest {
     }
 
     @Test
-    fun `Should keep the user to update when it can't be found`() {
-        // Never the case at the moment, as an unknown user becomes restricted
-        val updater = UserUpdater(osu, mock<UserService>(), planner.recalculations, planner.tokens)
-        planner.userService.createTemporaryUser("7")
-        planner.tokens.insertOne(AuthToken("Bearer", 86400, decimalToken(later), "refresh"))
-        updater.taskUserUpdater()
+    fun `Should try to update a user again when osu fails to find them`() {
+        FakeOsu.respond("GET /api/v2/users/7?key=id", "{}", status = 503)
+        recalculate(decimalToken(later))
+        assertEquals(
+            setOf("7", "8"),
+            planner.recalculations
+                .list()
+                .map { it.osuId }
+                .toSet(),
+        )
 
-        assertEquals(listOf("7"), planner.recalculations.list().map { it.osuId })
+        FakeOsu.user("7", "Seven")
+        updater.taskUserUpdater()
+        assertEquals("Seven", planner.users.findUser("7")!!.username)
+        assertEquals(listOf("8"), planner.recalculations.list().map { it.osuId })
     }
 
     @Test

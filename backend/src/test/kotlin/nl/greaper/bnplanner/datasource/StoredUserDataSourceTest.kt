@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.concurrent.thread
 
 /** Users, recalculations and tokens as stored in a real MongoDB */
 class StoredUserDataSourceTest {
@@ -117,9 +119,18 @@ class StoredUserDataSourceTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - The cache is a plain map which is not safe to use from several requests`() {
-        assertEquals("java.util.LinkedHashMap", users.usersByOsuId.javaClass.name)
-        assertEquals("java.util.LinkedHashMap", users.usersByGamemode.javaClass.name)
+    fun `Should be safe to use from several requests at once`() {
+        repeat(2000) { users.addInMemoryUser(User("$it", "Known", listOf(bn))) }
+        val failures = ConcurrentLinkedQueue<Throwable>()
+
+        fun start(action: () -> Unit) = thread { runCatching(action).onFailure { failures += it } }
+        val readers = (1..4).map { start { repeat(100) { users.searchUser(null, emptySet(), emptySet()) } } }
+        val writers = (1..4).map { writer -> start { repeat(500) { users.addInMemoryUser(User("$writer-$it", "New", listOf(bn))) } } }
+        (readers + writers).forEach { it.join() }
+
+        assertEquals(emptyList<Throwable>(), failures.toList())
+        assertEquals(4000, users.usersByOsuId.size)
+        assertEquals(4000, users.usersByGamemode[Gamemode.osu]!!.size)
     }
 
     @Test

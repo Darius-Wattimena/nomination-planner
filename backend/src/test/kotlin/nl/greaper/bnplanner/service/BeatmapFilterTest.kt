@@ -11,10 +11,8 @@ import nl.greaper.bnplanner.support.Planner.Companion.beatmap
 import nl.greaper.bnplanner.support.Planner.Companion.mode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
-import java.util.regex.PatternSyntaxException
 
-/** Queries a real MongoDB, so the filters are verified by what they find */
+/** The filters are verified by what they find */
 class BeatmapFilterTest {
     private val planner = Planner()
     private val service = planner.beatmapService
@@ -93,18 +91,13 @@ class BeatmapFilterTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - Statuses of another page are found when combined with a status of the page`() {
+    fun `Should leave out statuses of another page`() {
         saveEveryStatus()
 
-        assertEquals(setOf("Pending", "Ranked"), find(status = setOf(BeatmapStatus.Pending, BeatmapStatus.Ranked)))
-        assertEquals(
-            setOf("Pending", "Ranked"),
-            find(status = setOf(BeatmapStatus.Pending, BeatmapStatus.Ranked), page = BeatmapPage.RANKED),
-        )
-        assertEquals(
-            setOf("Graved", "Ranked"),
-            find(status = setOf(BeatmapStatus.Graved, BeatmapStatus.Ranked), page = BeatmapPage.GRAVEYARD),
-        )
+        val pendingAndRanked = setOf(BeatmapStatus.Pending, BeatmapStatus.Ranked)
+        assertEquals(setOf("Pending"), find(status = pendingAndRanked))
+        assertEquals(setOf("Ranked"), find(status = pendingAndRanked, page = BeatmapPage.RANKED))
+        assertEquals(setOf("Graved"), find(status = pendingAndRanked + BeatmapStatus.Graved, page = BeatmapPage.GRAVEYARD))
     }
 
     @Test
@@ -143,11 +136,11 @@ class BeatmapFilterTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - Text containing the end of a regex quote is used as a regex`() {
-        save(beatmap("1", title = "abc"))
+    fun `Should use text containing the end of a regex quote literally`() {
+        save(beatmap("1", title = "abc"), beatmap("2", title = "\\Ea.c"))
 
-        assertEquals(setOf("1"), find(title = "\\Ea.c\\Q"))
-        assertThrows<PatternSyntaxException> { find(title = "\\Ea.c") }
+        assertEquals(emptySet<String>(), find(title = "\\Ea.c\\Q"))
+        assertEquals(setOf("2"), find(title = "\\Ea.c"))
     }
 
     @Test
@@ -185,10 +178,11 @@ class BeatmapFilterTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - A missing nominator of another gamemode is found`() {
+    fun `Should leave out missing nominators of another gamemode`() {
         save(beatmap("1", mode(Gamemode.osu, "5", "6"), mode(Gamemode.taiko, "7", "0")))
 
-        assertEquals(setOf("1"), find(missingNominator = setOf(Gamemode.osu)))
+        assertEquals(emptySet<String>(), find(missingNominator = setOf(Gamemode.osu)))
+        assertEquals(setOf("1"), find(missingNominator = setOf(Gamemode.taiko)))
     }
 
     @Test

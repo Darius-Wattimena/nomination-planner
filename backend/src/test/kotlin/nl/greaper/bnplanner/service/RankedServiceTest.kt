@@ -1,0 +1,75 @@
+package nl.greaper.bnplanner.service
+
+import nl.greaper.bnplanner.model.Gamemode
+import nl.greaper.bnplanner.model.RankedBeatmap
+import nl.greaper.bnplanner.model.RankedMode
+import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
+import nl.greaper.bnplanner.support.Planner
+import nl.greaper.bnplanner.support.Planner.Companion.UPDATED
+import nl.greaper.bnplanner.support.Planner.Companion.beatmap
+import nl.greaper.bnplanner.support.Planner.Companion.mode
+import nl.greaper.bnplanner.support.Planner.Companion.nominator
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+
+class RankedServiceTest {
+    private val planner = Planner()
+    private val service = RankedService(planner.beatmaps, planner.users, FeedTokens(planner.beatmaps, planner.users))
+
+    @Test
+    fun `Should find every ranked beatmap`() {
+        planner.user("5", "BN", nominator(Gamemode.osu))
+        planner.user("10", "Mapper")
+        BeatmapStatus.entries.forEach { planner.save(beatmap(it.name, status = it)) }
+        planner.save(
+            beatmap(
+                "1",
+                mode(Gamemode.osu, "5", "6"),
+                mode(Gamemode.mania, "0", "5"),
+                status = BeatmapStatus.Ranked,
+                ranked = UPDATED,
+            ),
+        )
+
+        val update = service.find(null)
+        assertTrue(update.isComplete)
+        assertEquals(setOf("Ranked", "1"), update.beatmaps.map { it.id }.toSet())
+        assertEquals(
+            RankedBeatmap(
+                "1",
+                "Title 1",
+                "10",
+                UPDATED,
+                listOf(RankedMode(Gamemode.osu, listOf("5", "6")), RankedMode(Gamemode.mania, listOf("5"))),
+            ),
+            update.beatmaps.single { it.id == "1" },
+        )
+        // Unknown people have no name
+        assertEquals(mapOf("5" to "BN", "10" to "Mapper"), update.names)
+    }
+
+    @Test
+    fun `Should find what changed`() {
+        planner.user("5", "BN", nominator(Gamemode.osu))
+        planner.save(beatmap("1", status = BeatmapStatus.Ranked))
+        planner.save(beatmap("2", status = BeatmapStatus.Ranked))
+        val first = service.find(null)
+        val nothing = service.find(first.token)
+        assertEquals(emptyList<Any>(), nothing.beatmaps + nothing.removed + nothing.names.keys)
+
+        planner.beatmaps.update(beatmap("1", mode(Gamemode.osu, "5"), status = BeatmapStatus.Ranked))
+        planner.beatmaps.update(beatmap("2", status = BeatmapStatus.Pending))
+        planner.beatmaps.update(beatmap("3"))
+        planner.beatmaps.update(beatmap("4", status = BeatmapStatus.Ranked))
+        planner.beatmaps.deleteById("4")
+        planner.user("6", "New")
+        val update = service.find(first.token)
+        assertFalse(update.isComplete)
+        assertEquals(listOf("1"), update.beatmaps.map { it.id })
+        assertEquals(setOf("2", "3", "4"), update.removed.toSet())
+        assertEquals(mapOf("5" to "BN", "6" to "New"), update.names)
+        assertTrue(service.find("unknown").isComplete)
+    }
+}

@@ -10,7 +10,6 @@ import nl.greaper.bnplanner.support.Planner.Companion.beatmap
 import nl.greaper.bnplanner.support.Planner.Companion.mode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 
 class ProfileServiceTest {
     private val planner = Planner()
@@ -62,10 +61,10 @@ class ProfileServiceTest {
     private fun gamemode(vararg nominators: String) = BeatmapGamemode(Gamemode.osu, nominators.map { BeatmapNominator(it, false) }, false)
 
     @Test
-    fun `SUSPECTED BUG - Pairing fails on a single nominator`() {
+    fun `Should not pair with anybody on a single nominator`() {
         planner.save(beatmap("1", gamemode("5")))
 
-        assertThrows<IndexOutOfBoundsException> { pairing() }
+        assertEquals(emptyList<ProfileStatisticsPairInfo>(), pairing())
     }
 
     @Test

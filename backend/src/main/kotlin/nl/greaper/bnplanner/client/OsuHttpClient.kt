@@ -40,7 +40,6 @@ class OsuHttpClient(
                 setReadTimeout(5_000)
             },
         )
-    private val headers = HttpHeaders()
     private val authHeaders = HttpHeaders()
     private val tokenUri = "${config.baseUrl}/oauth/token"
 
@@ -69,6 +68,26 @@ class OsuHttpClient(
             authRest.postForEntity(tokenUri, request)
         } catch (error: Throwable) {
             log.error(error) { "Could not get auth token" }
+            null
+        }
+    }
+
+    /** A token of the planner itself, without any user, which can only read what is public */
+    fun findClientToken(): AuthToken? {
+        val body =
+            objectMapper.writeValueAsString(
+                mapOf(
+                    "client_id" to config.clientId.toInt(),
+                    "client_secret" to config.clientSecret,
+                    "grant_type" to "client_credentials",
+                    "scope" to "public",
+                ),
+            )
+
+        return try {
+            authRest.postForEntity<AuthToken>(tokenUri, HttpEntity(body, authHeaders)).body
+        } catch (ex: RestClientException) {
+            log.error(ex) { "Could not get a token of the planner itself" }
             null
         }
     }
@@ -154,6 +173,11 @@ class OsuHttpClient(
         }
     }
 
+    /**
+     * Find a user, null when osu! doesn't know them (which is also the case for restricted users)
+     *
+     * @throws OsuRequestException when osu! gave no clear answer
+     */
     fun findUserWithId(
         osuApiToken: String,
         osuId: String,
@@ -165,10 +189,12 @@ class OsuHttpClient(
 
         return try {
             val response = get("/users/$osuId?key=id", osuApiToken, includeBearer)
-            return response.body?.let { objectMapper.readValue<Me>(it) }
-        } catch (ex: Exception) {
-            log.error(ex) { "Unable to get a user from the osu api, using id $osuId" }
+            objectMapper.readValue<Me>(response.body ?: "")
+        } catch (ex: HttpClientErrorException.NotFound) {
+            log.info { "User is unknown to the osu api, using id $osuId" }
             null
+        } catch (ex: Exception) {
+            throw OsuRequestException("Unable to get a user from the osu api, using id $osuId", ex)
         }
     }
 
@@ -179,6 +205,8 @@ class OsuHttpClient(
         body: String = "",
         includeBearer: Boolean,
     ): ResponseEntity<String> {
+        // Never share these headers between calls, as they would use the token of each other
+        val headers = HttpHeaders()
         if (includeBearer) {
             headers.setBearerAuth(authToken)
         } else {
@@ -198,3 +226,8 @@ class OsuHttpClient(
         return rest.exchange(requestUri, method, request, String::class.java)
     }
 }
+
+class OsuRequestException(
+    message: String,
+    cause: Throwable,
+) : RuntimeException(message, cause)

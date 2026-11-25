@@ -20,7 +20,9 @@ import nl.greaper.bnplanner.model.discord.EmbedMessage
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
 import nl.greaper.bnplanner.model.discord.Message
 import nl.greaper.bnplanner.model.discord.getValue
+import nl.greaper.bnplanner.model.osu.BeatmapSet
 import nl.greaper.bnplanner.model.toReadableName
+import nl.greaper.bnplanner.support.Planner.Companion.beatmap
 import nl.greaper.bnplanner.support.Planner.Companion.mode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -30,6 +32,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.boot.builder.SpringApplicationBuilder
 import java.io.StringWriter
+import java.time.Instant
 
 class UtilTest {
     @Test
@@ -72,6 +75,62 @@ class UtilTest {
 
         assertEquals(listOf(false, true, true, true), listOf(none, first, second, both).map { it.hasAnyNomination() })
         assertEquals(listOf(false, false, false, true), listOf(none, first, second, both).map { it.hasAllNominations() })
+    }
+
+    @Test
+    fun `Should need two nominations for the main gamemode and one for the others`() {
+        val osuTwice = mode(Gamemode.osu, firstNominated = true, secondNominated = true)
+        val osuOnce = mode(Gamemode.osu, firstNominated = true)
+        val taikoOnce = mode(Gamemode.taiko, secondNominated = true)
+        val taikoNever = mode(Gamemode.taiko)
+        val osu = listOf(Gamemode.osu)
+        val taiko = listOf(Gamemode.taiko)
+
+        assertTrue(beatmap("1", osuTwice).hasEnoughNominations())
+        assertFalse(beatmap("1", osuOnce).hasEnoughNominations())
+        assertTrue(beatmap("1", osuTwice, taikoOnce, main = osu).hasEnoughNominations())
+        assertFalse(beatmap("1", osuTwice, taikoOnce, main = taiko).hasEnoughNominations())
+        assertFalse(beatmap("1", osuTwice, taikoNever, main = osu).hasEnoughNominations())
+        assertTrue(beatmap("1", osuTwice, taikoOnce, main = osu + taiko).hasEnoughNominations())
+        assertFalse(beatmap("1", osuOnce, taikoOnce, main = osu + taiko).hasEnoughNominations())
+        assertTrue(beatmap("1", osuTwice, taikoOnce).hasEnoughNominations())
+        // The main gamemode is not on the planner
+        assertTrue(beatmap("1", osuOnce, main = taiko).hasEnoughNominations())
+    }
+
+    private fun set(
+        vararg difficulties: Pair<Gamemode, Int>,
+        summary: BeatmapSet.NominationsSummary? = null,
+    ) = BeatmapSet(
+        id = "1",
+        title = "Title",
+        artist = "Artist",
+        creator = "Host",
+        user_id = "10",
+        ranked = 0,
+        last_updated = Instant.EPOCH,
+        beatmaps = difficulties.map { (mode, mapper) -> BeatmapSet.Beatmap(100, mapper, mode, "Hard") },
+        nominationsSummary = summary,
+    ).findMainGamemodes()
+
+    @Test
+    fun `Should find the main gamemode by its difficulties`() {
+        val osu = Gamemode.osu to 10
+        val taiko = Gamemode.taiko to 10
+        val guestTaiko = Gamemode.taiko to 11
+
+        assertNull(set())
+        assertNull(set(osu, osu))
+        // The most difficulties
+        assertEquals(listOf(Gamemode.osu), set(osu, osu, taiko))
+        assertEquals(listOf(Gamemode.taiko), set(osu, guestTaiko, guestTaiko))
+        // Otherwise what the host mapped most of
+        assertEquals(listOf(Gamemode.osu), set(osu, guestTaiko))
+        // Otherwise what is nominated first
+        assertEquals(listOf(Gamemode.osu, Gamemode.taiko), set(osu, taiko))
+        // What osu! tells is always right
+        assertEquals(listOf(Gamemode.mania), set(osu, osu, taiko, summary = BeatmapSet.NominationsSummary(listOf("mania"))))
+        assertEquals(listOf(Gamemode.osu), set(osu, osu, taiko, summary = BeatmapSet.NominationsSummary()))
     }
 
     @Test
@@ -135,11 +194,6 @@ class UtilTest {
         assertEquals(setOf("3071175", "2697284", "6694242"), RESTRICTED_IDS)
         assertTrue(RESTRICTED_IDS.all { shouldSkipUser(it) })
         assertFalse(shouldSkipUser("1"))
-    }
-
-    @Test
-    fun `Should quote text for a regex`() {
-        assertEquals("\\Qa.b\\E", quote("a.b"))
     }
 
     @Test

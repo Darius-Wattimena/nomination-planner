@@ -452,7 +452,7 @@ class AiessService(
             }
             AiessUserEventType.remove -> {
                 if (oldGamemode != null) {
-                    val updateUser = changingUser.copy(gamemodes = changingUser.gamemodes.filter { it.gamemode != event.gamemode })
+                    val updateUser = changingUser.copy(gamemodes = changingUser.gamemodes.filter { it != oldGamemode })
 
                     userDataSource.saveUser(updateUser)
 

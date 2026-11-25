@@ -16,6 +16,14 @@ osu:
 
 recalculation.active: false
 
+beatmaps.keep-old: true
+
+planner.wait-millis: 400
+
+osu.background-sync:
+  enabled: false
+  per-minute: 6
+
 cors:
   uris: http://localhost:3000,http://localhost:8080
   methods: GET,POST,PUT,OPTIONS,DELETE,PATCH

@@ -97,12 +97,13 @@ object FakeOsu {
         ranked: Int = 0,
         rankedDate: String? = null,
         nominations: String = "[]",
+        summary: String = "null",
     ) = respond(
         "GET /api/v2/beatmapsets/$id",
         """
         {"id":$id,"artist":"$artist","title":"$title","creator":"$creator","user_id":$userId,"ranked":$ranked,
         "ranked_date":${rankedDate?.let { "\"$it\"" }},"last_updated":"2024-05-06T07:08:09Z","play_count":5,
-        "current_nominations":$nominations,
+        "current_nominations":$nominations,"nominations_summary":$summary,
         "beatmaps":[{"total_length":100,"user_id":$userId,"mode":"osu","version":"Hard","bpm":180.5}]}
         """.trimIndent(),
     )
