@@ -16,7 +16,6 @@ version = "0.0.1-SNAPSHOT"
 
 repositories {
     mavenCentral()
-    maven("https://m2.dv8tion.net/releases")
 }
 
 jacoco {
@@ -57,7 +56,7 @@ dependencies {
     implementation("org.codehaus.janino:janino")
 
     // Discord
-    implementation("net.dv8tion:JDA:4.4.0_350") {
+    implementation("net.dv8tion:JDA:6.7.0") {
         exclude("opus-java")
     }
 

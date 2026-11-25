@@ -6,12 +6,13 @@ import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.events.guild.GuildReadyEvent
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.interactions.commands.Command.Choice
 import net.dv8tion.jda.api.interactions.commands.OptionType
-import net.dv8tion.jda.api.interactions.commands.build.CommandData
+import net.dv8tion.jda.api.interactions.commands.build.Commands
 import net.dv8tion.jda.api.interactions.commands.build.OptionData
+import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData
 import nl.greaper.bnplanner.datasource.DiscordEventListenerDataSource
 import nl.greaper.bnplanner.model.Gamemode
@@ -39,7 +40,7 @@ class DiscordConfig(
     ) : ListenerAdapter() {
         val log = KotlinLogging.logger { }
 
-        override fun onSlashCommand(event: SlashCommandEvent) {
+        override fun onSlashCommandInteraction(event: SlashCommandInteractionEvent) {
             // Ignore all events not from a Discord guild
             if (!event.isFromGuild) {
                 return
@@ -71,11 +72,11 @@ class DiscordConfig(
                 .queue()
         }
 
-        private fun handleStatus(event: SlashCommandEvent) {
+        private fun handleStatus(event: SlashCommandInteractionEvent) {
             event.reply("TODO status message").queue()
         }
 
-        private fun handleListenerRemove(event: SlashCommandEvent) {
+        private fun handleListenerRemove(event: SlashCommandInteractionEvent) {
             event.deferReply().queue()
 
             val isAdmin = event.member?.permissions?.contains(Permission.ADMINISTRATOR) == true
@@ -132,7 +133,7 @@ class DiscordConfig(
             }
         }
 
-        private fun handleListenerRegister(event: SlashCommandEvent) {
+        private fun handleListenerRegister(event: SlashCommandInteractionEvent) {
             event.deferReply().queue()
 
             val gamemodeValue = event.getOption("gamemode")?.asString
@@ -215,7 +216,7 @@ class DiscordConfig(
             }
         }
 
-        private fun getCommand(developerServer: Boolean): CommandData {
+        private fun getCommand(developerServer: Boolean): SlashCommandData {
             val gamemodeOption =
                 OptionData(OptionType.STRING, "gamemode", "The osu! gamemode the event is for")
                     .addChoices(Gamemode.values().map { Choice(it.toReadableName(), it.name) })
@@ -226,7 +227,7 @@ class DiscordConfig(
 
             val removeCommand = SubcommandData("remove", "Remove a listener of bnplanner events")
 
-            val commandData = CommandData("planner", "All nomination planner slash commands")
+            val commandData = Commands.slash("planner", "All nomination planner slash commands")
 
             return if (developerServer) {
                 val statusCommand = SubcommandData("status", "Return the current status of the Nomination Planner")

@@ -4,10 +4,10 @@ import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.Guild
 import net.dv8tion.jda.api.entities.Member
-import net.dv8tion.jda.api.entities.MessageChannel
-import net.dv8tion.jda.api.entities.TextChannel
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
+import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion
 import net.dv8tion.jda.api.events.guild.GuildReadyEvent
-import net.dv8tion.jda.api.events.interaction.SlashCommandEvent
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
 import net.dv8tion.jda.api.interactions.InteractionHook
 import net.dv8tion.jda.api.interactions.commands.OptionMapping
 import net.dv8tion.jda.api.interactions.commands.build.CommandData
@@ -111,7 +111,7 @@ class FakeJda {
                     Mockito.`when`(member.permissions).thenReturn(if (permissions) granted else null)
                 }
             }
-        val channel = Mockito.mock(MessageChannel::class.java)
+        val channel = Mockito.mock(MessageChannelUnion::class.java)
         Mockito.`when`(channel.id).thenReturn(channelId)
         val hook = Mockito.mock(InteractionHook::class.java, sends(null))
         val option =
@@ -120,7 +120,7 @@ class FakeJda {
             }
 
         val event =
-            Mockito.mock(SlashCommandEvent::class.java) {
+            Mockito.mock(SlashCommandInteractionEvent::class.java) {
                 when (it.method.name) {
                     "isFromGuild" -> {
                         isFromGuild
@@ -168,7 +168,7 @@ class FakeJda {
                     }
                 }
             }
-        DiscordBotHandler(dataSource).onSlashCommand(event)
+        DiscordBotHandler(dataSource).onSlashCommandInteraction(event)
     }
 
     fun guildReady(
