@@ -4,9 +4,6 @@ import com.mongodb.client.FindIterable
 import com.mongodb.client.MongoCollection
 import com.mongodb.client.MongoCursor
 import com.mongodb.client.MongoDatabase
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
 import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.User
@@ -15,6 +12,9 @@ import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
 import org.bson.Document
 import org.bson.conversions.Bson
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean

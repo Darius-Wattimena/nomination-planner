@@ -1,8 +1,5 @@
 package nl.greaper.bnplanner.controller
 
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
 import nl.greaper.bnplanner.auth.OsuTokenVerifierTest.Companion.createToken
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
@@ -23,6 +20,9 @@ import org.json.JSONObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.mock.web.MockHttpServletResponse
 import java.time.Instant

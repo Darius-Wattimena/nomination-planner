@@ -61,7 +61,7 @@ dependencies {
         exclude("opus-java")
     }
 
-    testImplementation("com.nhaarman.mockitokotlin2:mockito-kotlin:2.2.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:6.4.0")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("de.flapdoodle.embed:de.flapdoodle.embed.mongo:5.0.0")
     providedRuntime("org.springframework.boot:spring-boot-starter-tomcat")

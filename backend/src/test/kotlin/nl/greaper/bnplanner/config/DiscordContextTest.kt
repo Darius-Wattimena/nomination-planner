@@ -1,6 +1,5 @@
 package nl.greaper.bnplanner.config
 
-import com.nhaarman.mockitokotlin2.whenever
 import net.dv8tion.jda.api.JDA
 import nl.greaper.bnplanner.Application
 import nl.greaper.bnplanner.client.DiscordClient
@@ -14,6 +13,7 @@ import nl.greaper.bnplanner.support.TestMongo
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
