@@ -1,22 +1,28 @@
 package nl.greaper.bnplanner.datasource
 
 import com.mongodb.client.MongoCollection
-import org.litote.kmongo.EMPTY_BSON
-import org.litote.kmongo.deleteOneById
-import org.litote.kmongo.findOne
+import com.mongodb.client.MongoDatabase
+import com.mongodb.client.model.Filters
+import org.bson.Document
 
-abstract class BaseDataSource<T : Any> {
-    protected val collection by lazy { initCollection() }
+/** A collection whose values are turned into documents by hand, so the stored shape is always known */
+abstract class BaseDataSource<T : Any>(
+    private val database: MongoDatabase,
+    private val collectionName: String,
+) {
+    protected val collection: MongoCollection<Document> by lazy { database.getCollection(collectionName) }
 
-    abstract fun initCollection(): MongoCollection<T>
+    protected abstract fun toDocument(value: T): Document
 
-    fun list(): List<T> = collection.find().toList()
+    protected abstract fun fromDocument(document: Document): T
 
-    fun findFirst() = collection.findOne()
+    fun list(): List<T> = collection.find().toList().map { fromDocument(it) }
 
-    fun deleteById(id: String) = collection.deleteOneById(id)
+    fun findFirst(): T? = collection.find().first()?.let { fromDocument(it) }
 
-    fun deleteMany() = collection.deleteMany(EMPTY_BSON)
+    fun deleteById(id: String) = collection.deleteOne(Filters.eq("_id", id))
 
-    fun insertOne(value: T) = collection.insertOne(value)
+    fun deleteMany() = collection.deleteMany(Document())
+
+    fun insertOne(value: T) = collection.insertOne(toDocument(value))
 }

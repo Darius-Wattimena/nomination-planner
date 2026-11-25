@@ -168,4 +168,11 @@ class StoredUserDataSourceTest {
         assertEquals(token, planner.tokens.findFirst())
         assertEquals(1, planner.tokens.deleteMany().deletedCount)
     }
+
+    @Test
+    fun `Should read a token stored without refresh token`() {
+        TestMongo.insert("authToken", """{"token_type": "Bearer", "expires_in": 86400.0, "access_token": "made-up-access"}""")
+
+        assertEquals(AuthToken("Bearer", 86400, "made-up-access"), planner.tokens.findFirst())
+    }
 }

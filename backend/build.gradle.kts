@@ -42,14 +42,14 @@ dependencies {
     // Spring
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter-data-mongodb")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     // Kotlin
     implementation("org.jetbrains.kotlin:kotlin-reflect")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     // Mongo
-    implementation("org.litote.kmongo:kmongo:5.2.0")
+    implementation("org.mongodb:mongodb-driver-sync")
 
     // Logging
     implementation("io.github.oshai:kotlin-logging:7.0.7")

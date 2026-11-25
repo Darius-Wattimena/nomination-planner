@@ -1,14 +1,15 @@
 package nl.greaper.bnplanner.datasource
 
-import com.mongodb.client.MongoCollection
 import com.mongodb.client.MongoDatabase
 import nl.greaper.bnplanner.model.UserRecalculate
-import org.litote.kmongo.getCollection
+import org.bson.Document
 import org.springframework.stereotype.Component
 
 @Component
 class UserRecalculateDataSource(
-    private val database: MongoDatabase,
-) : BaseDataSource<UserRecalculate>() {
-    override fun initCollection(): MongoCollection<UserRecalculate> = database.getCollection<UserRecalculate>("usersRecalculate")
+    database: MongoDatabase,
+) : BaseDataSource<UserRecalculate>(database, "usersRecalculate") {
+    override fun toDocument(value: UserRecalculate): Document = Document("_id", value.osuId)
+
+    override fun fromDocument(document: Document): UserRecalculate = UserRecalculate(document.getString("_id"))
 }

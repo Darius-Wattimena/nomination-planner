@@ -1,26 +1,37 @@
 package nl.greaper.bnplanner.datasource
 
-import com.mongodb.client.MongoCollection
 import com.mongodb.client.MongoDatabase
+import com.mongodb.client.model.Filters
 import com.mongodb.client.result.DeleteResult
 import com.mongodb.client.result.InsertOneResult
 import com.mongodb.client.result.UpdateResult
+import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.discord.DiscordEventListener
-import org.litote.kmongo.and
-import org.litote.kmongo.deleteOne
-import org.litote.kmongo.eq
-import org.litote.kmongo.getCollection
+import org.bson.Document
+import org.bson.conversions.Bson
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 @Component
 @ConditionalOnProperty(prefix = "discord", name = ["enabled"], havingValue = "true")
 class DiscordEventListenerDataSource(
-    private val database: MongoDatabase,
-) : BaseDataSource<DiscordEventListener>() {
-    override fun initCollection(): MongoCollection<DiscordEventListener> = database.getCollection<DiscordEventListener>("discord")
-
+    database: MongoDatabase,
+) : BaseDataSource<DiscordEventListener>(database, "discord") {
     private val listeners = this.list().toMutableList()
+
+    override fun toDocument(value: DiscordEventListener): Document =
+        Document("guildId", value.guildId)
+            .append("channelId", value.channelId)
+            .append("gamemode", value.gamemode?.name)
+            .append("confidential", value.confidential)
+
+    override fun fromDocument(document: Document): DiscordEventListener =
+        DiscordEventListener(
+            guildId = document.getString("guildId"),
+            channelId = document.getString("channelId"),
+            gamemode = document.getString("gamemode")?.let { Gamemode.valueOf(it) },
+            confidential = document.getBoolean("confidential", false),
+        )
 
     private fun addInMemoryListener(listener: DiscordEventListener) {
         listeners.add(listener)
@@ -57,22 +68,14 @@ class DiscordEventListenerDataSource(
         removeInMemoryListener(oldListener)
         addInMemoryListener(newListener)
 
-        return collection.replaceOne(
-            and(
-                DiscordEventListener::guildId eq oldListener.guildId,
-                DiscordEventListener::channelId eq oldListener.channelId,
-            ),
-            newListener,
-        )
+        return collection.replaceOne(findChannel(oldListener), toDocument(newListener))
     }
 
     fun remove(listener: DiscordEventListener): DeleteResult {
         removeInMemoryListener(listener)
-        return collection.deleteOne(
-            and(
-                DiscordEventListener::guildId eq listener.guildId,
-                DiscordEventListener::channelId eq listener.channelId,
-            ),
-        )
+        return collection.deleteOne(findChannel(listener))
     }
+
+    private fun findChannel(listener: DiscordEventListener): Bson =
+        Filters.and(Filters.eq("guildId", listener.guildId), Filters.eq("channelId", listener.channelId))
 }

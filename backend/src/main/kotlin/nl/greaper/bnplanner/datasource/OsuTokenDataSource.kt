@@ -1,14 +1,25 @@
 package nl.greaper.bnplanner.datasource
 
-import com.mongodb.client.MongoCollection
 import com.mongodb.client.MongoDatabase
 import nl.greaper.bnplanner.model.osu.AuthToken
-import org.litote.kmongo.getCollection
+import org.bson.Document
 import org.springframework.stereotype.Component
 
 @Component
 class OsuTokenDataSource(
-    private val database: MongoDatabase,
-) : BaseDataSource<AuthToken>() {
-    override fun initCollection(): MongoCollection<AuthToken> = database.getCollection<AuthToken>("authToken")
+    database: MongoDatabase,
+) : BaseDataSource<AuthToken>(database, "authToken") {
+    override fun toDocument(value: AuthToken): Document =
+        Document("token_type", value.token_type)
+            .append("expires_in", value.expires_in)
+            .append("access_token", value.access_token)
+            .append("refresh_token", value.refresh_token)
+
+    override fun fromDocument(document: Document): AuthToken =
+        AuthToken(
+            token_type = document.getString("token_type"),
+            expires_in = (document["expires_in"] as Number).toInt(),
+            access_token = document.getString("access_token"),
+            refresh_token = document.getString("refresh_token") ?: "",
+        )
 }

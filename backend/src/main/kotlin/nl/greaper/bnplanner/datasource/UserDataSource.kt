@@ -1,19 +1,20 @@
 package nl.greaper.bnplanner.datasource
 
-import com.mongodb.client.MongoCollection
 import com.mongodb.client.MongoDatabase
+import com.mongodb.client.model.Filters
+import com.mongodb.client.model.ReplaceOptions
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
-import org.litote.kmongo.getCollection
-import org.litote.kmongo.save
+import nl.greaper.bnplanner.model.UserGamemode
+import org.bson.Document
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 
 @Component
 class UserDataSource(
-    private val database: MongoDatabase,
-) : BaseDataSource<User>() {
+    database: MongoDatabase,
+) : BaseDataSource<User>(database, "users") {
     // Keep users in memory to speed up requests, these are used by several requests at once
     final val usersByOsuId: MutableMap<String, User> = ConcurrentHashMap()
     final val usersByGamemode: MutableMap<Gamemode, Set<String>> = ConcurrentHashMap()
@@ -30,7 +31,22 @@ class UserDataSource(
         }
     }
 
-    override fun initCollection(): MongoCollection<User> = database.getCollection<User>("users")
+    override fun toDocument(value: User): Document =
+        Document("_id", value.osuId)
+            .append("username", value.username)
+            .append("gamemodes", value.gamemodes.map { Document("gamemode", it.gamemode.name).append("role", it.role.name) })
+            .append("restricted", value.restricted)
+
+    override fun fromDocument(document: Document): User =
+        User(
+            osuId = document.getString("_id"),
+            username = document.getString("username"),
+            gamemodes =
+                document.getList("gamemodes", Document::class.java).map {
+                    UserGamemode(Gamemode.valueOf(it.getString("gamemode")), Role.valueOf(it.getString("role")))
+                },
+            restricted = document.getBoolean("restricted"),
+        )
 
     @Synchronized
     fun removeInMemoryUser(user: User) {
@@ -110,7 +126,7 @@ class UserDataSource(
 
     @Synchronized
     fun saveUser(user: User) {
-        collection.save(user)
+        collection.replaceOne(Filters.eq("_id", user.osuId), toDocument(user), ReplaceOptions().upsert(true))
         addInMemoryUser(user)
     }
 

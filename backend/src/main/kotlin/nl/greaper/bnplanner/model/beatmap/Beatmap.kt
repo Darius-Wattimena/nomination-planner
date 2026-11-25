@@ -5,11 +5,9 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.util.BeatmapStatusDeserializer
 import nl.greaper.bnplanner.util.BeatmapStatusSerializer
-import org.bson.codecs.pojo.annotations.BsonId
 import java.time.Instant
 
 data class Beatmap(
-    @BsonId
     val osuId: String,
     val artist: String,
     val title: String,

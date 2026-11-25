@@ -1,9 +1,6 @@
 package nl.greaper.bnplanner.model.beatmap
 
-import org.bson.codecs.pojo.annotations.BsonId
-
 data class LegacyBeatmap(
-    @BsonId
     val _id: Long,
     val artist: String,
     val title: String,
