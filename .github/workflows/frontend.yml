@@ -1,0 +1,70 @@
+name: Frontend
+
+on:
+  push:
+    branches: [master]
+    paths: [frontend/**, .github/workflows/frontend.yml]
+  pull_request:
+    paths: [frontend/**, .github/workflows/frontend.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: frontend
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/build
+          retention-days: 14
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Required reviewers on this environment take the place of the approval step of CircleCI
+    environment: production
+    concurrency:
+      group: deploy-frontend
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: build
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
+
+      - name: Deploy to the S3 bucket
+        working-directory: .
+        run: aws s3 sync build s3://bnplanner.greaper.net --delete --exact-timestamps
+
+      - name: Invalidate CloudFront
+        working-directory: .
+        run: aws cloudfront create-invalidation --distribution-id E5XATFDRCHYNT --paths "/*"

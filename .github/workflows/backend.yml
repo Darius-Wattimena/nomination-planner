@@ -1,0 +1,83 @@
+name: Backend
+
+on:
+  push:
+    branches: [master]
+    paths: [backend/**, .github/workflows/backend.yml]
+  pull_request:
+    paths: [backend/**, .github/workflows/backend.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The MongoDB the tests start, downloaded once
+      - uses: actions/cache@v4
+        with:
+          path: ~/.embedmongo
+          key: embedmongo-${{ runner.os }}-v1
+
+      # Tests, formatting and the coverage check
+      - run: ./gradlew build
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: backend/build/reports
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-war
+          path: backend/build/libs/*.war
+          retention-days: 14
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Required reviewers on this environment take the place of the approval step of CircleCI
+    environment: production
+    concurrency:
+      group: deploy-backend
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
+
+      - name: Deploy to Elastic Beanstalk
+        run: ./gradlew deployProduction -x test -x check
