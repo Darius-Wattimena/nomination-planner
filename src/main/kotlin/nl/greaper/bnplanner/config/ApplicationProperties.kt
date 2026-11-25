@@ -17,6 +17,7 @@ data class OsuProperties(
     val clientId: String,
     val clientSecret: String,
     val redirectUri: String,
+    val baseUrl: String = "https://osu.ppy.sh",
 )
 
 @ConfigurationProperties("cors")

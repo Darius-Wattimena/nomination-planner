@@ -1,3 +1,4 @@
+import org.gradle.testing.jacoco.tasks.JacocoReportBase
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -6,6 +7,7 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint") version "12.2.0"
     id("fi.evident.beanstalk") version "0.3.3"
     war
+    jacoco
     kotlin("jvm") version "2.1.20"
     kotlin("plugin.spring") version "2.1.20"
 }
@@ -18,6 +20,10 @@ java.targetCompatibility = JavaVersion.VERSION_17
 repositories {
     mavenCentral()
     maven("https://m2.dv8tion.net/releases")
+}
+
+jacoco {
+    toolVersion = "0.8.14"
 }
 
 ktlint {
@@ -57,6 +63,7 @@ dependencies {
 
     testImplementation("com.nhaarman.mockitokotlin2:mockito-kotlin:2.2.0")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("de.flapdoodle.embed:de.flapdoodle.embed.mongo:4.24.0")
     providedRuntime("org.springframework.boot:spring-boot-starter-tomcat")
 }
 
@@ -70,6 +77,46 @@ compileKotlin.kotlinOptions {
 tasks {
     withType<Test> {
         useJUnitPlatform()
+    }
+
+    // Classes a test is meaningless for
+    val coverageExclusions =
+        listOf(
+            // Only the main function starting the server, tests start the application themselves
+            "nl/greaper/bnplanner/ApplicationKt.class",
+        )
+
+    withType<JacocoReportBase> {
+        dependsOn(test)
+        classDirectories.setFrom(
+            sourceSets.main
+                .get()
+                .output.asFileTree
+                .matching { exclude(coverageExclusions) },
+        )
+    }
+
+    jacocoTestReport {
+        reports {
+            xml.required.set(true)
+        }
+    }
+
+    jacocoTestCoverageVerification {
+        violationRules {
+            rule {
+                listOf("LINE", "BRANCH").forEach {
+                    limit {
+                        counter = it
+                        minimum = BigDecimal.ONE
+                    }
+                }
+            }
+        }
+    }
+
+    check {
+        dependsOn(jacocoTestReport, jacocoTestCoverageVerification)
     }
 
     beanstalk {

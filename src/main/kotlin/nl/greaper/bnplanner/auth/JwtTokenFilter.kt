@@ -39,12 +39,7 @@ class JwtTokenFilter(
 
         when {
             header.startsWith("Aiess ") -> {
-                val token =
-                    header
-                        .split(" ".toRegex())
-                        .toTypedArray()
-                        .getOrNull(1)
-                        ?.trim()
+                val token = findToken(header)
 
                 if (isAiessToken(token)) {
                     val permission = getAiessRole()
@@ -64,16 +59,7 @@ class JwtTokenFilter(
             }
             header.startsWith("Bearer ") -> {
                 // Get jwt token and validate
-                val token =
-                    header
-                        .split(" ".toRegex())
-                        .toTypedArray()
-                        .getOrNull(1)
-                        ?.trim()
-                if (token == null) {
-                    chain.doFilter(request, response)
-                    return
-                }
+                val token = findToken(header)
 
                 val osuId =
                     try {
@@ -118,9 +104,12 @@ class JwtTokenFilter(
         return
     }
 
-    private fun isAiessToken(token: String?): Boolean {
+    /** Only for headers starting with a scheme and space, so there is always a (possibly empty) token */
+    private fun findToken(header: String): String = header.split(" ")[1].trim()
+
+    private fun isAiessToken(token: String): Boolean {
         // Without a configured token nobody can be Aiess, instead of everyone providing an empty token
-        if (token.isNullOrBlank() || aiess.token.isBlank()) {
+        if (token.isBlank() || aiess.token.isBlank()) {
             return false
         }
 

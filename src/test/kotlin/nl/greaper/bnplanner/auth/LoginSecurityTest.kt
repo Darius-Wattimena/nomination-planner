@@ -67,8 +67,10 @@ class LoginSecurityTest : BaseTest() {
 
     @Test
     fun `Should refuse an empty Aiess token when none is configured`() {
-        mvc
-            .post("/v2/aiess/event/user") { header(AUTHORIZATION, "Aiess  x") }
-            .andExpect { status { isUnauthorized() } }
+        listOf("Aiess  x", "Aiess ", "Aiess x").forEach {
+            mvc
+                .post("/v2/aiess/event/user") { header(AUTHORIZATION, it) }
+                .andExpect { status { isUnauthorized() } }
+        }
     }
 }

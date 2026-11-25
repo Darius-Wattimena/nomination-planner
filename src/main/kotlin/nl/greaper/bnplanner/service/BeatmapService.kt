@@ -27,6 +27,7 @@ import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
 import nl.greaper.bnplanner.service.UserService.Companion.MISSING_USER_ID
+import nl.greaper.bnplanner.util.Sleeper
 import nl.greaper.bnplanner.util.getEmojiIcon
 import nl.greaper.bnplanner.util.hasAllNominations
 import nl.greaper.bnplanner.util.hasAnyNomination
@@ -50,6 +51,7 @@ class BeatmapService(
     private val userService: UserService,
     private val osuHttpClient: OsuHttpClient,
     private val discordClient: DiscordClient?,
+    private val sleeper: Sleeper = Sleeper.THREAD,
 ) {
     val log = KotlinLogging.logger { }
 
@@ -188,7 +190,7 @@ class BeatmapService(
 
         if (databaseUser == null || databaseUser.restricted == true) {
             // Sleep the thread if we need to find the user as well to avoid the call being blocked
-            Thread.sleep(1_000)
+            sleeper.sleep(1_000)
             userService.forceFindUserById(parsedToken, osuBeatmap.user_id)
         }
 
@@ -354,7 +356,7 @@ class BeatmapService(
         dataSource.update(updatedBeatmap)
     }
 
-    private fun setupFilter(
+    internal fun setupFilter(
         artist: String? = null,
         title: String? = null,
         mapper: String? = null,
@@ -727,7 +729,7 @@ class BeatmapService(
         )
     }
 
-    private fun getChangedNominatorText(
+    internal fun getChangedNominatorText(
         newNominator: User?,
         oldNominator: User?,
         isMultipleGamemodes: Boolean? = null,

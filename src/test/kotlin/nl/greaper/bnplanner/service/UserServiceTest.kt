@@ -1,0 +1,178 @@
+package nl.greaper.bnplanner.service
+
+import nl.greaper.bnplanner.auth.OsuTokenVerifierTest.Companion.createToken
+import nl.greaper.bnplanner.model.Gamemode
+import nl.greaper.bnplanner.model.Role
+import nl.greaper.bnplanner.model.User
+import nl.greaper.bnplanner.model.UserGamemode
+import nl.greaper.bnplanner.model.UserRecalculate
+import nl.greaper.bnplanner.model.discord.EmbedColor
+import nl.greaper.bnplanner.model.discord.EmbedFooter
+import nl.greaper.bnplanner.model.discord.EmbedThumbnail
+import nl.greaper.bnplanner.support.FakeOsu
+import nl.greaper.bnplanner.support.Planner
+import nl.greaper.bnplanner.support.Planner.Companion.TOKEN
+import nl.greaper.bnplanner.support.Planner.Companion.nominator
+import nl.greaper.bnplanner.support.RecordingDiscord.Sent
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+
+class UserServiceTest {
+    private val planner = Planner()
+    private val service = planner.userService
+
+    private fun force(
+        id: String = "5",
+        log: Boolean = true,
+    ) = service.forceFindUserById(TOKEN, id, log)
+
+    private fun sent(
+        description: String,
+        color: EmbedColor,
+    ) = Sent(description, color, true, emptyList(), EmbedThumbnail("https://a.ppy.sh/5"), EmbedFooter("Nomination Planner"))
+
+    @Test
+    fun `Should find a user at osu and save it`() {
+        FakeOsu.user(
+            "5",
+            "BN",
+            """
+            [{"id":28,"identifier":"bng","name":"Beatmap Nominators","playmodes":["osu","Mania"]},
+            {"id":32,"playmodes":["taiko"]},{"id":7,"playmodes":["fruits"]},
+            {"id":11,"playmodes":["osu"]},{"id":16,"playmodes":null},{"id":28,"playmodes":null},{"id":7}]
+            """,
+        )
+        val expected =
+            User(
+                "5",
+                "BN",
+                listOf(
+                    nominator(Gamemode.osu),
+                    nominator(Gamemode.mania),
+                    UserGamemode(Gamemode.taiko, Role.Probation),
+                    UserGamemode(Gamemode.fruits, Role.NominationAssessment),
+                ),
+            )
+
+        assertEquals(expected, force())
+        assertEquals(expected, service.findUserById("5"))
+        assertEquals(listOf(expected), planner.users.list())
+        assertEquals(sent("Created user 5, with username: BN", EmbedColor.BLUE), planner.discord.single())
+    }
+
+    @Test
+    fun `Should find a user without groups`() {
+        FakeOsu.respond("GET /api/v2/users/5?key=id", """{"id":5,"username":"Mapper"}""")
+        FakeOsu.respond("GET /api/v2/users/6?key=id", """{"id":6,"username":"Mapper","groups":null}""")
+
+        assertEquals(User("5", "Mapper", emptyList()), force(log = false))
+        assertEquals(User("6", "Mapper", emptyList()), force("6", log = false))
+        assertEquals(emptyList<Sent>(), planner.discord.sent)
+    }
+
+    @Test
+    fun `Should save a user osu does not know as restricted`() {
+        val expected = User("5", "RESTRICTED", emptyList(), restricted = true)
+
+        assertEquals(expected, force(log = false))
+        assertEquals(listOf(expected), planner.users.list())
+        assertEquals(sent("Could not find user with id 5, created restricted user", EmbedColor.ORANGE), planner.discord.single())
+    }
+
+    @Test
+    fun `SUSPECTED BUG - A known user becomes restricted when osu is unavailable`() {
+        planner.user("5", "BN", nominator(Gamemode.osu))
+        FakeOsu.respond("GET /api/v2/users/5?key=id", "", status = 503)
+
+        assertEquals(User("5", "RESTRICTED", emptyList(), restricted = true), force())
+    }
+
+    @Test
+    fun `SUSPECTED BUG - A user of a gamemode the planner does not know fails`() {
+        FakeOsu.user("5", "BN", """[{"id":28,"playmodes":["new-mode"]}]""")
+
+        assertThrows<IllegalArgumentException> { force() }
+    }
+
+    @Test
+    fun `Should find users with and without a known editor`() {
+        planner.user("99", "Editor")
+        FakeOsu.user("5", "BN")
+
+        assertEquals("BN", service.forceFindUserById(TOKEN, "5")!!.username)
+        assertEquals("BN", service.forceFindUserById("unreadable", "5")!!.username)
+        assertEquals("RESTRICTED", service.forceFindUserById(TOKEN, "6")!!.username)
+        assertEquals("RESTRICTED", service.forceFindUserById("unreadable", "6")!!.username)
+    }
+
+    @Test
+    fun `Should work without Discord`() {
+        val service = Planner(withDiscord = false).userService
+        FakeOsu.user("5", "BN")
+
+        assertEquals("BN", service.forceFindUserById(TOKEN, "5")!!.username)
+        assertEquals("RESTRICTED", service.forceFindUserById(TOKEN, "6")!!.username)
+    }
+
+    @Test
+    fun `Should find a user by id`() {
+        val user = planner.user("5")
+
+        assertEquals(user, service.findUserById("5"))
+        assertNull(service.findUserById("6"))
+        assertNull(service.findUserById("-1"))
+        assertNull(service.findUserById("-2"))
+        assertEquals(User("0", "None", emptyList()), service.findUserById("0"))
+    }
+
+    @Test
+    fun `Should delete a user`() {
+        service.deleteUser(planner.user("5"))
+
+        assertNull(service.findUserById("5"))
+    }
+
+    @Test
+    fun `Should create a temporary user to recalculate`() {
+        val expected = User("5", "5", emptyList())
+
+        assertEquals(expected, service.createTemporaryUser("5"))
+        assertEquals(expected, service.findUserById("5"))
+        assertEquals(UserRecalculate("5"), planner.recalculations.findFirst())
+    }
+
+    @Test
+    fun `SUSPECTED BUG - Searching users returns at most 20, sorted by username`() {
+        (1..25).shuffled().forEach { planner.user("$it", "User %02d".format(it), nominator(Gamemode.osu)) }
+
+        assertEquals((1..20).map { "$it" }, service.searchUser(null, null, null).map { it.osuId })
+        assertEquals((20..25).map { "$it" }, service.searchUser("user 2", setOf(Gamemode.osu), setOf(Role.Nominator)).map { it.osuId })
+        assertTrue(service.searchUser(null, setOf(Gamemode.mania), null).isEmpty())
+    }
+
+    @Test
+    fun `Should sort found users case sensitive`() {
+        planner.user("1", "b", nominator(Gamemode.osu))
+        planner.user("2", "A", nominator(Gamemode.osu))
+        planner.user("3", "C", nominator(Gamemode.osu))
+
+        assertEquals(listOf("A", "C", "b"), service.searchUser(null, null, null).map { it.username })
+    }
+
+    @Test
+    fun `Should find the editor of a token`() {
+        val editor = planner.user("99")
+
+        assertEquals("99", service.getEditorId(TOKEN))
+        assertEquals("99", service.getEditorId("Bearer $TOKEN"))
+        assertEquals(editor, service.getEditor(TOKEN))
+        assertNull(service.getEditorId("unreadable"))
+        assertNull(service.getEditor("unreadable"))
+        assertNull(service.getEditor(createToken(subject = "98")))
+        // Expired tokens can't be read
+        assertNull(service.getEditorId(createToken(expires = 1)))
+    }
+}

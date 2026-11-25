@@ -2,7 +2,8 @@ spring.jackson.default-property-inclusion: non_null
 
 mongodb:
   host: localhost
-  port: 27017
+  # Nothing listens here, tests get the port of their own MongoDB and never reach one running on this machine
+  port: 1
   auth-db: admin
   username: ""
   password: ""

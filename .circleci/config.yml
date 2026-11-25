@@ -27,6 +27,7 @@ jobs:
       - save_cache:
           paths:
             - ~/.gradle
+            - ~/.embedmongo
             - ~/build-cache
           key: v2-{{ checksum "build.gradle.kts" }}
 

@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
 import nl.greaper.bnplanner.model.beatmap.BeatmapPage
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
+import nl.greaper.bnplanner.util.Sleeper
 import org.springframework.stereotype.Service
 import kotlin.random.Random
 import kotlin.system.measureTimeMillis
@@ -13,6 +14,7 @@ class FixService(
     private val beatmapDataSource: BeatmapDataSource,
     private val userService: UserService,
     private val beatmapService: BeatmapService,
+    private val sleeper: Sleeper = Sleeper.THREAD,
 ) {
     val log = KotlinLogging.logger { }
 
@@ -77,7 +79,7 @@ class FixService(
                 beatmaps.forEachIndexed { index, beatmapId ->
                     syncBeatmapById(osuToken, beatmapId)
                     log.info { "[${index + 1}/$totalBeatmaps] Beatmap $beatmapId synced, sleeping." }
-                    Thread.sleep(1_000L + Random.nextInt(0, 1000))
+                    sleeper.sleep(1_000L + Random.nextInt(0, 1000))
                 }
             }
 
@@ -153,7 +155,7 @@ class FixService(
 
                         userService.forceFindUserById(token, userId)
                         log.info { "[${index + 1}/$totalUsers] User $userId synced, sleeping." }
-                        Thread.sleep(1_000L + Random.nextInt(0, 1000))
+                        sleeper.sleep(1_000L + Random.nextInt(0, 1000))
                     } else {
                         log.info { "[${index + 1}/$totalUsers] User ${currentUser.username} is already good, skipping." }
                     }

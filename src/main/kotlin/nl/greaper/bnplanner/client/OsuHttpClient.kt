@@ -42,7 +42,7 @@ class OsuHttpClient(
         )
     private val headers = HttpHeaders()
     private val authHeaders = HttpHeaders()
-    private val tokenUri = "https://osu.ppy.sh/oauth/token"
+    private val tokenUri = "${config.baseUrl}/oauth/token"
 
     init {
         authHeaders.contentType = MediaType.APPLICATION_JSON
@@ -65,13 +65,12 @@ class OsuHttpClient(
         val body = objectMapper.writeValueAsString(osuOAuth)
         val request = HttpEntity(body, authHeaders)
 
-        runCatching {
-            return authRest.postForEntity(tokenUri, request)
-        }.onFailure { error ->
+        return try {
+            authRest.postForEntity(tokenUri, request)
+        } catch (error: Throwable) {
             log.error(error) { "Could not get auth token" }
+            null
         }
-
-        return null
     }
 
     fun refreshToken(refreshToken: String): ResponseEntity<AuthToken>? {
@@ -108,7 +107,7 @@ class OsuHttpClient(
         val request = HttpEntity<Void>(HttpHeaders().apply { setBearerAuth(token) })
 
         return try {
-            val response = verifyRest.exchange("https://osu.ppy.sh/api/v2/me", HttpMethod.GET, request, Me::class.java)
+            val response = verifyRest.exchange("${config.baseUrl}/api/v2/me", HttpMethod.GET, request, Me::class.java)
             response.body?.id
         } catch (ex: HttpClientErrorException) {
             if (ex.statusCode == HttpStatus.UNAUTHORIZED || ex.statusCode == HttpStatus.FORBIDDEN) {
@@ -173,7 +172,7 @@ class OsuHttpClient(
         }
     }
 
-    private fun request(
+    internal fun request(
         uri: String,
         method: HttpMethod,
         authToken: String,
@@ -192,7 +191,7 @@ class OsuHttpClient(
             } else {
                 HttpEntity(body, headers)
             }
-        val requestUri = "https://osu.ppy.sh/api/v2$uri"
+        val requestUri = "${config.baseUrl}/api/v2$uri"
 
         log.info { "$method ==> $requestUri" }
 
