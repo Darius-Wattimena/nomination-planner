@@ -45,7 +45,7 @@ export default function NominatorYear({id, self}: NominatorYearProps) {
   const helped = inYear.filter(it => firsts.has(it.osuId))
 
   return (
-    <section className="desk-group year">
+    <section className="map-group year">
       <header>
         <h2>{self ? "Your" : "Their"} {year}</h2>
         {years.length > 1 &&
@@ -76,7 +76,7 @@ export function NominatorBadges({id}: {id: string}) {
   if (!maps) return null
 
   return (
-    <section className="desk-group">
+    <section className="map-group">
       <header><h2>Badges</h2></header>
       <Badges badges={earned}/>
     </section>
@@ -92,7 +92,7 @@ export function NewPairings({user, pairings}: {user: User, pairings: Pairing[]})
   if (fresh.length === 0) return null
 
   return (
-    <section className="desk-group">
+    <section className="map-group">
       <header><h2>Not nominated together yet</h2><span className="muted">They nominate your modes too</span></header>
       <ul className="fresh">
         {fresh.map(it => <li key={it.osuId}><Link to={`/team?user=${it.osuId}`}><Avatar user={it}/><span><strong>{it.username}</strong><RoleBadges user={it}/></span></Link></li>)}

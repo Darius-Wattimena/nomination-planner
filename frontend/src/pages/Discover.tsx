@@ -115,7 +115,7 @@ function Deck({user}: {user: User}) {
               <Card key={current.map.osuId} map={current.map} mode={current.mode} reason={current.reason} song={song} onDecide={decide} onOpen={() => open(current.map.osuId)}/>
               <div className="deck-actions">
                 <button className="deck-button" onClick={() => decide("pass")}><FaXmark/>Skip</button>
-                <ClaimButton key={current.map.osuId} map={current.map} mode={current.mode} user={user}/>
+                <JoinButton key={current.map.osuId} map={current.map} mode={current.mode} user={user}/>
                 <button className="deck-button deck-like" onClick={() => decide("like")}><FaHeart/>Interested</button>
               </div>
               <div className="deck-foot">
@@ -137,7 +137,7 @@ function Deck({user}: {user: User}) {
               : <ul className="map-list">
                   {liked.map(it => (
                     <MapRow key={it.map.osuId} beatmap={it.map} selected={opened === it.map.osuId} reason={it.reason} onOpen={() => open(it.map.osuId)}>
-                      <ClaimButton map={it.map} mode={it.mode} user={user} small/>
+                      <JoinButton map={it.map} mode={it.mode} user={user} small/>
                       <button className="icon-button" aria-label={`Remove ${it.map.title}`} title="Remove" onClick={() => forget(it.map.osuId)}><FaXmark/></button>
                     </MapRow>
                   ))}
@@ -150,10 +150,10 @@ function Deck({user}: {user: User}) {
   )
 }
 
-function ClaimButton({map, mode, user, small}: {map: Beatmap, mode: Gamemode, user: User, small?: boolean}) {
-  const {claim} = useNominators(map)
+function JoinButton({map, mode, user, small}: {map: Beatmap, mode: Gamemode, user: User, small?: boolean}) {
+  const {join} = useNominators(map)
   return (
-    <button className={small ? "button button-tint" : "deck-button deck-claim"} aria-label={`I'll nominate ${map.title} for ${GAMEMODE_NAMES[mode]}`} onClick={() => claim(mode, user)}>
+    <button className={small ? "button button-tint" : "deck-button deck-join"} aria-label={`I'll nominate ${map.title} for ${GAMEMODE_NAMES[mode]}`} onClick={() => join(mode, user)}>
       I'll nominate
     </button>
   )

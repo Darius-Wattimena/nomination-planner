@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {BeatmapStatus, Gamemode} from "../models/Types";
 import {beatmap, bn, mode, probation} from "../test/builders";
-import {ageInDays, ageLabel, deskGroup, isStale, nextStep, stageOf, suggestions, toDate} from "./workflow";
+import {ageInDays, ageLabel, partOf, isStale, nextStep, stageOf, suggestions, toDate} from "./workflow";
 
 const {Osu, Taiko} = Gamemode
 const NOW = new Date("2026-06-01T12:00:00Z")
@@ -80,26 +80,26 @@ describe("nextStep", () => {
   })
 })
 
-describe("deskGroup", () => {
+describe("partOf", () => {
   it("leaves out beatmaps somebody is not part of", () => {
     const map = beatmap({gamemodes: [mode(Osu, bn("1"))]})
 
-    expect(deskGroup(map, undefined)).toBeUndefined()
-    expect(deskGroup(map, "5")).toBeUndefined()
-    expect(deskGroup({...map, status: BeatmapStatus.Ranked}, "1")).toBeUndefined()
-    expect(deskGroup({...map, status: BeatmapStatus.Qualified}, "1")).toBe("qualified")
+    expect(partOf(map, undefined)).toBeUndefined()
+    expect(partOf(map, "5")).toBeUndefined()
+    expect(partOf({...map, status: BeatmapStatus.Ranked}, "1")).toBeUndefined()
+    expect(partOf({...map, status: BeatmapStatus.Qualified}, "1")).toBe("qualified")
   })
 
   it("follows the nominations of the main mode", () => {
-    expect(deskGroup(beatmap({gamemodes: [mode(Osu, bn("1"), [bn("2"), true])]}), "1")).toBe("move")
-    expect(deskGroup(beatmap({gamemodes: [mode(Osu, bn("1"))]}), "1")).toBe("partner")
-    expect(deskGroup(beatmap({gamemodes: [mode(Osu, bn("1"), bn("2"))]}), "1")).toBe("checking")
-    expect(deskGroup(beatmap({gamemodes: [mode(Osu, [bn("1"), true], bn("2"))]}), "1")).toBe("waiting")
-    expect(deskGroup(beatmap({status: BeatmapStatus.Disqualified, gamemodes: [mode(Osu, bn("1"), bn("2"))]}), "1")).toBe("move")
+    expect(partOf(beatmap({gamemodes: [mode(Osu, bn("1"), [bn("2"), true])]}), "1")).toBe("move")
+    expect(partOf(beatmap({gamemodes: [mode(Osu, bn("1"))]}), "1")).toBe("partner")
+    expect(partOf(beatmap({gamemodes: [mode(Osu, bn("1"), bn("2"))]}), "1")).toBe("checking")
+    expect(partOf(beatmap({gamemodes: [mode(Osu, [bn("1"), true], bn("2"))]}), "1")).toBe("waiting")
+    expect(partOf(beatmap({status: BeatmapStatus.Disqualified, gamemodes: [mode(Osu, bn("1"), bn("2"))]}), "1")).toBe("move")
   })
 
   it("looks for a full nominator next to one on probation", () => {
-    expect(deskGroup(beatmap({gamemodes: [mode(Osu, probation("1"), probation("2"))]}), "1")).toBe("partner")
+    expect(partOf(beatmap({gamemodes: [mode(Osu, probation("1"), probation("2"))]}), "1")).toBe("partner")
   })
 
   it("lets another mode of a hybrid wait until the rest is nominated", () => {
@@ -107,15 +107,15 @@ describe("deskGroup", () => {
     const ready = beatmap({mainGamemodes: [Osu], gamemodes: [mode(Osu, [bn("1"), true], [bn("2"), true]), mode(Taiko, bn("3", Taiko))]})
     const done = beatmap({mainGamemodes: [Osu], gamemodes: [mode(Osu, bn("1"), bn("2")), mode(Taiko, [bn("3", Taiko), true])]})
 
-    expect(deskGroup(waiting, "3")).toBe("checking")
-    expect(deskGroup(ready, "3")).toBe("move")
-    expect(deskGroup(done, "3")).toBe("waiting")
+    expect(partOf(waiting, "3")).toBe("checking")
+    expect(partOf(ready, "3")).toBe("move")
+    expect(partOf(done, "3")).toBe("waiting")
   })
 
   it("shows the most urgent group of all modes", () => {
     const map = beatmap({gamemodes: [mode(Osu, bn("1"), bn("2")), mode(Taiko, [user1Taiko(), false], [bn("4", Taiko), true])]})
 
-    expect(deskGroup(map, "1")).toBe("move")
+    expect(partOf(map, "1")).toBe("move")
   })
 })
 

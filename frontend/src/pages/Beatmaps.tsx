@@ -147,7 +147,7 @@ export default function Beatmaps() {
               const before = columns.slice(0, columns.indexOf(column)).reduce((sum, it) => sum + it.maps.length, 0)
               const shown = column.maps.slice(0, Math.max(0, limit - before))
               return shown.length === 0 ? null : (
-                <section key={column.id} className="desk-group">
+                <section key={column.id} className="map-group">
                   <header><h2>{column.label}</h2><span className="count">{column.maps.length}</span></header>
                   <ul className="map-list">{shown.map((it: Beatmap) => <MapRow key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={() => open(it.osuId)}/>)}</ul>
                 </section>

@@ -2,7 +2,7 @@ import {describe, expect, it} from "vitest";
 import {BeatmapStatus, Gamemode} from "../models/Types";
 import {beatmap, bn, mode, probation, user} from "../test/builders";
 import {
-  canClaim,
+  canJoin,
   doneNominations,
   isHybrid,
   lacksFullNominator,
@@ -149,26 +149,26 @@ describe("joining a mode", () => {
   const osu = map.gamemodes[0]
 
   it("is possible for a nominator of that mode", () => {
-    expect(canClaim(map, osu, bn("5"))).toBe(true)
-    expect(canClaim(map, osu, probation("5"))).toBe(true)
+    expect(canJoin(map, osu, bn("5"))).toBe(true)
+    expect(canJoin(map, osu, probation("5"))).toBe(true)
   })
 
   it("is not possible for others", () => {
-    expect(canClaim(map, osu, undefined)).toBe(false)
-    expect(canClaim(map, osu, user("5"))).toBe(false)
-    expect(canClaim(map, osu, bn("5", Taiko))).toBe(false)
-    expect(canClaim(map, osu, bn("1"))).toBe(false)
-    expect(canClaim(beatmap({mapper: bn("5"), gamemodes: [osu]}), osu, bn("5"))).toBe(false)
-    expect(canClaim({...map, status: BeatmapStatus.Ranked}, osu, bn("5"))).toBe(false)
-    expect(canClaim({...map, status: BeatmapStatus.Graved}, osu, bn("5"))).toBe(false)
+    expect(canJoin(map, osu, undefined)).toBe(false)
+    expect(canJoin(map, osu, user("5"))).toBe(false)
+    expect(canJoin(map, osu, bn("5", Taiko))).toBe(false)
+    expect(canJoin(map, osu, bn("1"))).toBe(false)
+    expect(canJoin(beatmap({mapper: bn("5"), gamemodes: [osu]}), osu, bn("5"))).toBe(false)
+    expect(canJoin({...map, status: BeatmapStatus.Ranked}, osu, bn("5"))).toBe(false)
+    expect(canJoin({...map, status: BeatmapStatus.Graved}, osu, bn("5"))).toBe(false)
     const full = beatmap({gamemodes: [mode(Osu, bn("1"), bn("2"))]})
-    expect(canClaim(full, full.gamemodes[0], bn("5"))).toBe(false)
+    expect(canJoin(full, full.gamemodes[0], bn("5"))).toBe(false)
   })
 
   it("needs a full nominator when the other one is on probation", () => {
     const waiting = beatmap({gamemodes: [mode(Osu, probation("1"))]})
 
-    expect(canClaim(waiting, waiting.gamemodes[0], probation("5"))).toBe(false)
-    expect(canClaim(waiting, waiting.gamemodes[0], bn("5"))).toBe(true)
+    expect(canJoin(waiting, waiting.gamemodes[0], probation("5"))).toBe(false)
+    expect(canJoin(waiting, waiting.gamemodes[0], bn("5"))).toBe(true)
   })
 })

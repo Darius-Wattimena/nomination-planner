@@ -1,7 +1,7 @@
 import {GAMEMODE_NAMES} from "../Constants";
 import type {Beatmap, Gamemode, User} from "../models/Types";
 import {BeatmapStatus} from "../models/Types";
-import {canClaim, lacksFullNominator, modesMissing, needsFullNominator, openSpot, openSpots, othersAreDone, roleOf, spots} from "./nominations";
+import {canJoin, lacksFullNominator, modesMissing, needsFullNominator, openSpot, openSpots, othersAreDone, roleOf, spots} from "./nominations";
 import {isMissing} from "./users";
 
 export type Stage = "attention" | "open" | "checking" | "nominated" | "qualified" | "archived"
@@ -46,7 +46,7 @@ export function nextStep(map: Beatmap, userId: string | undefined): {text: strin
   }
 
   const prefix = stageOf(map) === "attention" ? `${map.status}. ` : ""
-  const move = deskGroup(map, userId)
+  const move = partOf(map, userId)
   if (move === "move") return {text: prefix ? `${prefix}Check it again` : "Your turn to nominate", tone: "you"}
 
   const open = openSpots(map)
@@ -64,15 +64,15 @@ export function nextStep(map: Beatmap, userId: string | undefined): {text: strin
   return {text: prefix + text, tone: prefix ? "warn" : "calm"}
 }
 
-export type DeskGroup = "move" | "partner" | "checking" | "waiting" | "qualified"
+export type Part = "move" | "partner" | "checking" | "waiting" | "qualified"
 
 /** Where a beatmap belongs on the desk of a nominator, or undefined when they are not involved */
-export function deskGroup(map: Beatmap, userId: string | undefined): DeskGroup | undefined {
+export function partOf(map: Beatmap, userId: string | undefined): Part | undefined {
   const modes = map.gamemodes.filter(mode => mode.nominators.some(it => it.nominator.osuId === userId))
   if (!userId || modes.length === 0 || stageOf(map) === "archived") return undefined
   if (map.status === BeatmapStatus.Qualified) return "qualified"
 
-  const groups = modes.map((mode): DeskGroup => {
+  const groups = modes.map((mode): Part => {
     const mine = mode.nominators.find(it => it.nominator.osuId === userId)!
     const partner = mode.nominators.find(it => it !== mine)
     if (lacksFullNominator(map, mode)) return "partner"
@@ -90,9 +90,9 @@ export function deskGroup(map: Beatmap, userId: string | undefined): DeskGroup |
 /** Open beatmaps this user could take, the ones that are closest to being done first */
 export function suggestions(maps: Beatmap[], user: User, rankedWith: (name: string) => number, only?: Gamemode) {
   return maps
-    .filter(map => !deskGroup(map, user.osuId))
+    .filter(map => !partOf(map, user.osuId))
     .flatMap(map => map.gamemodes
-      .filter(mode => (!only || mode.gamemode === only) && canClaim(map, mode, user) && (!openSpot(map, mode)?.optional || openSpots(map) > 0))
+      .filter(mode => (!only || mode.gamemode === only) && canJoin(map, mode, user) && (!openSpot(map, mode)?.optional || openSpots(map) > 0))
       .slice(0, 1)
       .map(mode => {
         const partner = mode.nominators.map(it => it.nominator).find(it => !isMissing(it))

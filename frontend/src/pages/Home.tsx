@@ -14,10 +14,11 @@ import PageHeader from "../ui/PageHeader";
 import {Freshness} from "../ui/Help";
 import {LoginButton} from "../ui/States";
 import {canEdit, useSession} from "../utils/session";
-import type {DeskGroup} from "../utils/workflow";
-import {deskGroup, stageOf, suggestions} from "../utils/workflow";
+import type {Part} from "../utils/workflow";
+import {stageOf, suggestions} from "../utils/workflow";
+import {involvementOf} from "../utils/involvement";
 
-const GROUPS: {id: DeskGroup, title: string, hint: string}[] = [
+const GROUPS: {id: Part, title: string, hint: string}[] = [
   {id: "move", title: "Waiting for your nomination", hint: "The other nominator is done, or it has to be checked again"},
   {id: "partner", title: "Looking for a second nominator", hint: "You plan to nominate these"},
   {id: "checking", title: "Planned", hint: "You didn't nominate yet"},
@@ -25,7 +26,7 @@ const GROUPS: {id: DeskGroup, title: string, hint: string}[] = [
   {id: "qualified", title: "Qualified", hint: "Ranked soon, unless it gets disqualified"}
 ]
 
-export default function Desk() {
+export default function Home() {
   const user = useSession()?.user
   return user ? <Workspace user={user}/> : <Welcome/>
 }
@@ -60,7 +61,8 @@ function Workspace({user}: {user: User}) {
   )
 
   const all = maps ?? []
-  const groups = GROUPS.map(group => ({...group, maps: all.filter(it => deskGroup(it, user.osuId) === group.id)}))
+  const mine = involvementOf(all, user.osuId)
+  const groups = GROUPS.map(group => ({...group, maps: mine.filter(it => it.part === group.id).map(it => it.map)}))
   const moves = groups[0].maps.length
   const busy = groups.some(it => it.maps.length > 0)
   const mapped = all.filter(it => it.mapper.osuId === user.osuId).sort((a, b) => Number(stageOf(b) === "attention") - Number(stageOf(a) === "attention"))
@@ -79,7 +81,7 @@ function Workspace({user}: {user: User}) {
   const ids = Array.from(new Set([...(nominator ? [] : mapped), ...groups.flatMap(it => it.maps), ...mapped, ...fits.map(it => it.map)].map(it => it.osuId)))
 
   const own = mapped.length > 0 &&
-    <section className="desk-group">
+    <section className="map-group">
       <header><h2>Your own beatmaps</h2><span className="count">{mapped.length}</span><span className="muted">Where they are in the process</span></header>
       <ul className="map-list">{mapped.map(it => row(it))}</ul>
     </section>
@@ -96,24 +98,24 @@ function Workspace({user}: {user: User}) {
           const list = <ul className="map-list">{part.map(it => row(it))}</ul>
           // Nothing to do for these, so they stay out of the way
           return (id === "waiting" || id === "qualified") && part.length > 3
-            ? <details key={id} className="desk-group"><summary>{heading}</summary>{list}</details>
-            : <section key={id} className={`desk-group desk-${id}`}><header>{heading}</header>{list}</section>
+            ? <details key={id} className="map-group"><summary>{heading}</summary>{list}</details>
+            : <section key={id} className={`map-group part-${id}`}><header>{heading}</header>{list}</section>
         })}
 
         {nominator && own}
 
         {fits.length > 0 &&
-          <section className="desk-group">
+          <section className="map-group">
             <header><h2>Looking for a nominator</h2><span className="muted">In your modes, those with a nomination first</span></header>
             <ul className="map-list">
-              {fits.map(({map, mode, reason}) => row(map, reason, <ClaimButton beatmap={map} mode={mode} user={user}/>))}
+              {fits.map(({map, mode, reason}) => row(map, reason, <JoinButton beatmap={map} mode={mode} user={user}/>))}
             </ul>
             <Link to="/discover">Listen to all of them</Link>
           </section>
         }
 
         {maps && !busy && mapped.length === 0 && fits.length === 0 &&
-          <div className="desk-empty">
+          <div className="home-empty">
             <p>You have no beatmaps in progress.</p>
             <Link className="button button-primary" to="/beatmaps?q=">See all beatmaps</Link>
           </div>
@@ -123,7 +125,7 @@ function Workspace({user}: {user: User}) {
   )
 }
 
-function ClaimButton({beatmap, mode, user}: {beatmap: Beatmap, mode: Gamemode, user: User}) {
-  const {claim} = useNominators(beatmap)
-  return <button className="button button-tint" onClick={() => claim(mode, user)} aria-label={`I'll nominate ${beatmap.title} for ${GAMEMODE_NAMES[mode]}`}>I'll nominate</button>
+function JoinButton({beatmap, mode, user}: {beatmap: Beatmap, mode: Gamemode, user: User}) {
+  const {join} = useNominators(beatmap)
+  return <button className="button button-tint" onClick={() => join(mode, user)} aria-label={`I'll nominate ${beatmap.title} for ${GAMEMODE_NAMES[mode]}`}>I'll nominate</button>
 }

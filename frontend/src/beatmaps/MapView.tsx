@@ -17,10 +17,10 @@ import {EmptyState, Loading} from "../ui/States";
 import StatusBadge from "../ui/StatusBadge";
 import {useToast} from "../ui/Toast";
 import {canEdit, isAdmin, useSession} from "../utils/session";
-import {canClaim, doneNominations, isHybrid, lacksFullNominator, needsFullNominator, neededNominations, openSpot, roleOf, spots} from "../utils/nominations";
+import {canJoin, doneNominations, isHybrid, lacksFullNominator, needsFullNominator, neededNominations, openSpot, roleOf, spots} from "../utils/nominations";
 import {highestRole, isMissing, onProbation, sortedModes} from "../utils/users";
 import {ageLabel, nextStep, toDate} from "../utils/workflow";
-import {workload} from "../utils/workload";
+import {inProgress} from "../utils/involvement";
 import {useNominators} from "./actions";
 import NominatorPicker from "./NominatorPicker";
 import Note from "./Note";
@@ -185,8 +185,8 @@ interface ModeRowProps {
 
 function ModeRow({beatmap, mode, editable, selected, onSelect}: ModeRowProps) {
   const user = useSession()?.user
-  const {claim} = useNominators(beatmap)
-  const claimable = editable && canClaim(beatmap, mode, user)
+  const {join} = useNominators(beatmap)
+  const joinable = editable && canJoin(beatmap, mode, user)
   const needsFull = needsFullNominator(beatmap, mode)
   const firstOpen = openSpot(beatmap, mode)?.index
   const shown = spots(beatmap, mode)
@@ -216,8 +216,8 @@ function ModeRow({beatmap, mode, editable, selected, onSelect}: ModeRowProps) {
                         onClick={() => onSelect(index)}>{content}</button>
               : <div className="cell-main">{content}</div>
             }
-            {missing && claimable && index === firstOpen &&
-              <button className="button button-primary" aria-label={`I'll nominate ${GAMEMODE_NAMES[mode.gamemode]}`} onClick={() => user && claim(mode.gamemode, user)}>I'll nominate</button>
+            {missing && joinable && index === firstOpen &&
+              <button className="button button-primary" aria-label={`I'll nominate ${GAMEMODE_NAMES[mode.gamemode]}`} onClick={() => user && join(mode.gamemode, user)}>I'll nominate</button>
             }
           </div>
         )
@@ -261,7 +261,7 @@ function SlotInspector({beatmap, slot, mode, onClose}: SlotInspectorProps) {
       {current &&
         <div className="inspector-person">
           <Avatar user={current} size="large"/>
-          <div><strong>{current.username}</strong><RoleBadges user={current}/><span className="muted">{workload(maps, current.osuId).active} in progress</span></div>
+          <div><strong>{current.username}</strong><RoleBadges user={current}/><span className="muted">{inProgress(maps, current.osuId)} in progress</span></div>
           <button className="button" onClick={() => {
             remove(slot.mode, current)
             onClose()

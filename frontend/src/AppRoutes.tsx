@@ -6,7 +6,7 @@ import Shell from "./ui/Shell";
 import {EmptyState, Loading, LoginButton} from "./ui/States";
 import {useSession} from "./utils/session";
 
-const Desk = lazy(() => import("./pages/Desk"));
+const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/Login"));
 const Beatmaps = lazy(() => import("./pages/Beatmaps"));
 const Discover = lazy(() => import("./pages/Discover"));
@@ -20,7 +20,7 @@ export default function AppRoutes() {
     <Suspense fallback={<Loading/>}>
       <Routes>
         <Route element={<Shell/>}>
-          <Route path="/" element={<Desk/>}/>
+          <Route path="/" element={<Home/>}/>
           <Route path="/login" element={<Login/>}/>
           <Route path="/beatmaps" element={<RequireAuth><Beatmaps/></RequireAuth>}/>
           <Route path="/discover" element={<RequireAuth><Discover/></RequireAuth>}/>

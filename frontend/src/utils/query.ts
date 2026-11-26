@@ -1,7 +1,7 @@
 import type {Beatmap, User} from "../models/Types";
 import {Gamemode} from "../models/Types";
 import {openSpot, openSpots} from "./nominations";
-import {deskGroup, isStale, stageOf} from "./workflow";
+import {partOf, isStale, stageOf} from "./workflow";
 
 /** A query is plain text, so it can be typed, shared and saved: "tv size mode:catch is:open" */
 export interface Token {
@@ -53,8 +53,8 @@ function matches(map: Beatmap, {key, value}: Token, user: User | undefined): boo
         && (text === "me" ? nominator.osuId === user?.osuId : nominator.osuId === text || nominator.username.toLowerCase().includes(text))))
     case "is":
       if (text === "open") return openSpots(map) > 0
-      if (text === "mine") return deskGroup(map, user?.osuId) !== undefined
-      if (text === "move") return deskGroup(map, user?.osuId) === "move"
+      if (text === "mine") return partOf(map, user?.osuId) !== undefined
+      if (text === "move") return partOf(map, user?.osuId) === "move"
       if (text === "stale") return isStale(map)
       if (text === "noted") return !!map.note?.trim()
       return true

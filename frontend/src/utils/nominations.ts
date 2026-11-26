@@ -110,7 +110,7 @@ export function othersAreDone(map: Beatmap, mode: BeatmapGamemode) {
 }
 
 /** Whether the user can join this mode */
-export function canClaim(map: Beatmap, mode: BeatmapGamemode, user: User | undefined) {
+export function canJoin(map: Beatmap, mode: BeatmapGamemode, user: User | undefined) {
   return !!user
     && map.status !== "Ranked"
     && map.status !== "Graved"

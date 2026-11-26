@@ -5,7 +5,7 @@ import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
 import {GAMEMODE_NAMES, GAMEMODES, ROLES} from "../Constants";
-import type {Beatmap, Pairing, User, UserRole} from "../models/Types";
+import type {Pairing, User, UserRole} from "../models/Types";
 import {Gamemode} from "../models/Types";
 import Api from "../resources/Api";
 import {useQuery} from "../resources/client";
@@ -20,14 +20,16 @@ import {MODE_WORDS} from "../utils/query";
 import {useSession} from "../utils/session";
 import {needsFullNominator, openSpot, openSpots} from "../utils/nominations";
 import {highestRole, isMissing} from "../utils/users";
-import type {DeskGroup} from "../utils/workflow";
-import {ageInDays, deskGroup, stageOf} from "../utils/workflow";
+import type {Part} from "../utils/workflow";
+import {ageInDays, stageOf} from "../utils/workflow";
+import type {Involvement} from "../utils/involvement";
+import {involvementOf} from "../utils/involvement";
 
 const TEAM_ROLES: UserRole[] = ["NominationAssessment", "Nominator", "Probation"]
-const PLATE = 5
+const SHOWN_COVERS = 5
 
-const ORDER: DeskGroup[] = ["move", "partner", "checking", "waiting", "qualified"]
-const STATE: Record<DeskGroup, string> = {
+const ORDER: Part[] = ["move", "partner", "checking", "waiting", "qualified"]
+const STATE: Record<Part, string> = {
   move: "their turn",
   partner: "needs a second nominator",
   checking: "planned",
@@ -38,13 +40,13 @@ const STATE: Record<DeskGroup, string> = {
 interface Member {
   user: User
   /** Everything that still asks for something, the most urgent first */
-  plate: {map: Beatmap, group: DeskGroup}[]
+  inProgress: Involvement[]
   moves: number
   qualified: number
   together: number
 }
 
-type Sorting = "room" | "together" | "name"
+type Sorting = "free" | "together" | "name"
 
 /** Who you can team up with, what they are on, and where help is needed */
 export default function Team() {
@@ -58,35 +60,32 @@ function Overview() {
   const {maps = [], nominators} = usePlanner()
   const {selected, open, close} = useOpenMap()
   const [mode, setMode] = useState<Gamemode>(self?.gamemodes[0]?.gamemode ?? Gamemode.Osu)
-  const [sorting, setSorting] = useState<Sorting>("room")
+  const [sorting, setSorting] = useState<Sorting>("free")
   const [role, setRole] = useState<UserRole>()
   const [text, setText] = useState("")
 
   const pairings = useQuery<Pairing[]>(self && Api.fetchPairings(self.osuId))
 
   const members = (nominators ?? []).filter(it => highestRole(it, mode) !== "Mapper").map((user): Member => {
-    const all = maps.flatMap(map => {
-      const group = deskGroup(map, user.osuId)
-      return group ? [{map, group}] : []
-    })
+    const all = involvementOf(maps, user.osuId)
     return {
       user,
-      plate: all.filter(it => it.group !== "qualified").sort((a, b) => ORDER.indexOf(a.group) - ORDER.indexOf(b.group) || ageInDays(b.map) - ageInDays(a.map)),
-      moves: all.filter(it => it.group === "move").length,
-      qualified: all.filter(it => it.group === "qualified").length,
+      inProgress: all.filter(it => it.part !== "qualified").sort((a, b) => ORDER.indexOf(a.part) - ORDER.indexOf(b.part) || ageInDays(b.map) - ageInDays(a.map)),
+      moves: all.filter(it => it.part === "move").length,
+      qualified: all.filter(it => it.part === "qualified").length,
       together: pairings.data?.find(it => it.name === user.username)?.pairingRanked ?? 0
     }
   })
-  // Room is relative, what is much for one team is little for another
-  const loads = members.map(it => it.plate.length).sort((a, b) => a - b)
+  // Being free is relative, what is much for one team is little for another
+  const loads = members.map(it => it.inProgress.length).sort((a, b) => a - b)
   const usual = loads[Math.floor(loads.length / 2)] ?? 0
-  const hasRoom = (it: Member) => it.plate.length === 0 || it.plate.length < usual
+  const isFree = (it: Member) => it.inProgress.length === 0 || it.inProgress.length < usual
 
   const shown = members
     .filter(it => !role || highestRole(it.user, mode) === role)
     .filter(it => it.user.username.toLowerCase().includes(text.trim().toLowerCase()))
-    .sort((a, b) => sorting === "room" ? a.plate.length - b.plate.length || b.together - a.together
-      : sorting === "together" ? b.together - a.together || a.plate.length - b.plate.length
+    .sort((a, b) => sorting === "free" ? a.inProgress.length - b.inProgress.length || b.together - a.together
+      : sorting === "together" ? b.together - a.together || a.inProgress.length - b.inProgress.length
       : a.user.username.localeCompare(b.user.username))
 
   const help = maps
@@ -120,7 +119,7 @@ function Overview() {
             </div>
             <label className="team-sort muted">Sort by{" "}
               <select id="team-sort" value={sorting} onChange={event => setSorting(event.target.value as Sorting)}>
-                <option value="room">fewest in progress</option>
+                <option value="free">fewest in progress</option>
                 <option value="together">ranked with me</option>
                 <option value="name">name</option>
               </select>
@@ -129,10 +128,10 @@ function Overview() {
           {loading && <Loading/>}
           {!loading && members.length > 0 && shown.length === 0 && <p className="muted team-none">Nobody matches.</p>}
           <ul className="members">
-            {shown.map(it => <MemberCard key={it.user.osuId} member={it} mode={mode} room={hasRoom(it)} self={it.user.osuId === self?.osuId}/>)}
+            {shown.map(it => <MemberCard key={it.user.osuId} member={it} mode={mode} free={isFree(it)} self={it.user.osuId === self?.osuId}/>)}
           </ul>
-          {shown.some(it => it.plate.length > 0) &&
-            <p className="legend muted">{ORDER.filter(it => it !== "qualified").map(it => <span key={it} className="legend-item"><span className="plate-key" data-state={it}/>{STATE[it]}</span>)}</p>
+          {shown.some(it => it.inProgress.length > 0) &&
+            <p className="legend muted">{ORDER.filter(it => it !== "qualified").map(it => <span key={it} className="legend-item"><span className="covers-key" data-state={it}/>{STATE[it]}</span>)}</p>
           }
         </div>
 
@@ -159,8 +158,8 @@ function Overview() {
   )
 }
 
-function MemberCard({member, mode, room, self}: {member: Member, mode: Gamemode, room: boolean, self: boolean}) {
-  const {user, plate, moves, qualified, together} = member
+function MemberCard({member, mode, free, self}: {member: Member, mode: Gamemode, free: boolean, self: boolean}) {
+  const {user, inProgress, moves, qualified, together} = member
   const role = ROLES[highestRole(user, mode)]
   const others = user.gamemodes.filter(it => it.gamemode !== mode && it.role !== "Mapper").map(it => it.gamemode)
   const facts = [
@@ -180,14 +179,14 @@ function MemberCard({member, mode, room, self}: {member: Member, mode: Gamemode,
             {others.map(it => <ModeIcon key={it} mode={it}/>)}
           </span>
         </div>
-        <span className="member-load" data-room={room || undefined}>{plate.length === 0 ? "Nothing planned" : `${plate.length} in progress`}</span>
+        <span className="member-load" data-free={free || undefined}>{inProgress.length === 0 ? "Nothing planned" : `${inProgress.length} in progress`}</span>
       </div>
-      <div className="plate" role="img" aria-label={plate.length === 0 ? "Nothing in progress" : `Nominating ${plate.slice(0, PLATE).map(it => `${it.map.title}, ${STATE[it.group]}`).join("; ")}`}>
-        {plate.slice(0, PLATE).map(({map, group}) => (
-          <span key={map.osuId} className="plate-map" data-state={group} title={`${map.title}: ${STATE[group]}`}><Cover id={map.osuId} size="card"/></span>
+      <div className="covers" role="img" aria-label={inProgress.length === 0 ? "Nothing in progress" : `Nominating ${inProgress.slice(0, SHOWN_COVERS).map(it => `${it.map.title}, ${STATE[it.part]}`).join("; ")}`}>
+        {inProgress.slice(0, SHOWN_COVERS).map(({map, part}) => (
+          <span key={map.osuId} className="covers-map" data-state={part} title={`${map.title}: ${STATE[part]}`}><Cover id={map.osuId} size="card"/></span>
         ))}
-        {Array.from({length: Math.max(0, PLATE - plate.length)}, (_, index) => <span key={index} className="plate-map plate-empty"/>)}
-        {plate.length > PLATE && <span className="plate-more">+{plate.length - PLATE}</span>}
+        {Array.from({length: Math.max(0, SHOWN_COVERS - inProgress.length)}, (_, index) => <span key={index} className="covers-map covers-empty"/>)}
+        {inProgress.length > SHOWN_COVERS && <span className="covers-more">+{inProgress.length - SHOWN_COVERS}</span>}
       </div>
       <p className="member-facts">{facts.join(" · ")}</p>
     </li>
@@ -204,12 +203,8 @@ function Profile({id}: {id: string}) {
   const known = maps.flatMap(it => [...it.gamemodes.flatMap(mode => mode.nominators).map(slot => slot.nominator), it.mapper]).find(it => it.osuId === id)
   const user = isSelf ? self : known ?? nominators.find(it => it.osuId === id)
 
-  const own = maps
-    .flatMap(map => {
-      const group = deskGroup(map, id)
-      return group ? [{map, group}] : []
-    })
-    .sort((a, b) => ORDER.indexOf(a.group) - ORDER.indexOf(b.group))
+  const own = [...involvementOf(maps, id)]
+    .sort((a, b) => ORDER.indexOf(a.part) - ORDER.indexOf(b.part))
     .map(it => it.map)
   const partners = [...(pairings.data ?? [])].sort((a, b) => b.pairingRanked - a.pairingRanked || b.pairingPending - a.pairingPending).slice(0, 8)
   const most = Math.max(1, ...partners.map(it => it.pairingRanked + it.pairingPending))
@@ -235,7 +230,7 @@ function Profile({id}: {id: string}) {
 
       <div className="profile-layout">
         <div>
-          <section className="desk-group">
+          <section className="map-group">
             <header><h2>In progress</h2><span className="count">{own.length}</span></header>
             {own.length === 0
               ? <p className="muted">Nothing in progress.</p>
@@ -246,7 +241,7 @@ function Profile({id}: {id: string}) {
         </div>
         <aside>
           <NominatorBadges id={id}/>
-          <section className="desk-group">
+          <section className="map-group">
             <header><h2>Nominates with</h2></header>
             {partners.length > 0 && <p className="legend muted"><span className="key key-check"/>ranked <span className="key key-wait"/>now</p>}
             {pairings.loading && <Loading/>}

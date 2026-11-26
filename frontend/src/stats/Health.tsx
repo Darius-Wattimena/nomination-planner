@@ -7,7 +7,7 @@ import {MODE_WORDS} from "../utils/query";
 import {spots} from "../utils/nominations";
 import {canNominate, isMissing} from "../utils/users";
 import {ageInDays, stageOf, STAGES, toDate} from "../utils/workflow";
-import {workload} from "../utils/workload";
+import {inProgress} from "../utils/involvement";
 import {median} from "./stats";
 
 
@@ -64,7 +64,7 @@ function ModeHealth({mode}: {mode: Gamemode}) {
   const {maps = [], nominators} = usePlanner()
   const open = maps.flatMap(map => map.gamemodes.filter(it => it.gamemode === mode).flatMap(it => spots(map, it))).filter(it => isMissing(it.nominator) && !it.optional).length
   const team = nominators?.filter(it => canNominate(it, mode))
-  const free = team?.filter(it => workload(maps, it.osuId).active === 0).length
+  const free = team?.filter(it => inProgress(maps, it.osuId) === 0).length
   const unknown = "…"
 
   return (

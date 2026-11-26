@@ -15,7 +15,7 @@ export function useNominators(beatmap: Beatmap) {
   }
 
   return {
-    claim: (mode: Gamemode, user: User) =>
+    join: (mode: Gamemode, user: User) =>
       change(mode, MISSING_USER_ID, user, `You plan to nominate ${beatmap.title} (${GAMEMODE_NAMES[mode]})`),
     assign: (mode: Gamemode, oldId: string, user: User) =>
       change(mode, oldId, user, `${user.username} plans to nominate ${beatmap.title}`),

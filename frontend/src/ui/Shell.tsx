@@ -5,10 +5,10 @@ import logo from "../assets/greaper.png";
 import {usePlanner, usePlannerRefresh} from "../resources/planner";
 import {canEdit, isAdmin, useSession} from "../utils/session";
 import {useTheme} from "../utils/theme";
-import {deskGroup} from "../utils/workflow";
 import AccountMenu from "./AccountMenu";
 import {useFind} from "./Find";
 import {LoginButton} from "./States";
+import {involvementOf} from "../utils/involvement";
 
 export default function Shell() {
   const session = useSession()
@@ -18,7 +18,7 @@ export default function Shell() {
   const {maps} = usePlanner()
   usePlannerRefresh()
 
-  const moves = maps?.filter(it => deskGroup(it, user?.osuId) === "move").length ?? 0
+  const moves = involvementOf(maps ?? [], user?.osuId).filter(it => it.part === "move").length
   const themeLabel = theme === "dark" ? "Use the light theme" : "Use the dark theme"
 
   return (

@@ -10,7 +10,7 @@ import {ModePicker} from "../ui/ModeIcon";
 import {useToast} from "../ui/Toast";
 import {parseOsuLink} from "../utils/osuLink";
 import {canEdit, useSession} from "../utils/session";
-import {canClaim} from "../utils/nominations";
+import {canJoin} from "../utils/nominations";
 import {nextStep} from "../utils/workflow";
 
 type OpenAdd = (link?: string) => void
@@ -85,7 +85,7 @@ function AddForm({initial, maps, onClose, onOpen}: AddFormProps) {
   const own = GAMEMODES.filter(it => user?.gamemodes.some(mine => mine.gamemode === it))
   const [text, setText] = useState(initial)
   const [picked, setPicked] = useState<Gamemode[]>()
-  const [claim, setClaim] = useState(false)
+  const [join, setJoin] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
 
@@ -93,7 +93,7 @@ function AddForm({initial, maps, onClose, onOpen}: AddFormProps) {
   const known = found && maps.find(it => it.osuId === found.id)
   // The mode of the link, until something is picked by hand
   const modes = picked ?? (found?.mode ? [found.mode] : own)
-  const claimable = modes.filter(it => own.includes(it))
+  const joinable = modes.filter(it => own.includes(it))
   const invalid = text.trim() !== "" && !found
 
   const canPaste = !!navigator.clipboard?.readText
@@ -123,20 +123,20 @@ function AddForm({initial, maps, onClose, onOpen}: AddFormProps) {
       setError("osu! doesn't know this beatmap.")
       return setBusy(false)
     }
-    let claimed = true
-    if (claim && user) {
-      for (const mode of claimable) {
+    let joined = true
+    if (join && user) {
+      for (const mode of joinable) {
         // It can be an older beatmap that was archived, so only take what is open
         const own = added.gamemodes.find(it => it.gamemode === mode)
-        if (!own || !canClaim(added, own, user)) continue
+        if (!own || !canJoin(added, own, user)) continue
         try {
           await setNominator(added.osuId, mode, NOBODY.osuId, user.osuId)
         } catch {
-          claimed = false
+          joined = false
         }
       }
     }
-    if (claimed) toast(`${added.title} is on the planner`)
+    if (joined) toast(`${added.title} is on the planner`)
     else toast(`${added.title} is on the planner, but you could not be added as nominator`, {kind: "error"})
     onOpen(added.osuId)
   }
@@ -177,8 +177,8 @@ function AddForm({initial, maps, onClose, onOpen}: AddFormProps) {
             </div>
             {own.length > 0 &&
               <label className="check">
-                <input type="checkbox" checked={claim && claimable.length > 0} disabled={busy || claimable.length === 0} onChange={event => setClaim(event.target.checked)}/>
-                <span>I will nominate it{claimable.length > 0 && <span className="muted"> for {claimable.map(it => GAMEMODE_NAMES[it]).join(" and ")}</span>}</span>
+                <input type="checkbox" checked={join && joinable.length > 0} disabled={busy || joinable.length === 0} onChange={event => setJoin(event.target.checked)}/>
+                <span>I will nominate it{joinable.length > 0 && <span className="muted"> for {joinable.map(it => GAMEMODE_NAMES[it]).join(" and ")}</span>}</span>
               </label>
             }
           </>

@@ -6,7 +6,7 @@ import {usePlanner} from "../resources/planner";
 import {Avatar, RoleBadges} from "../ui/Person";
 import {useSession} from "../utils/session";
 import {canNominate, onProbation} from "../utils/users";
-import {workload} from "../utils/workload";
+import {inProgress} from "../utils/involvement";
 
 interface NominatorPickerProps {
   mode: Gamemode
@@ -35,7 +35,7 @@ export default function NominatorPicker({mode, partner, fullOnly, excluded, onPi
     .filter(it => canNominate(it, mode) && !excluded.includes(it.osuId) && !(fullOnly && onProbation(it, mode)))
     .map(user => ({
       user,
-      load: workload(maps, user.osuId).active,
+      load: inProgress(maps, user.osuId),
       together: pairings.data?.find(it => it.name === user.username)?.pairingRanked ?? 0
     }))
     .sort((a, b) => Number(b.user.osuId === self?.osuId) - Number(a.user.osuId === self?.osuId) || b.together - a.together || a.load - b.load)
