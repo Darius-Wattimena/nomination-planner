@@ -4,22 +4,23 @@ import svgr from 'vite-plugin-svgr'
 
 export default defineConfig({
   base: '/',
-  plugins: [react(),  svgr()],
+  plugins: [react(), svgr()],
   server: {
     open: true,
     port: 3000,
   },
   build: {
     outDir: 'build',
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          react: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          utils: ['axios'],
-          ui: ['react-modal'],
-        }
-      }
-    }
-  }
+        // Libraries change less often than the planner, so they stay cached between releases
+        codeSplitting: {
+          groups: [
+            { name: 'react', test: /node_modules[\/](react|react-dom|react-router|scheduler)[\/]/ },
+            { name: 'vendor', test: /node_modules/ },
+          ],
+        },
+      },
+    },
+  },
 })

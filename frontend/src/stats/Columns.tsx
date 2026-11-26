@@ -45,7 +45,7 @@ export default function Columns({columns, unit, label, unfinished, height = 220}
         </div>
       </div>
       <div className="columns-labels" aria-hidden>
-        {columns.map((column, index) => <span key={column.key}>{!years || /^[0-9]{4}$/.test(column.short) ? column.short : ""}</span>)}
+        {columns.map(column => <span key={column.key}>{!years || /^[0-9]{4}$/.test(column.short) ? column.short : ""}</span>)}
       </div>
       <Table head={["", unit]} rows={columns.map(it => [it.label, it.value])}/>
     </figure>
