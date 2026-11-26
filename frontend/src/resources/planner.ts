@@ -2,7 +2,7 @@ import {useEffect, useSyncExternalStore} from "react";
 import {MISSING_USER_ID} from "../Constants";
 import type {Beatmap, BeatmapGamemode, Gamemode, User} from "../models/Types";
 import {BeatmapStatus} from "../models/Types";
-import {setSession, useSession} from "../utils/session";
+import {getSession, setSession, useSession} from "../utils/session";
 import {highestRole} from "../utils/users";
 import Api from "./Api";
 import {find, request, statusOf, useQuery} from "./client";
@@ -312,4 +312,12 @@ export async function addBeatmap(id: string, gamemodes: Gamemode[]) {
   const added = await find<Beatmap>(Api.addBeatmap(id, gamemodes))
   if (added) putBeatmap(added)
   return added
+}
+
+/** The modes someone without a role chose, only changing what the website shows them */
+export async function saveInterests(gamemodes: Gamemode[]) {
+  const user = await request<User>(Api.saveInterests(gamemodes))
+  const session = getSession()
+  if (session?.user?.osuId === user.osuId) setSession({...session, user})
+  return user
 }

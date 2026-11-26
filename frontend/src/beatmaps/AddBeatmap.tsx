@@ -1,7 +1,7 @@
 import type {FormEvent, ReactNode} from "react";
 import {useCallback, useState} from "react";
 import {useNavigate} from "react-router";
-import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
+import {GAMEMODE_NAMES} from "../Constants";
 import type {Beatmap, Gamemode} from "../models/Types";
 import {addBeatmap, NOBODY, setNominator, usePlanner} from "../resources/planner";
 import Cover from "../ui/Cover";
@@ -10,6 +10,7 @@ import {ModePicker} from "../ui/ModeIcon";
 import {useToast} from "../ui/useToast";
 import {parseOsuLink} from "../utils/osuLink";
 import {canEdit, useSession} from "../utils/session";
+import {modesOf} from "../utils/users";
 import {canJoin} from "../utils/nominations";
 import {nextStep} from "../utils/workflow";
 import type {OpenAdd} from "./useAddBeatmap";
@@ -54,7 +55,7 @@ interface AddFormProps {
 function AddForm({initial, maps, onClose, onOpen}: AddFormProps) {
   const user = useSession()?.user
   const toast = useToast()
-  const own = GAMEMODES.filter(it => user?.gamemodes.some(mine => mine.gamemode === it))
+  const own = modesOf(user)
   const [text, setText] = useState(initial)
   const [picked, setPicked] = useState<Gamemode[]>()
   const [join, setJoin] = useState(false)

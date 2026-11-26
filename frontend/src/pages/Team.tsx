@@ -14,10 +14,11 @@ import ModeIcon from "../ui/ModeIcon";
 import PageHeader from "../ui/PageHeader";
 import {Avatar, RoleBadges} from "../ui/Person";
 import {Loading} from "../ui/States";
+import OwnModesDialog from "../ui/OwnModes";
 import {MODE_WORDS} from "../utils/query";
 import {useSession} from "../utils/session";
 import {needsFullNominator, openSpot, openSpots} from "../utils/nominations";
-import {highestRole, isMissing} from "../utils/users";
+import {choosesOwnModes, highestRole, isMissing, modesOf} from "../utils/users";
 import type {Part} from "../utils/workflow";
 import {ageInDays, stageOf} from "../utils/workflow";
 import type {Involvement} from "../utils/involvement";
@@ -58,7 +59,7 @@ function Overview() {
   const self = useSession()?.user
   const {maps = [], nominators} = usePlanner()
   const {selected, open, close} = useOpenMap()
-  const [mode, setMode] = useState<Gamemode>(self?.gamemodes[0]?.gamemode ?? Gamemode.Osu)
+  const [mode, setMode] = useState<Gamemode>(modesOf(self)[0] ?? Gamemode.Osu)
   const [sorting, setSorting] = useState<Sorting>("free")
   const [role, setRole] = useState<UserRole>()
   const [text, setText] = useState("")
@@ -197,6 +198,7 @@ function Profile({id}: {id: string}) {
   const {maps = [], nominators = []} = usePlanner()
   const {selected, open, close} = useOpenMap()
   const pairings = usePairings(id)
+  const [choosing, setChoosing] = useState(false)
 
   const isSelf = id === self?.osuId
   const known = maps.flatMap(it => [...it.gamemodes.flatMap(mode => mode.nominators).map(slot => slot.nominator), it.mapper]).find(it => it.osuId === id)
@@ -217,6 +219,12 @@ function Profile({id}: {id: string}) {
         <div>
           <h1>{user?.username ?? `User ${id}`}</h1>
           {user && <RoleBadges user={user}/>}
+          {self && isSelf && choosesOwnModes(self) &&
+            <p className="muted own-modes-line">
+              {modesOf(self).length > 0 ? <>You follow {modesOf(self).map(it => <ModeIcon key={it} mode={it}/>)}</> : "You don't follow a mode yet"}
+              <button className="link" onClick={() => setChoosing(true)}>{modesOf(self).length > 0 ? "Change" : "Choose your modes"}</button>
+            </p>
+          }
           {withMe && (withMe.pairingRanked > 0 || withMe.pairingPending > 0) &&
             <p className="muted">You ranked {withMe.pairingRanked} together{withMe.pairingPending > 0 && ` and are on ${withMe.pairingPending} now`}</p>
           }
@@ -262,6 +270,7 @@ function Profile({id}: {id: string}) {
         </aside>
       </div>
       <MapView id={selected} ids={own.map(it => it.osuId)} onOpen={open} onClose={close}/>
+      {self && <OwnModesDialog user={self} open={choosing} onClose={() => setChoosing(false)}/>}
     </div>
   )
 }

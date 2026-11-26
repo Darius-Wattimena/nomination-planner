@@ -850,3 +850,8 @@ td.year-bar .bars-track { flex: 1; }
 .mode-warning { grid-column: 1 / -1; color: var(--red); font-size: .86rem; }
 .mode-name > span:last-child { display: grid; min-width: 0; }
 .mode-name .muted { font-size: .78rem; font-weight: 400; }
+
+/* Modes chosen by someone without a role */
+.own-modes .chips { margin: 16px 0; }
+.own-modes-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; }
+.own-modes-line .link { min-height: 32px; margin-left: 6px; }

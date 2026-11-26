@@ -10,6 +10,23 @@ export function highestRole(user: User, gamemode?: Gamemode): UserRole {
   return RANKING.find(role => roles.includes(role)) ?? "Mapper"
 }
 
+/** Modes in which the user has a role, these decide what they may do */
+export function roleModes(user: User | undefined): Gamemode[] {
+  return GAMEMODES.filter(mode => user?.gamemodes.some(it => it.gamemode === mode && it.role !== "Mapper"))
+}
+
+/** Whether the user picks their modes themselves, as they have no role in any */
+export function choosesOwnModes(user: User | undefined) {
+  return !!user && roleModes(user).length === 0
+}
+
+/** The modes the website shows first: those with a role, or else the ones they chose */
+export function modesOf(user: User | undefined): Gamemode[] {
+  if (!user) return []
+  const roles = roleModes(user)
+  return roles.length > 0 ? roles : GAMEMODES.filter(it => user.interests?.includes(it))
+}
+
 export function isMissing(user: User) {
   return user.osuId === MISSING_USER_ID
 }

@@ -71,6 +71,11 @@ const Api = {
     method: "GET",
     url: `/v2/profile/${userId}/pairing`
   }),
+  saveInterests: (gamemodes: Gamemode[]): AxiosRequestConfig => ({
+    method: 'PUT',
+    url: '/v2/profile/me/interests',
+    data: gamemodes
+  }),
   fetchPlanner: (since: string | undefined): AxiosRequestConfig => ({
     method: 'GET',
     url: '/v2/planner',

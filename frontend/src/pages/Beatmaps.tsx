@@ -5,7 +5,6 @@ import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapCard, MapRow} from "../beatmaps/MapRow";
 import Filters from "../beatmaps/Filters";
-import {GAMEMODES} from "../Constants";
 import type {Beatmap} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import {useAddBeatmap} from "../beatmaps/useAddBeatmap";
@@ -15,6 +14,7 @@ import {EmptyState} from "../ui/States";
 import {usePhone} from "../utils/phone";
 import {filterMaps, MODE_WORDS} from "../utils/query";
 import {canEdit, useSession} from "../utils/session";
+import {modesOf} from "../utils/users";
 import {ageInDays, stageOf, STAGES} from "../utils/workflow";
 import {readStored, store} from "../utils/storage";
 import {PlannerError} from "../ui/States";
@@ -41,7 +41,7 @@ export default function Beatmaps() {
   const [naming, setNaming] = useState<string>()
   const [limit, setLimit] = useState(STEP)
 
-  const ownModes = GAMEMODES.filter(mode => user?.gamemodes.some(it => it.gamemode === mode)).map(it => `mode:${MODE_WORDS[it]}`).join(" ")
+  const ownModes = modesOf(user).map(it => `mode:${MODE_WORDS[it]}`).join(" ")
   const query = params.get("q") ?? ownModes
   const {selected, open, close} = useOpenMap()
 
