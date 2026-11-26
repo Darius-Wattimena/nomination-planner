@@ -3,7 +3,6 @@ import org.gradle.testing.jacoco.tasks.JacocoReportBase
 plugins {
     id("org.springframework.boot") version "4.2.0"
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
-    id("fi.evident.beanstalk") version "0.3.3"
     war
     jacoco
     kotlin("jvm") version "2.4.21"
@@ -123,16 +122,16 @@ tasks {
         dependsOn(jacocoTestReport, jacocoTestCoverageVerification)
     }
 
-    beanstalk {
-        s3Endpoint = "s3-eu-west-1.amazonaws.com"
-        beanstalkEndpoint = "elasticbeanstalk.eu-west-1.amazonaws.com"
+    // Only the executable war is deployed, under a name the deployment can rely on
+    bootWar {
+        archiveFileName.set("bnplanner.war")
+    }
 
-        deployments {
-            create("production") {
-                file = bootWar
-                application = "bnplanner"
-                environment = "bnplanner-env"
-            }
-        }
+    war {
+        enabled = false
+    }
+
+    jar {
+        enabled = false
     }
 }
