@@ -8,6 +8,7 @@ import nl.greaper.bnplanner.model.osu.BeatmapsetEventType
 import nl.greaper.bnplanner.model.osu.BeatmapsetEvents
 import nl.greaper.bnplanner.model.osu.GroupHistory
 import nl.greaper.bnplanner.model.osu.Me
+import nl.greaper.bnplanner.util.Sleeper
 import nl.greaper.bnplanner.util.shouldSkipUser
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
@@ -28,8 +29,12 @@ import java.net.URLEncoder
 class OsuHttpClient(
     val config: OsuProperties,
     val objectMapper: ObjectMapper,
+    sleeper: Sleeper = Sleeper.THREAD,
+    clock: () -> Long = System::currentTimeMillis,
 ) {
     val log = KotlinLogging.logger { }
+
+    private val rateLimit = OsuRateLimit(config.minRequestIntervalMillis, sleeper, clock)
 
     // A call that never ends would hold up everything waiting for osu!
     private val rest = withTimeout(10_000)
@@ -47,14 +52,16 @@ class OsuHttpClient(
     private val tokenUri = "${config.baseUrl}/oauth/token"
 
     private fun postToken(body: Any): ResponseEntity<AuthToken> =
-        rest
-            .post()
-            .uri(tokenUri)
-            .contentType(MediaType.APPLICATION_JSON)
-            .accept(MediaType.APPLICATION_JSON)
-            .body(objectMapper.writeValueAsString(body))
-            .retrieve()
-            .toEntity<AuthToken>()
+        rateLimit.call("a token") {
+            rest
+                .post()
+                .uri(tokenUri)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(objectMapper.writeValueAsString(body))
+                .retrieve()
+                .toEntity<AuthToken>()
+        }
 
     /** A token of the planner itself, without any user, which can only read what is public */
     fun findClientToken(): AuthToken? {
@@ -143,15 +150,16 @@ class OsuHttpClient(
         val after = cursor?.let { "&cursor_string=${URLEncoder.encode(it, Charsets.UTF_8)}" }.orEmpty()
         val uri = URI.create("${config.baseUrl}/groups/history?group_id=${URLEncoder.encode(groupId, Charsets.UTF_8)}$after")
 
-        log.info { "GET ==> $uri" }
-
         val body =
-            rest
-                .get()
-                .uri(uri)
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(String::class.java)
+            rateLimit.call("GET $uri") {
+                log.info { "GET ==> $uri" }
+                rest
+                    .get()
+                    .uri(uri)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String::class.java)
+            }
 
         return objectMapper.readValue<GroupHistory>(body ?: "")
     }
@@ -164,20 +172,22 @@ class OsuHttpClient(
     ): ResponseEntity<String> {
         val requestUri = "${config.baseUrl}/api/v2$uri"
 
-        log.info { "$method ==> $requestUri" }
+        return rateLimit.call("$method $requestUri") {
+            log.info { "$method ==> $requestUri" }
 
-        // Never share headers between calls, as they would use the token of each other
-        val request =
-            rest
-                .method(method)
-                .uri(requestUri)
-                .headers { it.setBearerAuth(authToken) }
+            // Never share headers between calls, as they would use the token of each other
+            val request =
+                rest
+                    .method(method)
+                    .uri(requestUri)
+                    .headers { it.setBearerAuth(authToken) }
 
-        if (body != "") {
-            request.body(body)
+            if (body != "") {
+                request.body(body)
+            }
+
+            request.retrieve().toEntity<String>()
         }
-
-        return request.retrieve().toEntity<String>()
     }
 }
 

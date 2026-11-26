@@ -82,8 +82,10 @@ class Planner(
         // Configured the same way as Spring does
         fun osuClient() =
             OsuHttpClient(
-                OsuProperties("14229", "made-up-secret", "http://localhost:3000/login", FakeOsu.url),
+                OsuProperties("14229", "made-up-secret", "http://localhost:3000/login", FakeOsu.url, minRequestIntervalMillis = 0),
                 jacksonMapperBuilder().build(),
+                // Only waits when osu! asks for it, which tests don't have to do for real
+                Sleeper {},
             )
 
         fun mode(

@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpServer
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 
@@ -22,9 +23,13 @@ object FakeOsu {
     private data class Response(
         val status: Int,
         val body: String,
+        val headers: Map<String, String> = emptyMap(),
     )
 
     private val responses = ConcurrentHashMap<String, Response>()
+
+    // Answered once each, before the usual answer
+    private val firstResponses = ConcurrentHashMap<String, ConcurrentLinkedQueue<Response>>()
     val requests = CopyOnWriteArrayList<Request>()
 
     private val server: HttpServer by lazy {
@@ -39,6 +44,7 @@ object FakeOsu {
 
     fun reset() {
         responses.clear()
+        firstResponses.clear()
         requests.clear()
     }
 
@@ -48,6 +54,16 @@ object FakeOsu {
         status: Int = 200,
     ) {
         responses[request] = Response(status, body)
+    }
+
+    /** Answers "too many requests" the given number of times first, with the Retry-After header when given */
+    fun refuse(
+        request: String,
+        times: Int,
+        retryAfter: String? = null,
+    ) {
+        val response = Response(429, """{"error":"too many requests"}""", retryAfter?.let { mapOf("Retry-After" to it) }.orEmpty())
+        firstResponses.getOrPut(request) { ConcurrentLinkedQueue() }.addAll(List(times) { response })
     }
 
     /** Responds like this only while performing the block, keeping what a test set up itself. "unavailable" answers 503. */
@@ -72,9 +88,11 @@ object FakeOsu {
             val request = Request(it.requestMethod, it.requestURI.toString(), headers, it.requestBody.readBytes().decodeToString())
             requests += request
 
-            val response = responses["${request.method} ${request.uri}"] ?: Response(404, """{"error":null}""")
+            val key = "${request.method} ${request.uri}"
+            val response = firstResponses[key]?.poll() ?: responses[key] ?: Response(404, """{"error":null}""")
             val bytes = response.body.toByteArray()
             it.responseHeaders.add("Content-Type", "application/json")
+            response.headers.forEach { (name, value) -> it.responseHeaders.add(name, value) }
             it.sendResponseHeaders(response.status, if (bytes.isEmpty()) -1 else bytes.size.toLong())
             if (bytes.isNotEmpty()) it.responseBody.write(bytes)
         }

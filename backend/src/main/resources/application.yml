@@ -19,6 +19,8 @@ osu:
   # Where osu! sends someone back to after logging in, the same as set at osu! for the OAuth application.
   # Empty for /login/oauth2/code/osu on the address the backend is reached on.
   redirectUri: ""
+  # At least this long between two calls to osu!. When osu! answers "too many requests", everything waits as long as osu! asks.
+  min-request-interval-millis: 250
 
 login:
   # Where someone ends up once they logged in

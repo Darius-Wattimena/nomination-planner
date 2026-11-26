@@ -18,6 +18,8 @@ data class OsuProperties(
     val clientSecret: String,
     val redirectUri: String,
     val baseUrl: String = "https://osu.ppy.sh",
+    /** At least this long between two calls to osu! */
+    val minRequestIntervalMillis: Long = 250,
 )
 
 @ConfigurationProperties("cors")

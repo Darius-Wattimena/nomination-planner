@@ -44,6 +44,7 @@ Without Aiess, the planner can follow osu! by itself. Each setting is in `backen
 | `osu.follow-groups.enabled` | `false` | Follows who joins or leaves the BN, probationary BN and NAT, and their gamemodes, and changes their roles on the planner. A NAT member without a gamemode gets all four. Reads the group history of the osu! website as JSON, as the API has none. |
 | `osu.follow-groups.every-seconds` | `600` | How often it asks osu! for group changes. |
 | `osu.background-sync.enabled` | `false` | Syncs a few beatmaps in progress every minute (`per-minute`), as a fallback for anything the events miss. |
+| `osu.min-request-interval-millis` | `250` | At least this long between two calls to osu!. When osu! answers "too many requests", every call waits as long as its `Retry-After` header asks (otherwise 10 seconds, doubling up to a minute) and is tried again up to 3 times. |
 
 The first time, both start at the newest event and change nothing. After that the last event handled is kept in the `followed` collection, so a restart continues where it stopped and handles nothing twice. To catch up on earlier events, set `lastId` there to an older event ID. When more happened in between than 10 pages of events, the beatmaps in progress are synced instead. After an error it waits a minute, then twice as long each time, up to an hour. What changed is logged with `[OSU]` and sent to the confidential Discord channels.
 
