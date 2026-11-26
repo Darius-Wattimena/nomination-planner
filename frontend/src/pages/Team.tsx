@@ -16,10 +16,9 @@ import {Loading} from "../ui/States";
 import OwnModesDialog from "../ui/OwnModes";
 import {MODE_WORDS} from "../utils/query";
 import {useSession} from "../utils/session";
-import {needsFullNominator, openSpot, openSpots} from "../utils/nominations";
-import {choosesOwnModes, highestRole, isMissing, modesOf, roleModes} from "../utils/users";
+import {choosesOwnModes, highestRole, modesOf, roleModes} from "../utils/users";
 import type {Part} from "../utils/workflow";
-import {ageInDays, stageOf} from "../utils/workflow";
+import {ageInDays, lookingForNominator} from "../utils/workflow";
 import type {Involvement} from "../utils/involvement";
 import {involvementOf} from "../utils/involvement";
 import {usePairings} from "../resources/pairings";
@@ -88,13 +87,7 @@ function Overview() {
       : sorting === "together" ? b.together - a.together || a.inProgress.length - b.inProgress.length
       : a.user.username.localeCompare(b.user.username))
 
-  const help = maps
-    .filter(map => stageOf(map) !== "qualified" && openSpots(map) > 0)
-    .flatMap(map => map.gamemodes.filter(it => (!mode || it.gamemode === mode) && openSpot(map, it)).slice(0, 1).map(open => {
-      const partner = open.nominators.find(it => !isMissing(it.nominator))
-      return {map, partner: partner?.nominator, nominated: !!partner?.hasNominated, full: needsFullNominator(map, open)}
-    }))
-    .sort((a, b) => Number(b.nominated) - Number(a.nominated) || Number(!!b.partner) - Number(!!a.partner) || ageInDays(b.map) - ageInDays(a.map))
+  const help = lookingForNominator(maps, mode)
 
   const loading = !nominators
 

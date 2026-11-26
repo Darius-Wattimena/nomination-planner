@@ -106,6 +106,17 @@ export function suggestions(maps: Beatmap[], user: User, rankedWith: (user: User
     .sort((a, b) => b.score - a.score)
 }
 
+/** Beatmaps with an open spot in a mode, or in any mode. Those with a nomination first, then those with a nominator, then the oldest */
+export function lookingForNominator(maps: Beatmap[], only?: Gamemode) {
+  return maps
+    .filter(map => stageOf(map) !== "qualified" && openSpots(map) > 0)
+    .flatMap(map => map.gamemodes.filter(it => (!only || it.gamemode === only) && openSpot(map, it)).slice(0, 1).map(open => {
+      const partner = open.nominators.find(it => !isMissing(it.nominator))
+      return {map, mode: open.gamemode, partner: partner?.nominator, nominated: !!partner?.hasNominated, full: needsFullNominator(map, open)}
+    }))
+    .sort((a, b) => Number(b.nominated) - Number(a.nominated) || Number(!!b.partner) - Number(!!a.partner) || ageInDays(b.map) - ageInDays(a.map))
+}
+
 export function toDate(value: string | number | undefined) {
   if (value === undefined) return undefined
   // Timestamps are in seconds
