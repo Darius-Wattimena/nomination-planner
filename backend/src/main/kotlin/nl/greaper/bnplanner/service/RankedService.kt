@@ -24,11 +24,12 @@ class RankedService(
             if (versions == null) {
                 beatmapDataSource.findAll { it.isRanked() } to emptyList()
             } else {
-                val (ranked, removed) =
+                // Read once, a beatmap can change or be deleted in between
+                val changed =
                     beatmapDataSource.changes
                         .findSince(versions.beatmaps)
-                        .partition { beatmapDataSource.findById(it)?.isRanked() == true }
-                ranked.map { beatmapDataSource.findById(it)!! } to removed
+                        .associateWith { id -> beatmapDataSource.findById(id)?.takeIf { it.isRanked() } }
+                changed.values.filterNotNull() to changed.filterValues { it == null }.keys.toList()
             }
         val changedUsers = versions?.let { userDataSource.changes.findSince(it.users) }.orEmpty()
         val mentioned = beatmaps.flatMap { findUserIds(it) }.toSet() + changedUsers

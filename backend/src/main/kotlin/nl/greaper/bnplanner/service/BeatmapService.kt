@@ -184,8 +184,10 @@ class BeatmapService(
                 mainGamemodes = osuBeatmap.findMainGamemodes(),
             )
 
-        dataSource.insertOne(newBeatmap).also { logBeatmapAdded(parsedToken, newBeatmap) }
+        // Asking osu! takes a while, someone else may have added it in the meantime
+        dataSource.insertIfMissing(newBeatmap)?.let { return it.toExposedBeatmap() }
 
+        logBeatmapAdded(parsedToken, newBeatmap)
         return newBeatmap.toExposedBeatmap()
     }
 

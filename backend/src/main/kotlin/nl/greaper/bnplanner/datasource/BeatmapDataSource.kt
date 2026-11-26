@@ -128,6 +128,15 @@ class BeatmapDataSource(
 
     fun insertMany(beatmaps: List<Beatmap>) = beatmaps.forEach { insertOne(it) }
 
+    /** Null when it was added, otherwise the beatmap someone else added first */
+    @Synchronized
+    fun insertIfMissing(beatmap: Beatmap): Beatmap? {
+        beatmaps[beatmap.osuId]?.let { return it }
+
+        update(beatmap)
+        return null
+    }
+
     /** Only visible to others once it is stored */
     @Synchronized
     fun update(beatmap: Beatmap) {

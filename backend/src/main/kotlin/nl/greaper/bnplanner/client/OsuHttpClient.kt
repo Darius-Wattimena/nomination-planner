@@ -30,16 +30,22 @@ class OsuHttpClient(
 ) {
     val log = KotlinLogging.logger { }
 
-    private val rest = RestClient.create()
-    private val verifyRest =
+    // A call that never ends would hold up everything waiting for osu!
+    private val rest = withTimeout(10_000)
+
+    // Checking who someone is happens while they wait for the planner
+    private val verifyRest = withTimeout(5_000)
+
+    private fun withTimeout(millis: Int): RestClient =
         RestClient
             .builder()
             .requestFactory(
                 SimpleClientHttpRequestFactory().apply {
-                    setConnectTimeout(5_000)
-                    setReadTimeout(5_000)
+                    setConnectTimeout(millis)
+                    setReadTimeout(millis)
                 },
             ).build()
+
     private val tokenUri = "${config.baseUrl}/oauth/token"
 
     private fun postToken(body: Any): ResponseEntity<AuthToken> =

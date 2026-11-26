@@ -192,6 +192,18 @@ class BeatmapServiceTest {
     }
 
     @Test
+    fun `Should return the beatmap someone else added in the meantime`() {
+        FakeOsu.beatmap("1", userId = "11", creator = "New")
+        FakeOsu.user("11", "New")
+        // Finding the unknown mapper takes a while
+        planner.duringSleep = { planner.save(beatmap(note = "first")) }
+
+        assertEquals("first", service.addBeatmap(TOKEN, NewBeatmap("1", listOf(Gamemode.mania)))!!.note)
+        assertEquals("first", planner.stored().note)
+        assertTrue(planner.discord.sent.none { it.description.startsWith("🌟 **Created**") })
+    }
+
+    @Test
     fun `Should not add a beatmap unknown to osu`() {
         assertNull(service.addBeatmap(TOKEN, NewBeatmap("1", listOf(Gamemode.osu))))
         assertEquals(emptyList<Beatmap>(), planner.beatmaps.list())

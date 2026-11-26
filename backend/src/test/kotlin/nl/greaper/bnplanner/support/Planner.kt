@@ -38,7 +38,14 @@ class Planner(
     val discord = RecordingDiscord()
     private val discordClient: DiscordClient? = discord.takeIf { withDiscord }
     val sleeps = mutableListOf<Long>()
-    private val sleeper = Sleeper { sleeps += it }
+
+    /** Happens while the planner waits, like someone else making a change in the meantime */
+    var duringSleep: () -> Unit = {}
+    private val sleeper =
+        Sleeper {
+            sleeps += it
+            duringSleep()
+        }
 
     val beatmaps = BeatmapDataSource(TestMongo.database, true)
     val users = UserDataSource(TestMongo.database)
