@@ -47,6 +47,18 @@ class StoredUserDataSourceTest {
     }
 
     @Test
+    fun `Should store the modes a user is interested in`() {
+        val user = User("1", "Mapper", emptyList(), interests = listOf(Gamemode.taiko, Gamemode.mania))
+        users.saveUser(user)
+
+        assertEquals(
+            Document.parse("""{"_id": "1", "username": "Mapper", "gamemodes": [], "restricted": null, "interests": ["taiko", "mania"]}"""),
+            TestMongo.documents("users").single(),
+        )
+        assertEquals(user, UserDataSource(TestMongo.database).findUser("1"))
+    }
+
+    @Test
     fun `Should replace a saved user`() {
         users.saveUser(User("1", "Old", listOf(bn)))
         users.saveUser(User("1", "New", listOf(nat)))
