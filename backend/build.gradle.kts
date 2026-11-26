@@ -69,7 +69,8 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("de.flapdoodle.embed:de.flapdoodle.embed.mongo:5.0.0")
-    providedRuntime("org.springframework.boot:spring-boot-starter-tomcat")
+    // Only Tomcat itself, which Beanstalk provides. The whole starter would also move spring-web and spring-boot out of the war.
+    providedRuntime("org.springframework.boot:spring-boot-starter-tomcat-runtime")
 }
 
 kotlin {
