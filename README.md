@@ -4,6 +4,7 @@ The Nomination Planner is a web application designed to help Beatmap Nominators 
 
 - `backend/`: Kotlin, Spring Boot and MongoDB
 - `frontend/`: React and Vite
+- `infra/`: the AWS setup, see [infra/README.md](infra/README.md)
 
 ## Run locally
 
@@ -68,6 +69,17 @@ npm run lint
 npm test
 npm run build
 ```
+
+## Deploying
+
+Pushing a version tag releases the backend and the frontend to the setup of the GitHub environment `beta`, once the checks pass:
+
+```
+git tag v2.0.0
+git push origin v2.0.0
+```
+
+A change on master is only checked. To deploy a tag again, run the workflow by hand in the Actions tab and pick the tag. How that setup is created is in [infra/README.md](infra/README.md).
 
 ## Features Requests
 
