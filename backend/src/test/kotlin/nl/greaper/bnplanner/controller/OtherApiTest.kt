@@ -87,6 +87,7 @@ class OtherApiTest : ApiTest() {
         }
     }
 
+    // Stays until the login moves to Spring Security sessions, which removes this endpoint and the workaround in the frontend
     @Test
     fun `SUSPECTED BUG - The last character of the code is dropped when it isn't sent as form`() {
         osuKnowsEditor()

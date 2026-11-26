@@ -65,6 +65,7 @@ class LoginServiceTest {
         )
     }
 
+    // Stays until the login moves to Spring Security sessions, which removes this endpoint and the workaround in the frontend
     @Test
     fun `SUSPECTED BUG - Should log in, dropping the last character of the code`() {
         osuKnowsUser()
@@ -77,6 +78,7 @@ class LoginServiceTest {
         assertEquals(user, planner.users.findUser("5"))
     }
 
+    // Stays until the login moves to Spring Security sessions, which removes this endpoint and the workaround in the frontend
     @Test
     fun `SUSPECTED BUG - Should refresh a login, dropping the last character of the token`() {
         osuKnowsUser()
