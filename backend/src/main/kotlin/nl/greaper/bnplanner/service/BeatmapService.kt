@@ -25,6 +25,8 @@ import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
 import nl.greaper.bnplanner.model.osu.BeatmapSet
+import nl.greaper.bnplanner.model.osu.BeatmapsetEvent
+import nl.greaper.bnplanner.model.osu.BeatmapsetEventType
 import nl.greaper.bnplanner.service.UserService.Companion.MISSING_USER_ID
 import nl.greaper.bnplanner.util.Sleeper
 import nl.greaper.bnplanner.util.findMainGamemodes
@@ -347,6 +349,170 @@ class BeatmapService(
             dateUpdated = osuBeatmap.last_updated,
             dateRanked = dateRanked,
             mainGamemodes = osuBeatmap.findMainGamemodes() ?: beatmap.mainGamemodes,
+        )
+    }
+
+    /**
+     * Follow what happened on osu!, the same way a sync sees it afterwards. Only for beatmaps on the planner.
+     *
+     * @return the changed beatmap, null when it isn't on the planner or nothing changed
+     * @throws IllegalStateException when the nominator is unknown and osu! gave no clear answer about them, to try again later
+     */
+    fun applyOsuEvent(
+        osuApiToken: String,
+        event: BeatmapsetEvent,
+    ): Beatmap? {
+        val kind = event.kind ?: return null
+        val osuId = event.beatmapset?.id ?: return null
+        findBeatmap(osuId) ?: return null
+
+        val userId = event.userId?.toString()
+        val gamemodes =
+            event.comment
+                ?.modes
+                .orEmpty()
+                .mapNotNull { findGamemode(it, osuId) }
+
+        if (kind == BeatmapsetEventType.NOMINATE && userId != null) {
+            // Like a sync, so the planner can show who nominated
+            checkNotNull(userService.findUserById(userId) ?: userService.forceFindUserById(osuApiToken, userId)) {
+                "Nominator $userId is unknown and osu! gave no clear answer (osuId: $osuId)"
+            }
+        }
+
+        val changed = dataSource.modify(osuId) { current -> applyEvent(current, kind, userId, gamemodes, event.createdAt) } ?: return null
+
+        log.info {
+            "[OSU] ${kind.osuName} by ${userId ?: "osu!"} $gamemodes, now ${changed.status} (beatmap = $osuId, event = ${event.id})"
+        }
+        logOsuEvent(changed, kind, userId, gamemodes)
+
+        return changed
+    }
+
+    /** Null when nothing changes */
+    private fun applyEvent(
+        beatmap: Beatmap,
+        kind: BeatmapsetEventType,
+        userId: String?,
+        gamemodes: List<Gamemode>,
+        at: Instant,
+    ): Beatmap? {
+        // Like a sync, a ranked beatmap is done
+        if (beatmap.status == BeatmapStatus.Ranked) {
+            return null
+        }
+
+        val changed =
+            when (kind) {
+                BeatmapsetEventType.NOMINATE -> {
+                    val nominated = gamemodes.fold(beatmap) { current, gamemode -> nominate(current, gamemode, userId ?: return null) }
+                    nominated.copy(status = BeatmapStatus.Nominated)
+                }
+
+                BeatmapsetEventType.QUALIFY -> {
+                    beatmap.copy(status = BeatmapStatus.Qualified)
+                }
+
+                BeatmapsetEventType.RANK -> {
+                    // Like a sync, a gamemode without nominations was removed from the beatmap set
+                    val nominated = beatmap.gamemodes.filter { it.hasAnyNomination() }
+                    beatmap.copy(status = BeatmapStatus.Ranked, dateRanked = at, gamemodes = nominated.ifEmpty { beatmap.gamemodes })
+                }
+
+                BeatmapsetEventType.NOMINATION_RESET -> {
+                    resetNominations(beatmap) { true }.copy(status = BeatmapStatus.Reset)
+                }
+
+                BeatmapsetEventType.DISQUALIFY -> {
+                    resetNominations(beatmap) { true }.copy(status = BeatmapStatus.Disqualified)
+                }
+
+                BeatmapsetEventType.NOMINATION_RESET_RECEIVED -> {
+                    resetNominations(beatmap) { it == userId }
+                }
+            }
+
+        return changed.copy(dateUpdated = at).takeIf { changed != beatmap }
+    }
+
+    /** Keeps who is planned: their own place first, then a missing nominator, then someone who didn't nominate */
+    private fun nominate(
+        beatmap: Beatmap,
+        gamemode: Gamemode,
+        userId: String,
+    ): Beatmap {
+        val nominated = BeatmapNominator(userId, true)
+        val existing = beatmap.gamemodes.find { it.gamemode == gamemode }
+
+        if (existing == null) {
+            return beatmap.copy(
+                gamemodes =
+                    beatmap.gamemodes + BeatmapGamemode(gamemode, listOf(nominated, BeatmapNominator(MISSING_USER_ID, false)), false),
+            )
+        }
+
+        val nominators = existing.nominators
+        val place =
+            listOf<(BeatmapNominator) -> Boolean>({ it.nominatorId == userId }, { it.nominatorId == MISSING_USER_ID }, { !it.hasNominated })
+                .map { wanted -> nominators.indexOfFirst(wanted) }
+                .firstOrNull { it >= 0 }
+                // Out of step with osu!, replace the first like a sync does
+                ?: 0
+        val updated = existing.copy(nominators = nominators.mapIndexed { index, nominator -> if (index == place) nominated else nominator })
+
+        return beatmap.copy(gamemodes = beatmap.gamemodes.map { if (it.gamemode == gamemode) updated else it })
+    }
+
+    private fun resetNominations(
+        beatmap: Beatmap,
+        whose: (nominatorId: String) -> Boolean,
+    ): Beatmap =
+        beatmap.copy(
+            gamemodes =
+                beatmap.gamemodes.map { gamemode ->
+                    gamemode.copy(nominators = gamemode.nominators.map { if (whose(it.nominatorId)) it.copy(hasNominated = false) else it })
+                },
+        )
+
+    private fun logOsuEvent(
+        beatmap: Beatmap,
+        kind: BeatmapsetEventType,
+        userId: String?,
+        gamemodes: List<Gamemode>,
+    ) {
+        // Already told by the reset or disqualification itself
+        if (kind == BeatmapsetEventType.NOMINATION_RESET_RECEIVED) {
+            return
+        }
+
+        val user = userId?.let { userService.findUserById(it) }
+        val gamemodeText =
+            gamemodes
+                .joinToString { it.toReadableName() }
+                .takeIf { it.isNotEmpty() }
+                ?.let { " [$it]" }
+                .orEmpty()
+        val color =
+            when (beatmap.status) {
+                BeatmapStatus.Ranked -> EmbedColor.GREEN
+                BeatmapStatus.Disqualified, BeatmapStatus.Reset -> EmbedColor.ORANGE
+                else -> EmbedColor.BLUE
+            }
+
+        val message =
+            StringBuilder()
+                .append("${beatmap.status.getEmojiIcon()} **Updated status to ${beatmap.status.name}**$gamemodeText")
+                .append("\n**[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})**")
+                .append("\nMapped by [${beatmap.mapper}](https://osu.ppy.sh/users/${beatmap.mapperId})")
+
+        discordClient?.send(
+            description = message.toString(),
+            color = color,
+            thumbnail = EmbedThumbnail("https://b.ppy.sh/thumb/${beatmap.osuId}l.jpg"),
+            footer = user?.let { EmbedFooter(it.username, "https://a.ppy.sh/${it.osuId}") } ?: EmbedFooter("osu!"),
+            confidential = true,
+            gamemodes = beatmap.gamemodes.map { it.gamemode },
         )
     }
 

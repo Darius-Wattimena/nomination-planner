@@ -12,9 +12,12 @@ import nl.greaper.bnplanner.model.UserGamemode
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
+import nl.greaper.bnplanner.model.osu.GroupEvent
+import nl.greaper.bnplanner.model.osu.GroupEventType
 import nl.greaper.bnplanner.model.osu.Me
 import nl.greaper.bnplanner.model.osu.MeGroup
 import nl.greaper.bnplanner.util.parseJwtToken
+import nl.greaper.bnplanner.util.toReadableName
 import org.springframework.stereotype.Service
 
 @Service
@@ -116,6 +119,93 @@ class UserService(
         }
 
         return newUser
+    }
+
+    /**
+     * Follow someone joining or leaving a group on osu!, or changing their gamemodes in it, the same way a user sync sees it afterwards
+     *
+     * @return the changed user, null when nothing changed
+     */
+    fun applyGroupEvent(event: GroupEvent): User? {
+        val kind = event.kind ?: return null
+        val userId = event.userId ?: return null
+
+        if (event.groupId !in MeGroup.SupportedGroups) {
+            return null
+        }
+
+        val role = Role.fromOsuId(event.groupId)
+        val modes = event.playmodes.orEmpty().mapNotNull { mode -> Gamemode.entries.find { it.name == mode } }
+        val known = findUserById(userId)
+        val current = known ?: User(userId, event.userName ?: "Unknown", emptyList())
+        val before =
+            current.gamemodes
+                .filter { it.role == role }
+                .map { it.gamemode }
+                .toSet()
+        val inGroup =
+            when (kind) {
+                GroupEventType.USER_ADD -> modes.toSet()
+                GroupEventType.USER_REMOVE -> emptySet()
+                GroupEventType.USER_ADD_PLAYMODES -> before + modes
+                GroupEventType.USER_REMOVE_PLAYMODES -> before - modes.toSet()
+            }
+        val isMember = kind != GroupEventType.USER_REMOVE
+        // NAT members without a gamemode have access to all of them
+        val after = if (role == Role.NominationAssessment && isMember && inGroup.isEmpty()) Gamemode.entries.toSet() else inGroup
+
+        // Nothing to remember about someone unknown who isn't in the group
+        if (known == null && after.isEmpty()) {
+            return null
+        }
+
+        // Like a user sync, only the roles of groups remain
+        val otherGroups = current.gamemodes.filter { it.role != role && it.role != Role.Mapper }
+        val updated =
+            current.copy(
+                username = event.userName ?: current.username,
+                gamemodes = otherGroups + Gamemode.entries.filter { it in after }.map { UserGamemode(it, role) },
+                // Someone in a group can't be restricted
+                restricted = current.restricted.takeUnless { isMember },
+            )
+
+        // The order of the gamemodes doesn't matter
+        val inOrder = { user: User -> user.copy(gamemodes = user.gamemodes.sortedWith(compareBy({ it.role }, { it.gamemode }))) }
+        if (known?.let(inOrder) == inOrder(updated)) {
+            return null
+        }
+
+        dataSource.saveUser(updated)
+        logGroupChange(updated, event, added = after - before, removed = before - after)
+
+        return updated
+    }
+
+    private fun logGroupChange(
+        user: User,
+        event: GroupEvent,
+        added: Set<Gamemode>,
+        removed: Set<Gamemode>,
+    ) {
+        val group = event.groupName ?: event.groupId
+        val changes =
+            listOfNotNull(
+                added.takeIf { it.isNotEmpty() }?.let { "Added to $group [${it.joinToString { mode -> mode.toReadableName() }}]" },
+                removed.takeIf { it.isNotEmpty() }?.let { "Removed from $group [${it.joinToString { mode -> mode.toReadableName() }}]" },
+            ).ifEmpty { listOf("Updated") }
+
+        log.info {
+            "[OSU] ${event.type} ${user.username}: ${changes.joinToString()} (osuId = ${user.osuId}, event = ${event.id} at ${event.createdAt})"
+        }
+
+        discordClient?.send(
+            description = "**[${user.username}](https://osu.ppy.sh/users/${user.osuId})**\n${changes.joinToString("\n")}",
+            color = if (removed.isEmpty()) EmbedColor.GREEN else EmbedColor.RED,
+            thumbnail = EmbedThumbnail("https://a.ppy.sh/${user.osuId}"),
+            footer = EmbedFooter("osu!"),
+            confidential = true,
+            gamemodes = listOf(),
+        )
     }
 
     fun findUserById(osuId: String): User? {
