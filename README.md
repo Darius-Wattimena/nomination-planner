@@ -72,14 +72,14 @@ npm run build
 
 ## Deploying
 
-Pushing a version tag releases the backend and the frontend to the setup of the GitHub environment `beta`, once the checks pass:
+A version tag starts a release. The Release workflow builds and checks the backend and frontend once, and then each environment (now `beta`) waits for an approval: GitHub notifies you, and "Review deployments" on the run deploys exactly that build there.
 
 ```
 git tag v2.0.0
 git push origin v2.0.0
 ```
 
-A change on master is only checked. To deploy a tag again, run the workflow by hand in the Actions tab and pick the tag. How that setup is created is in [infra/README.md](infra/README.md).
+A change on master or in a pull request is only checked. Environments and their approvers are in the repository settings under Environments, how their AWS setup is created is in [infra/README.md](infra/README.md). How that setup is created is in [infra/README.md](infra/README.md).
 
 ## Features Requests
 

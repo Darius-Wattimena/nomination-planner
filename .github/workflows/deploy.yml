@@ -1,0 +1,66 @@
+name: Deploy
+
+# Deploys the build of the Release workflow to one environment, after its approval
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # The setup of infra/planner.yml. The variables of the environment say where it is, its reviewers approve.
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      # Logging in to AWS as the deploy role
+      id-token: write
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    env:
+      APPLICATION: bnplanner
+      ENVIRONMENT: ${{ vars.BEANSTALK_ENVIRONMENT }}
+    steps:
+      # Exactly what was built and checked
+      - uses: actions/download-artifact@v8
+        with:
+          name: backend-bundle
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: frontend-build
+          path: build
+
+      # The role of infra/planner.yml, no stored access keys
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE }}
+          aws-region: eu-west-1
+
+      # The backend first, so the website never calls a backend older than itself
+      - name: Deploy the backend to Elastic Beanstalk
+        run: |
+          version="${GITHUB_REF_NAME}-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          bucket=$(aws elasticbeanstalk create-storage-location --query S3Bucket --output text)
+          key="$APPLICATION/$version.zip"
+          aws s3 cp bnplanner.zip "s3://$bucket/$key"
+          aws elasticbeanstalk create-application-version --application-name "$APPLICATION" \
+            --version-label "$version" --source-bundle "S3Bucket=$bucket,S3Key=$key"
+          aws elasticbeanstalk update-environment --environment-name "$ENVIRONMENT" --version-label "$version"
+          aws elasticbeanstalk wait environment-updated --environment-names "$ENVIRONMENT"
+          health=$(aws elasticbeanstalk describe-environments --environment-names "$ENVIRONMENT" \
+            --query "Environments[0].[VersionLabel,Health]" --output text)
+          echo "Running: $health"
+          [[ "$health" == "$version"* ]] || { echo "Beanstalk did not take the new version"; exit 1; }
+
+      - name: Deploy the frontend to S3
+        run: aws s3 sync build "s3://${{ vars.WEBSITE_BUCKET }}" --delete --exact-timestamps
+
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION }}" --paths "/*"

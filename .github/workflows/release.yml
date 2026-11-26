@@ -1,0 +1,26 @@
+name: Release
+
+# A version tag, like v2.0.0, builds and checks the backend and frontend once. Each environment then waits for an
+# approval in GitHub before it gets exactly that build.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    uses: ./.github/workflows/backend.yml
+
+  frontend:
+    uses: ./.github/workflows/frontend.yml
+
+  beta:
+    needs: [backend, frontend]
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: beta
+    permissions:
+      contents: read
+      id-token: write

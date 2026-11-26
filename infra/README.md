@@ -14,7 +14,7 @@ visitor ──> CloudFront ┤
 - **No load balancer.** The planner keeps the beatmaps in memory, so it runs on one instance anyway. A load balancer would only have held the certificate, for about $18 a month plus two IPv4 addresses.
 - **SSL** for visitors comes from the existing free Amazon certificate for `*.greaper.net` in us-east-1. Between CloudFront and the instance, the instance gets its own free Let's Encrypt certificate for the origin address (`backend/.platform`). Let's Encrypt checks it through a TXT record in Route 53, so no port is open for it. It renews twice a day when it expires within 30 days. Both renew on their own.
 - **The instance** only accepts https from CloudFront, so the backend can't be reached around it. Port 80 and SSH are closed.
-- **GitHub Actions** deploys a version tag, like `v2.0.0`, as an IAM role through OIDC. No access keys are stored in GitHub.
+- **GitHub Actions** deploys a version tag, like `v2.0.0`, after your approval, as an IAM role through OIDC. No access keys are stored in GitHub.
 - **The backend** runs on a t4g.small (2 GB) with a fixed IP address. A deploy has a minute of downtime. For more room, set `InstanceType=t4g.medium` (4 GB) and raise `Xmx` in the template.
 - **Platform updates** are installed on Sunday nights, and logs go to CloudWatch for 14 days.
 
@@ -103,11 +103,13 @@ aws cloudformation describe-stacks --region eu-west-1 --stack-name bnplanner-bet
 | `CLOUDFRONT_DISTRIBUTION` | `DistributionId` |
 | `BEANSTALK_ENVIRONMENT` | `BackendEnvironment` |
 
-Optional: add yourself as a required reviewer, so every deploy waits for your approval.
+Add yourself as a required reviewer, so a release waits for your approval before it deploys here. GitHub only allows that on public repositories, or private ones with GitHub Pro.
+
+For another environment, add a job like `beta` to `.github/workflows/release.yml`.
 
 ### 7. Deploy
 
-Push a version tag, like `git tag v2.0.0` and then `git push origin v2.0.0`. Both workflows check the tag and deploy it. Then open https://beta-bnplanner.greaper.net and log in.
+Push a version tag, like `git tag v2.0.0` and then `git push origin v2.0.0`. The Release workflow builds it, and once you approve `beta` on the run, deploys the backend and then the website. Then open https://beta-bnplanner.greaper.net and log in.
 
 ## Taking the old data along
 

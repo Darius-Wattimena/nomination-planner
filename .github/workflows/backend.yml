@@ -3,12 +3,12 @@ name: Backend
 on:
   push:
     branches: [master]
-    # A version tag, like v2.0.0, releases the backend and the frontend. Tags don't look at the paths.
-    tags: ["v*"]
     paths: [backend/**, .github/workflows/backend.yml]
   pull_request:
     paths: [backend/**, .github/workflows/backend.yml]
   workflow_dispatch:
+  # The Release workflow builds with this before deploying
+  workflow_call:
 
 permissions:
   contents: read
@@ -56,45 +56,3 @@ jobs:
           path: backend/build/libs/bnplanner.zip
           retention-days: 14
 
-  deploy:
-    needs: build
-    # Only a version tag deploys, also when started by hand on a tag
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    # The setup of infra/planner.yml. The variables of the environment say where it is.
-    environment: beta
-    permissions:
-      contents: read
-      # Logging in to AWS as the deploy role, only for deploying
-      id-token: write
-    concurrency:
-      group: deploy-backend
-      cancel-in-progress: false
-    defaults:
-      run:
-        working-directory: .
-    env:
-      APPLICATION: bnplanner
-      ENVIRONMENT: ${{ vars.BEANSTALK_ENVIRONMENT }}
-    steps:
-      # Deploy exactly the war that was built and tested, with the setup of the instance
-      - uses: actions/download-artifact@v8
-        with:
-          name: backend-bundle
-
-      # The role of infra/planner.yml, no stored access keys
-      - uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE }}
-          aws-region: eu-west-1
-
-      - name: Deploy to Elastic Beanstalk
-        run: |
-          version="${GITHUB_REF_NAME}-${GITHUB_RUN_NUMBER}"
-          bucket=$(aws elasticbeanstalk create-storage-location --query S3Bucket --output text)
-          key="$APPLICATION/$version.zip"
-          aws s3 cp bnplanner.zip "s3://$bucket/$key"
-          aws elasticbeanstalk create-application-version --application-name "$APPLICATION" \
-            --version-label "$version" --source-bundle "S3Bucket=$bucket,S3Key=$key"
-          aws elasticbeanstalk update-environment --environment-name "$ENVIRONMENT" --version-label "$version"
-          aws elasticbeanstalk wait environment-updated --environment-names "$ENVIRONMENT"

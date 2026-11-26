@@ -70,7 +70,10 @@ Parameters:
 
   GitHubRepository:
     Type: String
-    Default: Darius-Wattimena/nomination-planner
+    Default: Darius-Wattimena@5977713/nomination-planner@1472346118
+    Description: >-
+      The repository as GitHub names it in its tokens. With immutable subjects that is owner@owner-id/name@repository-id,
+      see gh api repos/OWNER/NAME/actions/oidc/customization/sub
   GitHubEnvironment:
     Type: String
     Default: beta
