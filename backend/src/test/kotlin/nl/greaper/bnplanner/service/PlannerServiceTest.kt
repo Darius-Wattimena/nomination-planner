@@ -129,15 +129,6 @@ class PlannerServiceTest {
     }
 
     @Test
-    fun `Should leave out deleted users`() {
-        val user = planner.user("5", "BN", nominator(Gamemode.osu))
-        val token = service.find(null).token
-        planner.users.deleteUser(user)
-
-        assertEquals(emptySet<String>(), service.find(token).userIds())
-    }
-
-    @Test
     fun `Should find everything when the token is not known`() {
         planner.save(beatmap())
         val token = service.find(null).token

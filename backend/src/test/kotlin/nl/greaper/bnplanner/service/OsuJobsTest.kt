@@ -78,11 +78,11 @@ class OsuJobsTest {
     fun `Should sync in the background on request`() {
         BeatmapStatus.entries.forEach { planner.save(beatmap(it.name, status = it)) }
 
-        val info = planner.fixService.syncBeatmapsInBackground(TOKEN, BeatmapPage.PENDING, setOf(BeatmapStatus.Pending))
+        val info = planner.syncService.syncPendingBeatmaps(TOKEN, setOf(BeatmapStatus.Pending))
         assertEquals(1, info.totalSynced)
         assertEquals(0, info.duration)
         planner.osuJobs.finish()
-        assertEquals(0, planner.fixService.findWaiting())
+        assertEquals(0, planner.syncService.findWaiting())
     }
 
     @Test

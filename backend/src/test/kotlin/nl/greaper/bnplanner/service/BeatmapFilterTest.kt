@@ -35,9 +35,6 @@ class BeatmapFilterTest {
         assertEquals(ids.size, count)
 
         planner.user("10")
-        val range =
-            service.findBeatmaps("", search, artist, title, mapper, status, nominators, page, 0, 2000, gamemodes, missingNominator)
-        assertEquals(ids, range.map { it.osuId }.toSet())
         val table =
             service.findBeatmaps(
                 "",
@@ -235,13 +232,6 @@ class BeatmapFilterTest {
         planner.user("10")
         (1..25).forEach { save(beatmap("$it", updated = UPDATED.minusSeconds(it.toLong()))) }
 
-        fun ids(
-            from: Int,
-            to: Int,
-        ) = service
-            .findBeatmaps("", null, null, null, null, emptySet(), emptySet(), BeatmapPage.PENDING, from, to, emptySet(), emptySet())
-            .map { it.osuId.toInt() }
-
         fun table(
             number: Int,
             limit: PageLimit,
@@ -249,7 +239,6 @@ class BeatmapFilterTest {
             .findBeatmaps("", null, null, null, null, emptySet(), emptySet(), BeatmapPage.PENDING, number, limit, emptySet(), emptySet())
             .map { it.osuId.toInt() }
 
-        assertEquals((6..10).toList(), ids(5, 10))
         assertEquals((21..25).toList(), table(3, PageLimit.TEN))
     }
 
@@ -258,12 +247,24 @@ class BeatmapFilterTest {
         planner.user("10")
         save(beatmap("1"), beatmap("2", mapperId = "unknown"))
 
-        fun found(to: Int) =
+        val found =
             service
-                .findBeatmaps("", null, null, null, null, emptySet(), emptySet(), BeatmapPage.PENDING, 0, to, emptySet(), emptySet())
-                .map { it.osuId }
+                .findBeatmaps(
+                    "",
+                    null,
+                    null,
+                    null,
+                    null,
+                    emptySet(),
+                    emptySet(),
+                    BeatmapPage.PENDING,
+                    1,
+                    PageLimit.FIFTY,
+                    emptySet(),
+                    emptySet(),
+                ).map { it.osuId }
 
-        assertEquals(listOf("1"), found(2000))
+        assertEquals(listOf("1"), found)
         assertEquals(
             2,
             service.countBeatmaps(null, null, null, null, emptySet(), emptySet(), BeatmapPage.PENDING, emptySet(), emptySet()),

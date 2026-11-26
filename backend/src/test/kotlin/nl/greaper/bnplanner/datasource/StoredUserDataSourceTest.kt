@@ -25,8 +25,6 @@ class StoredUserDataSourceTest {
     private val nat = UserGamemode(Gamemode.fruits, Role.NominationAssessment)
     private val mapper = UserGamemode(Gamemode.taiko, Role.Mapper)
 
-    private fun ids(found: Set<User>) = found.map { it.osuId }.toSet()
-
     @Test
     fun `Should store a user in the expected document shape`() {
         users.saveUser(User("1", "BN", listOf(bn, nat), restricted = true))
@@ -56,8 +54,7 @@ class StoredUserDataSourceTest {
 
         assertEquals(listOf(User("1", "New", listOf(nat))), users.list())
         assertEquals(User("1", "New", listOf(nat)), users.findUser("1"))
-        assertEquals(emptySet<String>(), users.usersByGamemode[Gamemode.osu])
-        assertEquals(setOf("1"), users.usersByGamemode[Gamemode.fruits])
+        assertEquals(listOf(User("1", "New", listOf(nat))), users.allUsers())
     }
 
     @Test
@@ -67,55 +64,8 @@ class StoredUserDataSourceTest {
 
         val restarted = UserDataSource(TestMongo.database)
         assertEquals(expected, restarted.findUser("5"))
-        assertEquals(setOf("5"), restarted.usersByGamemode[Gamemode.mania])
         // Users are only read when starting
         assertNull(users.findUser("5"))
-    }
-
-    @Test
-    fun `Should delete a user`() {
-        val user = User("1", "BN", listOf(bn, nat))
-        users.saveUser(user)
-        users.saveUser(User("2", "Other", listOf(bn)))
-        users.deleteUser(user)
-
-        assertNull(users.findUser("1"))
-        assertEquals(setOf("2"), users.usersByGamemode[Gamemode.osu])
-        assertEquals(emptySet<String>(), users.usersByGamemode[Gamemode.fruits])
-        assertEquals(listOf("2"), users.list().map { it.osuId })
-    }
-
-    @Test
-    fun `Should search users`() {
-        users.saveUser(User("1", "Alice", listOf(bn)))
-        users.saveUser(User("2", "Malice", listOf(nat, bn)))
-        users.saveUser(User("3", "Bob", listOf(nat)))
-        users.saveUser(User("4", "Mapper", listOf(mapper)))
-        users.saveUser(User("5", "Both", listOf(bn, mapper)))
-        users.saveUser(User("6", "No gamemodes", emptyList()))
-
-        assertEquals(setOf("1", "2", "3"), ids(users.searchUser(null, emptySet(), emptySet())))
-        assertEquals(setOf("1", "2"), ids(users.searchUser("ALICE", emptySet(), emptySet())))
-        assertEquals(setOf("2", "3"), ids(users.searchUser(null, setOf(Gamemode.fruits), emptySet())))
-        assertEquals(setOf("1", "2", "3"), ids(users.searchUser(null, setOf(Gamemode.fruits, Gamemode.osu), emptySet())))
-        assertEquals(setOf("4", "5"), ids(users.searchUser(null, emptySet(), setOf(Role.Mapper))))
-        assertEquals(setOf("1", "2", "3", "5"), ids(users.searchUser(null, emptySet(), setOf(Role.Nominator, Role.NominationAssessment))))
-        assertEquals(setOf("2"), ids(users.searchUser("a", setOf(Gamemode.fruits), setOf(Role.Nominator))))
-        assertEquals(emptySet<String>(), ids(users.searchUser("nobody", emptySet(), emptySet())))
-    }
-
-    @Test
-    fun `SUSPECTED BUG - A role is found while it belongs to another gamemode than searched for`() {
-        users.saveUser(User("2", "Osu BN and catch NAT", listOf(nat, bn)))
-
-        assertEquals(setOf("2"), ids(users.searchUser(null, setOf(Gamemode.osu), setOf(Role.NominationAssessment))))
-    }
-
-    @Test
-    fun `SUSPECTED BUG - Users without gamemodes can never be found`() {
-        users.saveUser(User("6", "Former BN", emptyList()))
-
-        assertEquals(emptySet<String>(), ids(users.searchUser("Former BN", emptySet(), emptySet())))
     }
 
     @Test
@@ -124,22 +74,12 @@ class StoredUserDataSourceTest {
         val failures = ConcurrentLinkedQueue<Throwable>()
 
         fun start(action: () -> Unit) = thread { runCatching(action).onFailure { failures += it } }
-        val readers = (1..4).map { start { repeat(100) { users.searchUser(null, emptySet(), emptySet()) } } }
+        val readers = (1..4).map { start { repeat(100) { users.allUsers().forEach { users.findUser(it.osuId) } } } }
         val writers = (1..4).map { writer -> start { repeat(500) { users.addInMemoryUser(User("$writer-$it", "New", listOf(bn))) } } }
         (readers + writers).forEach { it.join() }
 
         assertEquals(emptyList<Throwable>(), failures.toList())
-        assertEquals(4000, users.usersByOsuId.size)
-        assertEquals(4000, users.usersByGamemode[Gamemode.osu]!!.size)
-    }
-
-    @Test
-    fun `Should cope with a gamemode missing in the cache`() {
-        users.usersByGamemode.remove(Gamemode.osu)
-        assertEquals(emptySet<User>(), users.searchUser(null, setOf(Gamemode.osu), emptySet()))
-
-        users.addInMemoryUser(User("1", "BN", listOf(bn)))
-        assertEquals(setOf("1"), users.usersByGamemode[Gamemode.osu])
+        assertEquals(4000, users.allUsers().size)
     }
 
     @Test

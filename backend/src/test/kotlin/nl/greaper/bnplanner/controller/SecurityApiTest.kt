@@ -23,17 +23,14 @@ class SecurityApiTest : ApiTest() {
         value = [
             "VIEWER | GET    | /v2/beatmap/1                                                | ",
             "VIEWER | GET    | /v2/beatmap/count?page=PENDING                               | ",
-            "VIEWER | GET    | /v2/beatmap/find?page=PENDING&from=0&to=10                   | ",
             "VIEWER | GET    | /v2/beatmap/find/table?page=PENDING&pageNumber=1&pageLimit=TEN | ",
             "VIEWER | GET    | /v2/planner                                                  | ",
             "VIEWER | GET    | /v2/planner/ranked                                           | ",
             "VIEWER | GET    | /v2/planner/wait                                             | ",
             "ADMIN  | GET    | /v2/admin/sync/waiting                                       | ",
             "ADMIN  | POST   | /v2/admin/sync/beatmaps/pending?background=true              | ",
-            "VIEWER | GET    | /v2/user/search                                              | ",
             "VIEWER | GET    | /v2/profile/1/pairing                                        | ",
             "EDITOR | POST   | /v2/beatmap/add              | {\"osuId\":\"1\",\"gamemodes\":[]}",
-            "EDITOR | PATCH  | /v2/beatmap/1/nominators     | []",
             "EDITOR | PATCH  | /v2/beatmap/1/osu/nominator?old=0&new=1                      | ",
             "EDITOR | PATCH  | /v2/beatmap/1/note                                           | note",
             "EDITOR | DELETE | /v2/beatmap/1/delete                                         | ",
@@ -41,8 +38,6 @@ class SecurityApiTest : ApiTest() {
             "ADMIN  | PATCH  | /v2/beatmap/1/status?new=Pending                             | ",
             "ADMIN  | POST   | /v2/admin/sync/users/ids                                     | []",
             "ADMIN  | POST   | /v2/admin/sync/beatmaps/pending                              | ",
-            "DEVELOPER | POST | /v2/admin/sync/users                                        | ",
-            "DEVELOPER | POST | /v2/admin/sync/beatmaps/graveyard                           | ",
         ],
     )
     fun `Should only allow the required role`(
@@ -83,7 +78,7 @@ class SecurityApiTest : ApiTest() {
     }
 
     private fun search(authorization: String?) =
-        call(As.NOBODY, "GET", "/v2/user/search", headers = authorization?.let { mapOf(AUTHORIZATION to it) } ?: emptyMap()).status
+        call(As.NOBODY, "GET", "/v2/profile/1/pairing", headers = authorization?.let { mapOf(AUTHORIZATION to it) } ?: emptyMap()).status
 
     @ParameterizedTest
     @ValueSource(
@@ -165,11 +160,11 @@ class SecurityApiTest : ApiTest() {
         assertNull(response.getHeader("Access-Control-Allow-Credentials"))
         assertNull(response.getHeader("Access-Control-Max-Age"))
 
-        val actual = call(As.VIEWER, "GET", "/v2/user/search", headers = mapOf("Origin" to origin))
+        val actual = call(As.VIEWER, "GET", "/v2/profile/1/pairing", headers = mapOf("Origin" to origin))
         assertEquals(200, actual.status)
         assertEquals(origin, actual.getHeader("Access-Control-Allow-Origin"))
         // Also when not logged in, otherwise the frontend can't see the status
-        val refused = call(As.NOBODY, "GET", "/v2/user/search", headers = mapOf("Origin" to origin))
+        val refused = call(As.NOBODY, "GET", "/v2/profile/1/pairing", headers = mapOf("Origin" to origin))
         assertEquals(401, refused.status)
         assertEquals(origin, refused.getHeader("Access-Control-Allow-Origin"))
     }
@@ -180,7 +175,7 @@ class SecurityApiTest : ApiTest() {
             preflight("http://localhost:3001"),
             preflight("http://localhost:3000", method = "TRACE"),
             preflight("http://localhost:3000", headers = "x-other"),
-            call(As.VIEWER, "GET", "/v2/user/search", headers = mapOf("Origin" to "http://localhost:3001")),
+            call(As.VIEWER, "GET", "/v2/profile/1/pairing", headers = mapOf("Origin" to "http://localhost:3001")),
         ).forEach {
             assertEquals(403, it.status)
             assertEquals("Invalid CORS request", it.contentAsString)
@@ -208,24 +203,24 @@ class SecurityApiTest : ApiTest() {
     @Test
     fun `Should answer through an actual server`() {
         FakeOsu.respond("GET /api/v2/me", """{"id":1,"username":"Viewer"}""")
-        val response = http("GET", "/v2/user/search?username=edit", mapOf(AUTHORIZATION to As.VIEWER.header!!))
+        val response = http("GET", "/v2/profile/2/pairing", mapOf(AUTHORIZATION to As.VIEWER.header!!))
 
         assertEquals(200, response.statusCode())
         assertEquals("application/json", response.headers().firstValue("Content-Type").get())
-        assertEquals("""[{"osuId":"2","username":"Editor","gamemodes":[{"gamemode":"osu","role":"Nominator"}]}]""", response.body())
+        assertEquals("[]", response.body())
         assertEquals("no-cache, no-store, max-age=0, must-revalidate", response.headers().firstValue("Cache-Control").get())
         assertTrue(response.headers().firstValue("Set-Cookie").isEmpty)
     }
 
     @Test
     fun `Should refuse through an actual server`() {
-        val response = http("GET", "/v2/user/search")
+        val response = http("GET", "/v2/profile/1/pairing")
         assertEquals(401, response.statusCode())
         assertEquals("", response.body())
 
         FakeOsu.respond("GET /api/v2/me", "{}", 503)
         val token = createToken(subject = "1", expires = 4102444814)
-        assertEquals(503, http("GET", "/v2/user/search", mapOf(AUTHORIZATION to "Bearer $token")).statusCode())
+        assertEquals(503, http("GET", "/v2/profile/1/pairing", mapOf(AUTHORIZATION to "Bearer $token")).statusCode())
     }
 
     @Test

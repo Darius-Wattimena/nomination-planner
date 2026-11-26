@@ -15,20 +15,13 @@ import java.util.concurrent.ConcurrentHashMap
 class UserDataSource(
     database: MongoDatabase,
 ) : BaseDataSource<User>(database, "users") {
-    // Keep users in memory to speed up requests, these are used by several requests at once
-    final val usersByOsuId: MutableMap<String, User> = ConcurrentHashMap()
-    final val usersByGamemode: MutableMap<Gamemode, Set<String>> = ConcurrentHashMap()
+    // Kept in memory to speed up requests, these are used by several requests at once
+    private val users = ConcurrentHashMap<String, User>()
 
     final val changes = ChangeLog()
 
     init {
-        Gamemode.entries.forEach { gamemode ->
-            usersByGamemode[gamemode] = emptySet()
-        }
-
-        list().forEach {
-            addInMemoryUser(it)
-        }
+        list().forEach { addInMemoryUser(it) }
     }
 
     override fun toDocument(value: User): Document =
@@ -48,91 +41,22 @@ class UserDataSource(
             restricted = document.getBoolean("restricted"),
         )
 
-    @Synchronized
-    fun removeInMemoryUser(user: User) {
-        usersByOsuId.remove(user.osuId)
+    /** Everybody who is known, as it is at this moment */
+    fun allUsers(): Collection<User> = users.values.toList()
 
-        // Loop over all gamemodes as we don't know anymore what gamemode each user was part of
-        usersByGamemode.forEach { (gamemode, usersIds) ->
-            if (usersIds.contains(user.osuId)) {
-                val userIdsWithoutDeleted = usersIds - user.osuId
-                usersByGamemode[gamemode] = userIdsWithoutDeleted
-            }
-        }
+    fun findUser(osuId: String): User? = users[osuId]
 
-        changes.mark(user.osuId)
-    }
-
-    @Synchronized
     fun addInMemoryUser(user: User) {
-        usersByOsuId[user.osuId] = user
-
-        val userGamemodes = user.gamemodes.map { it.gamemode }
-
-        Gamemode.entries.forEach { gamemode ->
-            val gamemodeUsers = usersByGamemode[gamemode]?.toMutableSet() ?: mutableSetOf()
-            if (gamemode in userGamemodes) {
-                // Add the user to the gamemode
-                gamemodeUsers.add(user.osuId)
-            } else {
-                // Make sure to remove the user from the gamemode if it previously was
-                gamemodeUsers.remove(user.osuId)
-            }
-
-            // Replace all users of our map
-            usersByGamemode[gamemode] = gamemodeUsers
-        }
-
+        users[user.osuId] = user
         changes.mark(user.osuId)
     }
 
-    fun searchUser(
-        username: String?,
-        gamemodes: Set<Gamemode>,
-        roles: Set<Role>,
-    ): Set<User> {
-        val gamemodeUserIds =
-            if (gamemodes.isNotEmpty()) {
-                gamemodes
-                    .map { gamemode ->
-                        usersByGamemode[gamemode] ?: emptyList()
-                    }.flatten()
-                    .toSet()
-            } else {
-                usersByGamemode.flatMap { it.value }.toSet()
-            }
-
-        val gamemodeUsers = usersByOsuId.filterKeys { it in gamemodeUserIds }.values
-        val usernameFilteredUsers =
-            username?.let { gamemodeUsers.filter { user -> user.username.contains(username, true) } } ?: gamemodeUsers
-
-        return if (roles.isNotEmpty()) {
-            roles
-                .map { role ->
-                    usernameFilteredUsers.filter {
-                        it.gamemodes.any { userGamemode -> userGamemode.role == role }
-                    }
-                }.flatten()
-                .toSet()
-        } else {
-            // Don't show mappers when searching, except when explicitly providing them
-            usernameFilteredUsers
-                .filter { user -> user.gamemodes.all { gamemode -> gamemode.role != Role.Mapper } }
-                .toSet()
-        }
-    }
-
-    fun findUser(osuId: String): User? = usersByOsuId[osuId]
+    /** Only for tests, which start over with nobody known */
+    internal fun forgetInMemoryUsers() = users.clear()
 
     @Synchronized
     fun saveUser(user: User) {
         collection.replaceOne(Filters.eq("_id", user.osuId), toDocument(user), ReplaceOptions().upsert(true))
         addInMemoryUser(user)
-    }
-
-    @Synchronized
-    fun deleteUser(user: User) {
-        removeInMemoryUser(user)
-        deleteById(user.osuId)
     }
 }

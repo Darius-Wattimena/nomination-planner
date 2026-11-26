@@ -18,10 +18,10 @@ import nl.greaper.bnplanner.model.beatmap.BeatmapNominator
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.service.AuthService
 import nl.greaper.bnplanner.service.BeatmapService
-import nl.greaper.bnplanner.service.FixService
 import nl.greaper.bnplanner.service.OsuJobs
 import nl.greaper.bnplanner.service.OsuService
 import nl.greaper.bnplanner.service.ProfileService
+import nl.greaper.bnplanner.service.SyncService
 import nl.greaper.bnplanner.service.UserService
 import nl.greaper.bnplanner.util.Sleeper
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -53,7 +53,7 @@ class Planner(
     val osuService = OsuService(osuClient, userService, tokens)
     val authService = AuthService(osuService, discordClient)
     val osuJobs = OsuJobs(beatmapService, sleeper)
-    val fixService = FixService(beatmaps, userService, beatmapService, osuJobs, sleeper)
+    val syncService = SyncService(userService, beatmapService, osuJobs, sleeper)
     val profileService = ProfileService(beatmapService, userService)
 
     fun user(

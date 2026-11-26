@@ -45,7 +45,7 @@ class PlannerService(
         return PlannerUpdate(
             token = token,
             isComplete = true,
-            users = userDataSource.usersByOsuId.values.filter { it.osuId in used || it.canNominate() },
+            users = userDataSource.allUsers().filter { it.osuId in used || it.canNominate() },
             beatmaps = beatmaps.map { toPlannerBeatmap(it) },
             removed = emptyList(),
         )

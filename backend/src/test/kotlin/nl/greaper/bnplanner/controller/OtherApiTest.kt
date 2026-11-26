@@ -123,35 +123,6 @@ class OtherApiTest : ApiTest() {
 
     // Users
 
-    @Test
-    fun `Should search users`() {
-        val viewer = """{"osuId":"1","username":"Viewer","gamemodes":[{"gamemode":"osu","role":"Mapper"}]}"""
-        val editor = """{"osuId":"2","username":"Editor","gamemodes":[{"gamemode":"osu","role":"Nominator"}]}"""
-        val admin = """{"osuId":"3","username":"Admin","gamemodes":[{"gamemode":"mania","role":"NominationAssessment"}]}"""
-
-        get("/v2/user/search").assertJson("[$admin,$editor]")
-        get("/v2/user/search?username=DI").assertJson("[$editor]")
-        get("/v2/user/search?gamemodes=mania,taiko").assertJson("[$admin]")
-        get("/v2/user/search?gamemodes=mania&gamemodes=osu").assertJson("[$admin,$editor]")
-        get("/v2/user/search?roles=Mapper").assertJson("[$viewer]")
-        get("/v2/user/search?roles=Mapper,Nominator").assertJson("[$editor,$viewer]")
-        get("/v2/user/search?username=&gamemodes=&roles=").assertJson("[$admin,$editor]")
-        get("/v2/user/search?username=nobody").assertJson("[]")
-        assertEquals(400, get("/v2/user/search?roles=Other").status)
-        // Either separated or repeated, not both
-        assertEquals(400, get("/v2/user/search?roles=Mapper,Nominator&roles=Probation").status)
-    }
-
-    @Test
-    fun `SUSPECTED BUG - Searching users returns at most 20`() {
-        (10..40).forEach { users.addInMemoryUser(User("$it", "User $it", listOf(UserGamemode(Gamemode.osu, Role.Nominator)))) }
-
-        val found = JSONArray(get("/v2/user/search").contentAsString)
-        assertEquals(20, found.length())
-        assertEquals("Admin", found.getJSONObject(0).getString("username"))
-        assertEquals("User 27", found.getJSONObject(19).getString("username"))
-    }
-
     // Profile
 
     @Test
@@ -199,32 +170,14 @@ class OtherApiTest : ApiTest() {
             .toSet()
 
     @Test
-    fun `Should sync pending beatmaps`() {
-        saveEveryStatus()
-
-        assertSynced(6, sync(As.ADMIN, "beatmaps/pending"))
-        assertEquals(setOf("1", "2", "3", "4", "5", "8"), synced())
-        assertEquals(6, sleeper.sleeps.size)
-        assertEquals(As.ADMIN.header, FakeOsu.requests.first().header("Authorization"))
-    }
-
-    @Test
-    fun `Should sync pending beatmaps by status`() {
-        saveEveryStatus()
-
-        assertSynced(2, sync(As.ADMIN, "beatmaps/pending?status=Qualified,Reset"))
-        assertEquals(setOf("1", "4"), synced())
-        assertEquals(400, sync(As.ADMIN, "beatmaps/pending?status=Other").status)
-    }
-
-    @Test
     fun `Should sync pending beatmaps in the background`() {
         saveEveryStatus()
 
-        assertSynced(2, sync(As.ADMIN, "beatmaps/pending?status=Qualified,Reset&background=true"))
+        assertSynced(2, sync(As.ADMIN, "beatmaps/pending?status=Qualified,Reset"))
         jobs.finish()
         assertEquals(setOf("1", "4"), synced())
         get("/v2/admin/sync/waiting", As.ADMIN).assertJson("0")
+        assertEquals(400, sync(As.ADMIN, "beatmaps/pending?status=Other").status)
     }
 
     // Live updates
@@ -269,24 +222,6 @@ class OtherApiTest : ApiTest() {
         assertEquals(setOf("5"), synced())
         assertEquals(400, sync(As.EDITOR, "beatmaps/single?id=a").status)
         assertEquals(400, sync(As.EDITOR, "beatmaps/single").status)
-    }
-
-    @Test
-    fun `Should sync graved beatmaps without an answer`() {
-        saveEveryStatus()
-
-        sync(As.DEVELOPER, "beatmaps/graveyard").assertEmpty()
-        assertEquals(setOf("7"), synced())
-    }
-
-    @Test
-    fun `Should sync all users`() {
-        saveEveryStatus()
-        listOf("1", "2", "3").forEach { FakeOsu.user(it, "Synced") }
-
-        assertSynced(3, sync(As.DEVELOPER, "users"))
-        assertEquals(listOf("Synced", "Synced", "Synced"), users.list().map { it.username })
-        assertEquals(As.DEVELOPER.header, FakeOsu.requests.first().header("Authorization"))
     }
 
     @Test

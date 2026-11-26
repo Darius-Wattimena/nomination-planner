@@ -147,37 +147,12 @@ class UserServiceTest {
     }
 
     @Test
-    fun `Should delete a user`() {
-        service.deleteUser(planner.user("5"))
-
-        assertNull(service.findUserById("5"))
-    }
-
-    @Test
     fun `Should create a temporary user to recalculate`() {
         val expected = User("5", "5", emptyList())
 
         assertEquals(expected, service.createTemporaryUser("5"))
         assertEquals(expected, service.findUserById("5"))
         assertEquals(UserRecalculate("5"), planner.recalculations.findFirst())
-    }
-
-    @Test
-    fun `SUSPECTED BUG - Searching users returns at most 20, sorted by username`() {
-        (1..25).shuffled().forEach { planner.user("$it", "User %02d".format(it), nominator(Gamemode.osu)) }
-
-        assertEquals((1..20).map { "$it" }, service.searchUser(null, null, null).map { it.osuId })
-        assertEquals((20..25).map { "$it" }, service.searchUser("user 2", setOf(Gamemode.osu), setOf(Role.Nominator)).map { it.osuId })
-        assertTrue(service.searchUser(null, setOf(Gamemode.mania), null).isEmpty())
-    }
-
-    @Test
-    fun `Should sort found users case sensitive`() {
-        planner.user("1", "b", nominator(Gamemode.osu))
-        planner.user("2", "A", nominator(Gamemode.osu))
-        planner.user("3", "C", nominator(Gamemode.osu))
-
-        assertEquals(listOf("A", "C", "b"), service.searchUser(null, null, null).map { it.username })
     }
 
     @Test

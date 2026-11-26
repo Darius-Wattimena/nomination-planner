@@ -59,37 +59,6 @@ class BeatmapController(
             missingNominator = missingNominator ?: emptySet(),
         )
 
-    @GetMapping("/find")
-    @RolesAllowed(RolePermission.VIEWER)
-    fun findBeatmaps(
-        @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
-        @RequestParam page: BeatmapPage,
-        @RequestParam from: Int,
-        @RequestParam to: Int,
-        @RequestParam(required = false) search: String?,
-        @RequestParam(required = false) artist: String?,
-        @RequestParam(required = false) title: String?,
-        @RequestParam(required = false) mapper: String?,
-        @RequestParam(required = false) status: Set<BeatmapStatus>?,
-        @RequestParam(required = false) nominators: Set<String>?,
-        @RequestParam(required = false) gamemodes: Set<Gamemode>?,
-        @RequestParam(required = false) missingNominator: Set<Gamemode>?,
-    ): List<ExposedBeatmap> =
-        service.findBeatmaps(
-            osuApiToken = osuApiToken,
-            search = search,
-            artist = artist,
-            title = title,
-            mapper = mapper,
-            status = status ?: emptySet(),
-            nominators = nominators ?: emptySet(),
-            page = page,
-            from = from,
-            to = to,
-            gamemodes = gamemodes ?: emptySet(),
-            missingNominator = missingNominator ?: emptySet(),
-        )
-
     @GetMapping("/find/table")
     @RolesAllowed(RolePermission.VIEWER)
     fun findBeatmapsTable(
@@ -127,14 +96,6 @@ class BeatmapController(
         @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
         @RequestBody newBeatmap: NewBeatmap,
     ): ExposedBeatmap? = service.addBeatmap(osuApiToken, newBeatmap)
-
-    @PatchMapping("/{id}/nominators")
-    @RolesAllowed(RolePermission.EDITOR)
-    fun updateNominators(
-        @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
-        @PathVariable("id") id: String,
-        @RequestBody updatedBeatmapGamemodes: List<BeatmapGamemode>,
-    ): ExposedBeatmap? = service.updateBeatmapNominators(osuApiToken, id, updatedBeatmapGamemodes)
 
     @PatchMapping("/{id}/{mode}/nominator")
     @RolesAllowed(RolePermission.EDITOR)

@@ -529,82 +529,6 @@ class BeatmapServiceTest {
 
     // Nominators
 
-    private fun updateNominators(vararg gamemodes: BeatmapGamemode) = service.updateBeatmapNominators(TOKEN, "1", gamemodes.toList())
-
-    @Test
-    fun `Should update all nominators`() {
-        users("5", "6")
-        planner.save(beatmap("1", mode(Gamemode.osu, "5")))
-        val result = updateNominators(mode(Gamemode.osu, "5", "6", firstNominated = true, isReady = true), mode(Gamemode.taiko))!!
-
-        assertEquals(
-            listOf(mode(Gamemode.osu, "5", "6", firstNominated = true, isReady = true), mode(Gamemode.taiko)),
-            planner.stored().gamemodes,
-        )
-        assertRecent(planner.stored().dateUpdated)
-        assertEquals(listOf("5", "6"), result.gamemodes[0].nominators.map { it.nominator.osuId })
-        assertEquals(
-            update("\n$footer [[osu, taiko]]", EmbedColor.BLUE, false, listOf(Gamemode.osu, Gamemode.taiko)),
-            planner.discord.single(),
-        )
-    }
-
-    @Test
-    fun `SUSPECTED BUG - The message of updating all nominators contains new lines instead of the changes`() {
-        users("5", "6")
-        planner.save(beatmap("1", mode(Gamemode.osu), mode(Gamemode.mania)))
-        updateNominators(mode(Gamemode.osu, "5"), mode(Gamemode.mania, "6"))
-
-        assertEquals("\n, \n$footer [[osu, mania]]", planner.discord.single().description)
-    }
-
-    @Test
-    fun `Should always store two nominators`() {
-        planner.save(beatmap())
-
-        assertThrows<IndexOutOfBoundsException> { updateNominators(BeatmapGamemode(Gamemode.osu, emptyList(), false)) }
-        assertEquals(
-            listOf(BeatmapNominator("0", false), BeatmapNominator("0", false)),
-            planner
-                .stored()
-                .gamemodes
-                .single()
-                .nominators,
-        )
-    }
-
-    @Test
-    fun `Should not update all nominators of an unknown beatmap`() {
-        assertNull(updateNominators(mode(Gamemode.osu)))
-    }
-
-    @Test
-    fun `Should describe the changes of a gamemode`() {
-        users("5", "6", "7", "8")
-
-        fun describe(
-            new: BeatmapGamemode,
-            old: BeatmapGamemode?,
-        ) = service.logGamemodeUpdatedNominators(editor, "1", new, old)
-
-        assertNull(describe(mode(Gamemode.osu, "5", "6"), mode(Gamemode.osu, "5", "6", firstNominated = true)))
-        assertNull(describe(mode(Gamemode.osu), mode(Gamemode.osu)))
-        assertEquals(added("5"), describe(mode(Gamemode.osu, "5"), mode(Gamemode.osu)))
-        assertEquals(removed("6"), describe(mode(Gamemode.osu, "5"), mode(Gamemode.osu, "5", "6")))
-        assertEquals(
-            "${added("7")}\n${removed("5")}\n${added("8")}\n${removed("6")}",
-            describe(mode(Gamemode.osu, "7", "8"), mode(Gamemode.osu, "5", "6")),
-        )
-        // A new gamemode
-        assertEquals("${added("7")}\n${added("8")}", describe(mode(Gamemode.osu, "7", "8"), null))
-        assertNull(describe(mode(Gamemode.osu), null))
-        assertEquals(added("8"), service.logGamemodeUpdatedNominators(null, "1", mode(Gamemode.osu, "0", "8"), null))
-        assertEquals(
-            "${added("7")}\n${added("8")}",
-            service.logGamemodeUpdatedNominators(null, "1", mode(Gamemode.osu, "7", "8"), mode(Gamemode.osu)),
-        )
-    }
-
     @Test
     fun `Should only mention the gamemode of a changed nominator when there are several`() {
         val new = planner.user("5")
@@ -620,7 +544,7 @@ class BeatmapServiceTest {
         assertEquals(added("5"), service.getChangedNominatorText(new, null))
         assertEquals(removed("6"), service.getChangedNominatorText(null, old))
         assertEquals("", service.getChangedNominatorText(null, none))
-        assertEquals("", service.getChangedNominatorText(null as User?, null))
+        assertEquals("", service.getChangedNominatorText(null, null))
     }
 
     private fun updateNominator(
@@ -745,15 +669,13 @@ class BeatmapServiceTest {
     @Test
     fun `Should report without an editor when the token is unreadable`() {
         planner.save(beatmap("1", mode(Gamemode.osu, "5")))
-        val gamemodes = listOf(mode(Gamemode.osu))
         service.updateBeatmapNominator("unreadable", "1", Gamemode.osu, "5", "0")
-        service.updateBeatmapNominators("unreadable", "1", gamemodes)
         service.updateBeatmapStatus("unreadable", "1", BeatmapStatus.Reset)
         service.updateBeatmapNote("unreadable", "1", "note")
         service.deleteBeatmap("unreadable", "1")
         service.logBeatmapAdded("unreadable", beatmap())
 
-        assertEquals(6, planner.discord.sent.size)
+        assertEquals(5, planner.discord.sent.size)
         assertTrue(planner.discord.sent.all { it.editor == null })
     }
 
@@ -767,11 +689,10 @@ class BeatmapServiceTest {
         service.addBeatmap(TOKEN, NewBeatmap("1", listOf(Gamemode.osu)))
         service.updateBeatmapNote(TOKEN, "1", "note")
         service.updateBeatmapStatus(TOKEN, "1", BeatmapStatus.Reset)
-        service.updateBeatmapNominators(TOKEN, "1", listOf(mode(Gamemode.mania)))
-        service.updateBeatmapNominator(TOKEN, "1", Gamemode.mania, "0", "10")
+        service.updateBeatmapNominator(TOKEN, "1", Gamemode.osu, "0", "10")
         assertEquals("note", planner.stored().note)
         assertEquals(BeatmapStatus.Reset, planner.stored().status)
-        assertEquals(listOf(mode(Gamemode.mania, "10")), planner.stored().gamemodes)
+        assertEquals(listOf(mode(Gamemode.osu, "10")), planner.stored().gamemodes)
         service.deleteBeatmap(TOKEN, "1")
         assertEquals(emptyList<Beatmap>(), planner.beatmaps.list())
         assertEquals(emptyList<Sent>(), planner.discord.sent)

@@ -1,7 +1,6 @@
 package nl.greaper.bnplanner.service
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import nl.greaper.bnplanner.datasource.BeatmapDataSource
 import nl.greaper.bnplanner.model.beatmap.BeatmapPage
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.util.Sleeper
@@ -10,8 +9,7 @@ import kotlin.random.Random
 import kotlin.system.measureTimeMillis
 
 @Service
-class FixService(
-    private val beatmapDataSource: BeatmapDataSource,
+class SyncService(
     private val userService: UserService,
     private val beatmapService: BeatmapService,
     private val jobs: OsuJobs,
@@ -19,41 +17,9 @@ class FixService(
 ) {
     val log = KotlinLogging.logger { }
 
-    fun syncAllBeatmaps(
-        osuToken: String,
-        page: BeatmapPage,
-    ): SyncInfo =
-        syncBeatmaps(
-            osuToken = osuToken,
-            page = page,
-            status = emptySet(),
-        )
-
-    fun syncBeatmaps(
-        osuToken: String,
-        page: BeatmapPage,
-        status: Set<BeatmapStatus>,
-    ): SyncInfo {
-        val beatmaps =
-            beatmapService.findBeatmapsIds(
-                search = null,
-                artist = null,
-                title = null,
-                mapper = null,
-                status = status,
-                nominators = emptySet(),
-                page = page,
-                gamemodes = emptySet(),
-                missingNominator = emptySet(),
-            )
-
-        return syncBeatmaps(osuToken, beatmaps)
-    }
-
     /** Nobody waits for it, the planner shows the results as they come in */
-    fun syncBeatmapsInBackground(
+    fun syncPendingBeatmaps(
         osuToken: String,
-        page: BeatmapPage,
         status: Set<BeatmapStatus>,
     ): SyncInfo {
         val beatmaps =
@@ -64,7 +30,7 @@ class FixService(
                 mapper = null,
                 status = status,
                 nominators = emptySet(),
-                page = page,
+                page = BeatmapPage.PENDING,
                 gamemodes = emptySet(),
                 missingNominator = emptySet(),
             )
@@ -91,29 +57,6 @@ class FixService(
         )
     }
 
-    fun syncBeatmaps(
-        osuToken: String,
-        beatmaps: Set<String>,
-    ): SyncInfo {
-        val totalBeatmaps = beatmaps.count()
-
-        log.info { "Syncing $totalBeatmaps beatmaps." }
-
-        val duration =
-            measureTimeMillis {
-                beatmaps.forEachIndexed { index, beatmapId ->
-                    syncBeatmapById(osuToken, beatmapId)
-                    log.info { "[${index + 1}/$totalBeatmaps] Beatmap $beatmapId synced, sleeping." }
-                    sleeper.sleep(1_000L + Random.nextInt(0, 1000))
-                }
-            }
-
-        return SyncInfo(
-            duration = duration,
-            totalSynced = totalBeatmaps,
-        )
-    }
-
     private fun syncBeatmapById(
         osuToken: String,
         beatmapId: String,
@@ -123,39 +66,6 @@ class FixService(
         if (beatmap != null) {
             beatmapService.syncBeatmap(osuToken, beatmap)
         }
-    }
-
-    fun syncAllUsers(osuToken: String): SyncInfo {
-        val allBeatmaps = beatmapDataSource.list()
-        val allUsers = mutableSetOf<String>()
-
-        allBeatmaps.forEach { beatmap ->
-            beatmap.gamemodes.forEach { gamemode ->
-                gamemode.nominators.forEach {
-                    allUsers.add(it.nominatorId)
-                }
-            }
-
-            allUsers.add(beatmap.mapperId)
-        }
-
-        val unrestrictedUsers =
-            allUsers
-                .filter { userId ->
-                    val databaseUser = userService.findUserById(userId)
-
-                    if (databaseUser != null) {
-                        databaseUser.restricted != true
-                    } else {
-                        true
-                    }
-                }.toSet()
-
-        return syncUsers(
-            osuToken = osuToken,
-            users = unrestrictedUsers,
-            force = true,
-        )
     }
 
     fun syncUsers(

@@ -114,27 +114,6 @@ class BeatmapService(
         status: Set<BeatmapStatus>,
         nominators: Set<String>,
         page: BeatmapPage,
-        from: Int,
-        to: Int,
-        gamemodes: Set<Gamemode>,
-        missingNominator: Set<Gamemode>,
-    ): List<ExposedBeatmap> =
-        dataSource
-            .findAll(
-                setupFilter(artist, title, mapper, status, nominators, page, gamemodes, missingNominator, search),
-                from,
-                to,
-            ).mapNotNull { it.toExposedBeatmap() }
-
-    fun findBeatmaps(
-        osuApiToken: String,
-        search: String?,
-        artist: String?,
-        title: String?,
-        mapper: String?,
-        status: Set<BeatmapStatus>,
-        nominators: Set<String>,
-        page: BeatmapPage,
         pageNumber: Int,
         pageLimit: PageLimit,
         gamemodes: Set<Gamemode>,
@@ -453,25 +432,6 @@ class BeatmapService(
         return findBeatmap(osuId) != null
     }
 
-    fun updateBeatmapNominators(
-        osuApiToken: String,
-        beatmapId: String,
-        beatmapGamemodes: List<BeatmapGamemode>,
-    ): ExposedBeatmap? {
-        val databaseBeatmap = findBeatmap(beatmapId) ?: return null
-
-        val updatedBeatmap =
-            databaseBeatmap.copy(
-                gamemodes = beatmapGamemodes,
-                dateUpdated = Instant.now(),
-            )
-
-        dataSource.update(updatedBeatmap)
-        logUpdatedNominators(osuApiToken, updatedBeatmap, databaseBeatmap)
-
-        return updatedBeatmap.toExposedBeatmap()
-    }
-
     fun updateBeatmapNominator(
         osuApiToken: String,
         osuId: String,
@@ -713,80 +673,6 @@ class BeatmapService(
         }
 
         return nominatorChangesText.toString()
-    }
-
-    fun getChangedNominatorText(
-        newNominator: BeatmapNominator,
-        oldNominator: BeatmapNominator?,
-    ): String? {
-        val old = oldNominator?.let { userService.findUserById(it.nominatorId) }
-        val new = userService.findUserById(newNominator.nominatorId)
-        return getChangedNominatorText(new, old)
-            .takeIf { it.isNotBlank() }
-    }
-
-    fun logGamemodeUpdatedNominators(
-        editor: User?,
-        beatmapId: String,
-        beatmapGamemode: BeatmapGamemode,
-        oldBeatmapGamemode: BeatmapGamemode?,
-    ): String? {
-        val (currentFirstNominator, currentSecondNominator) = oldBeatmapGamemode?.nominators.let { it?.get(0) to it?.get(1) }
-        val (newFirstNominator, newSecondNominator) = beatmapGamemode.nominators.let { it[0] to it[1] }
-
-        val firstNominatorTextChanged = getChangedNominatorText(newFirstNominator, currentFirstNominator)
-        val secondNominatorTextChanged = getChangedNominatorText(newSecondNominator, currentSecondNominator)
-
-        if (firstNominatorTextChanged != null) {
-            log.info {
-                "[UPDATE] ${editor?.username} changed 1st nominator on (beatmap = $beatmapId, gamemode = ${beatmapGamemode.gamemode} from ${currentFirstNominator?.nominatorId} to ${newFirstNominator.nominatorId}"
-            }
-        }
-        if (secondNominatorTextChanged != null) {
-            log.info {
-                "[UPDATE] ${editor?.username} changed 2nd nominator on (beatmap = $beatmapId, gamemode = ${beatmapGamemode.gamemode} from ${currentSecondNominator?.nominatorId} to ${newSecondNominator.nominatorId}"
-            }
-        }
-
-        return if (firstNominatorTextChanged != null && secondNominatorTextChanged != null) {
-            firstNominatorTextChanged + "\n" + secondNominatorTextChanged
-        } else {
-            firstNominatorTextChanged ?: secondNominatorTextChanged
-        }
-    }
-
-    fun logUpdatedNominators(
-        osuApiToken: String,
-        beatmap: Beatmap,
-        oldBeatmap: Beatmap,
-    ) {
-        val editor = userService.getEditor(osuApiToken)
-        val nominatorChangesText =
-            beatmap.gamemodes.mapNotNull { beatmapGamemode ->
-                val oldBeatmapGamemode = oldBeatmap.gamemodes.find { it.gamemode == beatmapGamemode.gamemode }
-
-                logGamemodeUpdatedNominators(editor, beatmap.osuId, beatmapGamemode, oldBeatmapGamemode)
-            }
-
-        val message =
-            StringBuilder()
-                .append(nominatorChangesText.joinToString { "\n" })
-                .append("\n**[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})**")
-                .append(
-                    "\nMapped by [${beatmap.mapper}](https://osu.ppy.sh/users/${beatmap.mapperId}) [${beatmap.gamemodes.map {
-                        it.gamemode
-                            .toReadableName()
-                    }}]",
-                )
-
-        discordClient?.sendBeatmapUpdate(
-            description = message.toString(),
-            color = EmbedColor.BLUE,
-            beatmapId = beatmap.osuId,
-            editor = editor,
-            confidential = false,
-            gamemodes = beatmap.gamemodes.map { it.gamemode },
-        )
     }
 
     fun logUpdatedNominators(

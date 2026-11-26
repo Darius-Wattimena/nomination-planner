@@ -116,8 +116,7 @@ abstract class ApiTest {
         FakeOsu.reset()
         discord.sent.clear()
         sleeper.sleeps.clear()
-        users.usersByOsuId.clear()
-        Gamemode.entries.forEach { users.usersByGamemode[it] = emptySet() }
+        users.forgetInMemoryUsers()
         Companion.users.values.forEach { users.addInMemoryUser(it) }
     }
 

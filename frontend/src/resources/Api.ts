@@ -96,7 +96,7 @@ const Api = {
   syncBeatmaps: (status: BeatmapStatus[]): AxiosRequestConfig => ({
     method: 'POST',
     url: '/v2/admin/sync/beatmaps/pending',
-    params: {...toParams({status}), background: true}
+    params: toParams({status})
   }),
   syncBeatmap: (id: string): AxiosRequestConfig => ({
     method: 'POST',

@@ -40,7 +40,7 @@ class LoginSecurityTest : BaseTest() {
         users.addInMemoryUser(User("123", "NAT", listOf(UserGamemode(Gamemode.osu, Role.NominationAssessment))))
     }
 
-    private fun search(authorization: String) = mvc.get("/v2/user/search") { header(AUTHORIZATION, authorization) }
+    private fun search(authorization: String) = mvc.get("/v2/profile/1/pairing") { header(AUTHORIZATION, authorization) }
 
     @Test
     fun `Should refuse a forged token of an existing user`() {

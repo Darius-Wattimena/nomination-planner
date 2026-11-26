@@ -105,21 +105,8 @@ class BeatmapApiTest : ApiTest() {
         save("2", BeatmapStatus.Ranked)
         save("3", BeatmapStatus.Qualified)
 
-        get("/v2/beatmap/find?page=PENDING&from=0&to=2000").assertJson("[${json("3", "Qualified")},${json("1")}]")
-        get("/v2/beatmap/find?page=GRAVEYARD&from=0&to=2000").assertJson("[]")
-    }
-
-    @Test
-    fun `Should find every beatmap when requesting 2000`() {
-        beatmaps.insertMany(
-            (1..2100).map {
-                beatmap("$it", mapperId = "1", status = BeatmapStatus.Ranked, ranked = UPDATED, updated = UPDATED.minusSeconds(it.toLong()))
-            },
-        )
-
-        val found = ids(get("/v2/beatmap/find?page=RANKED&from=0&to=2000"))
-        assertEquals((1..2000).map { "$it" }, found)
-        assertEquals((2001..2100).map { "$it" }, ids(get("/v2/beatmap/find?page=RANKED&from=2000&to=4000")))
+        get("/v2/beatmap/find/table?page=PENDING&pageNumber=1&pageLimit=FIFTY").assertJson("[${json("3", "Qualified")},${json("1")}]")
+        get("/v2/beatmap/find/table?page=GRAVEYARD&pageNumber=1&pageLimit=FIFTY").assertJson("[]")
     }
 
     @Test
@@ -143,8 +130,7 @@ class BeatmapApiTest : ApiTest() {
     }
 
     private fun findEverywhere(filter: String): Set<String> {
-        val found = ids(get("/v2/beatmap/find?page=PENDING&from=0&to=2000&$filter")).toSet()
-        assertEquals(found, ids(get("/v2/beatmap/find/table?page=PENDING&pageNumber=1&pageLimit=FIFTY&$filter")).toSet())
+        val found = ids(get("/v2/beatmap/find/table?page=PENDING&pageNumber=1&pageLimit=FIFTY&$filter")).toSet()
         get("/v2/beatmap/count?page=PENDING&$filter").assertJson("${found.size}")
         return found
     }
@@ -253,26 +239,6 @@ class BeatmapApiTest : ApiTest() {
     }
 
     @Test
-    fun `Should update all nominators`() {
-        save("1")
-        val body =
-            """
-            [{"gamemode":"osu","nominators":[{"nominatorId":"2","hasNominated":true},{"nominatorId":"0","hasNominated":false}],
-            "isReady":true},{"gamemode":"mania","nominators":[{"nominatorId":"0","hasNominated":false},
-            {"nominatorId":"3","hasNominated":false}],"isReady":false}]
-            """
-        val response = patch("1/nominators", body = body)
-
-        assertEquals(listOf("osu [2, 0]", "mania [0, 3]"), nominators(response))
-        assertRecent(Instant.parse(JSONObject(response.contentAsString).getString("dateUpdated")))
-        assertEquals(
-            listOf(mode(Gamemode.osu, "2", firstNominated = true, isReady = true), mode(Gamemode.mania, "0", "3")),
-            beatmaps.findById("1")!!.gamemodes,
-        )
-        patch("2/nominators", body = "[]").assertEmpty()
-    }
-
-    @Test
     fun `Should update a single nominator`() {
         save("1")
 
@@ -368,9 +334,7 @@ class BeatmapApiTest : ApiTest() {
 
     @Test
     fun `Should refuse missing parameters`() {
-        assertBadRequest(get("/v2/beatmap/find?from=0&to=10"), "Required parameter 'page' is not present.")
-        assertBadRequest(get("/v2/beatmap/find?page=PENDING&to=10"), "Required parameter 'from' is not present.")
-        assertBadRequest(get("/v2/beatmap/find?page=PENDING&from=0"), "Required parameter 'to' is not present.")
+        assertBadRequest(get("/v2/beatmap/find/table?pageNumber=1&pageLimit=TEN"), "Required parameter 'page' is not present.")
         assertBadRequest(
             get("/v2/beatmap/find/table?page=PENDING&pageLimit=TEN"),
             "Required parameter 'pageNumber' is not present.",
@@ -386,8 +350,14 @@ class BeatmapApiTest : ApiTest() {
 
     @Test
     fun `Should refuse invalid parameters`() {
-        assertBadRequest(get("/v2/beatmap/find?page=OTHER&from=0&to=10"), "Failed to convert 'page' with value: 'OTHER'")
-        assertBadRequest(get("/v2/beatmap/find?page=PENDING&from=a&to=10"), "Failed to convert 'from' with value: 'a'")
+        assertBadRequest(
+            get("/v2/beatmap/find/table?page=OTHER&pageNumber=1&pageLimit=TEN"),
+            "Failed to convert 'page' with value: 'OTHER'",
+        )
+        assertBadRequest(
+            get("/v2/beatmap/find/table?page=PENDING&pageNumber=a&pageLimit=TEN"),
+            "Failed to convert 'pageNumber' with value: 'a'",
+        )
         assertBadRequest(get("/v2/beatmap/count?page=PENDING&status=Other"), "Failed to convert 'status' with value: 'Other'")
         assertBadRequest(
             get("/v2/beatmap/find/table?page=PENDING&pageNumber=1&pageLimit=HUNDRED"),
@@ -401,18 +371,6 @@ class BeatmapApiTest : ApiTest() {
         listOf("", "{", "{}", "[]", """{"osuId":"1"}""", """{"osuId":"1","gamemodes":["catch"]}""").forEach {
             assertBadRequest(add(it), "Failed to read request")
         }
-        assertBadRequest(patch("1/nominators", body = """[{"gamemode":"osu"}]"""), "Failed to read request")
-    }
-
-    @Test
-    fun `SUSPECTED BUG - A missing primitive in a body becomes false`() {
-        save("1")
-        patch(
-            "1/nominators",
-            body = """[{"gamemode":"osu","nominators":[{"nominatorId":"2"},{"nominatorId":"0"}]}]""",
-        )
-
-        assertEquals(listOf(mode(Gamemode.osu, "2")), beatmaps.findById("1")!!.gamemodes)
     }
 
     @Test

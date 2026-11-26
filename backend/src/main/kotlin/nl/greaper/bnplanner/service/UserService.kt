@@ -27,25 +27,10 @@ class UserService(
     private val discordClient: DiscordClient?,
 ) {
     companion object {
-        const val MAX_USERS = 20
         const val MISSING_USER_ID = "0"
     }
 
     private val log = KotlinLogging.logger { }
-
-    fun searchUser(
-        username: String?,
-        gamemodes: Set<Gamemode>?,
-        roles: Set<Role>?,
-    ): List<User> {
-        val searchResult = dataSource.searchUser(username, gamemodes ?: emptySet(), roles ?: emptySet())
-
-        log.debug { "Found ${searchResult.size} users, taking max $MAX_USERS users." }
-
-        return searchResult
-            .sortedBy { it.username }
-            .take(MAX_USERS)
-    }
 
     private fun convertOsuUserToUser(osuUser: Me): User =
         User(
@@ -165,9 +150,5 @@ class UserService(
     fun getEditor(osuApiToken: String): User? {
         val editorId = getEditorId(osuApiToken) ?: return null
         return findUserById(editorId)
-    }
-
-    fun deleteUser(user: User) {
-        dataSource.deleteUser(user)
     }
 }

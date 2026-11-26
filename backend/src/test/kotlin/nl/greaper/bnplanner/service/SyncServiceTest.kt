@@ -13,13 +13,13 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-class FixServiceTest {
+class SyncServiceTest {
     private val planner = Planner()
-    private val service = planner.fixService
+    private val service = planner.syncService
 
     private fun assertSynced(
         amount: Int,
-        info: FixService.SyncInfo,
+        info: SyncService.SyncInfo,
     ) {
         assertEquals(amount, info.totalSynced)
         assertTrue(info.duration in 0..60_000)
@@ -47,27 +47,6 @@ class FixServiceTest {
             .toSet()
 
     @Test
-    fun `Should sync all beatmaps of a page`() {
-        saveEveryStatus()
-
-        assertSynced(6, service.syncAllBeatmaps("Bearer $TOKEN", BeatmapPage.PENDING))
-        assertEquals(setOf("1", "2", "3", "4", "5", "8"), synced())
-        assertWaited(6)
-
-        assertSynced(1, service.syncAllBeatmaps("Bearer $TOKEN", BeatmapPage.GRAVEYARD))
-        assertEquals(setOf("1", "2", "3", "4", "5", "8", "7"), synced())
-        assertTrue(FakeOsu.requests.all { it.header("Authorization") == "Bearer $TOKEN" })
-    }
-
-    @Test
-    fun `Should sync beatmaps by status`() {
-        saveEveryStatus()
-
-        assertSynced(2, service.syncBeatmaps(TOKEN, BeatmapPage.PENDING, setOf(BeatmapStatus.Qualified, BeatmapStatus.Reset)))
-        assertEquals(setOf("1", "4"), synced())
-    }
-
-    @Test
     fun `Should sync a single beatmap`() {
         saveEveryStatus()
 
@@ -80,35 +59,6 @@ class FixServiceTest {
     fun `SUSPECTED BUG - An unknown beatmap counts as synced`() {
         assertSynced(1, service.syncSingleBeatmap(TOKEN, "5"))
         assertEquals(emptySet<String>(), calls())
-    }
-
-    @Test
-    fun `Should sync all users except restricted ones`() {
-        planner.user("10")
-        planner.user("11")
-        planner.users.saveUser(User("12", "RESTRICTED", emptyList(), restricted = true))
-        planner.users.saveUser(User("13", "Fine", emptyList(), restricted = false))
-        planner.save(beatmap("1", mode(Gamemode.osu, "11", "12"), mode(Gamemode.mania, "13", "14")))
-        planner.save(beatmap("2", mode(Gamemode.osu, "11", "11")))
-        listOf("10", "11", "13", "14").forEach { FakeOsu.user(it, "Synced $it") }
-
-        assertSynced(4, service.syncAllUsers("Bearer $TOKEN"))
-        assertEquals(listOf("10", "11", "13", "14").map { "GET /api/v2/users/$it?key=id" }.toSet(), calls())
-        assertEquals("Bearer $TOKEN", FakeOsu.requests.first().header("Authorization"))
-        assertEquals("RESTRICTED", planner.users.findUser("12")!!.username)
-        assertEquals("Synced 14", planner.users.findUser("14")!!.username)
-        assertWaited(4)
-    }
-
-    @Test
-    fun `SUSPECTED BUG - Syncing all users also saves the missing nominator as a restricted user`() {
-        planner.user("10")
-        FakeOsu.user("10", "Synced")
-        planner.save(beatmap("1", mode(Gamemode.osu)))
-
-        assertSynced(2, service.syncAllUsers(TOKEN))
-        assertEquals(setOf("GET /api/v2/users/0?key=id", "GET /api/v2/users/10?key=id"), calls())
-        assertEquals("RESTRICTED", planner.users.findUser("0")!!.username)
     }
 
     @Test
@@ -146,7 +96,6 @@ class FixServiceTest {
         service.syncUsers(TOKEN, setOf("10"), force = true)
 
         assertEquals(listOf(user), planner.users.list())
-        assertEquals(setOf("10"), planner.users.usersByGamemode[Gamemode.osu])
     }
 
     @Test
@@ -155,6 +104,5 @@ class FixServiceTest {
         service.syncUsers(TOKEN, setOf("10"), force = true)
 
         assertEquals(listOf(User("10", "RESTRICTED", emptyList(), true)), planner.users.list())
-        assertEquals(emptySet<String>(), planner.users.usersByGamemode[Gamemode.osu])
     }
 }
