@@ -855,3 +855,8 @@ td.year-bar .bars-track { flex: 1; }
 .own-modes .chips { margin: 16px 0; }
 .own-modes-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; }
 .own-modes-line .link { min-height: 32px; margin-left: 6px; }
+
+/* Beatmaps nobody changed for months */
+.view-check { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; }
+.views .view-check input { width: 18px; min-height: 0; height: 18px; margin: 0; padding: 0; accent-color: var(--accent); }
+.older-note { margin: -4px 0 16px; font-size: .86rem; }

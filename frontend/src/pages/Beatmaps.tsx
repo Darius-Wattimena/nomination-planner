@@ -15,7 +15,7 @@ import {usePhone} from "../utils/phone";
 import {filterMaps, MODE_WORDS} from "../utils/query";
 import {canEdit, useSession} from "../utils/session";
 import {modesOf} from "../utils/users";
-import {ageInDays, stageOf, STAGES} from "../utils/workflow";
+import {ageInDays, hiddenAsOld, OLD_DAYS, stageOf, STAGES} from "../utils/workflow";
 import {readStored, store} from "../utils/storage";
 import {PlannerError} from "../ui/States";
 import {focusesByItself} from "../utils/phone";
@@ -43,6 +43,7 @@ export default function Beatmaps() {
 
   const ownModes = modesOf(user).map(it => `mode:${MODE_WORDS[it]}`).join(" ")
   const query = params.get("q") ?? ownModes
+  const older = params.get("older") === "show"
   const {selected, open, close} = useOpenMap()
 
   const views: SavedView[] = [
@@ -53,9 +54,13 @@ export default function Beatmaps() {
     {name: "Gone quiet", query: `${ownModes} is:stale`.trim()}
   ]
 
-  function update(changes: {q: string}) {
+  function update(changes: {q?: string, older?: boolean}) {
     const next = new URLSearchParams(params)
-    next.set("q", changes.q)
+    if (changes.q !== undefined) next.set("q", changes.q)
+    if (changes.older !== undefined) {
+      if (changes.older) next.set("older", "show")
+      else next.delete("older")
+    }
     setParams(next, {replace: true})
   }
 
@@ -64,7 +69,9 @@ export default function Beatmaps() {
     store("savedViews", next)
   }
 
-  const found = useMemo(() => filterMaps(maps ?? [], query, user), [maps, query, user])
+  const matching = useMemo(() => filterMaps(maps ?? [], query, user), [maps, query, user])
+  const old = useMemo(() => matching.filter(it => hiddenAsOld(it, user?.osuId)), [matching, user])
+  const found = useMemo(() => older ? matching : matching.filter(it => !old.includes(it)), [matching, old, older])
   const columns = STAGES.map(stage => ({
     ...stage,
     maps: found.filter(it => stageOf(it) === stage.id).sort((a, b) => ageInDays(a) - ageInDays(b))
@@ -99,6 +106,9 @@ export default function Beatmaps() {
 
         <div className="views" role="group" aria-label="Views">
           {views.map(view => <button key={view.name} className="view" aria-pressed={view.query === query} onClick={() => update({q: view.query})}>{view.name}</button>)}
+          <label className="view view-check" title={`Also show beatmaps nobody changed in ${OLD_DAYS} days`}>
+            <input type="checkbox" checked={older} onChange={event => update({older: event.target.checked})}/>Include older ones
+          </label>
           {saved.map(view => (
             <span key={view.name} className="view view-saved" data-active={view.query === query || undefined}>
               <button aria-pressed={view.query === query} onClick={() => update({q: view.query})}>{view.name}</button>
@@ -119,6 +129,14 @@ export default function Beatmaps() {
           <span className="views-end"><RingLegend/></span>
         </div>
         <Filters query={query} onChange={q => update({q})} maps={maps ?? []} stages={layout === "list"}/>
+        {old.length > 0 &&
+          <p className="older-note muted">
+            {older
+              ? <>Including {old.length} {old.length === 1 ? "beatmap" : "beatmaps"} nobody changed in the last {OLD_DAYS} days.</>
+              : <>{old.length} {old.length === 1 ? "beatmap" : "beatmaps"} nobody changed in the last {OLD_DAYS} days {old.length === 1 ? "is" : "are"} left out. Your own stay.</>}
+            {" "}<button className="link" onClick={() => update({older: !older})}>{older ? "Leave them out" : "Include them"}</button>
+          </p>
+        }
 
         {error && <PlannerError/>}
         {!maps && !error && <ul className="map-list" aria-busy aria-label="Loading">{[0, 1, 2, 3, 4].map(it => <li key={it} className="map-row skeleton"/>)}</ul>}
@@ -126,6 +144,7 @@ export default function Beatmaps() {
           <EmptyState title="Nothing matches">
             <p className="muted">No beatmap in progress fits this search.</p>
             {query && <button className="button" onClick={() => update({q: ""})}>Show everything</button>}
+            {old.length > 0 && <button className="button" onClick={() => update({older: true})}>Include older ones</button>}
           </EmptyState>
         }
 

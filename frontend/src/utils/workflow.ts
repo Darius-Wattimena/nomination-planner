@@ -125,6 +125,18 @@ export function isStale(map: Beatmap) {
   return stageOf(map) !== "qualified" && ageInDays(map) >= STALE_DAYS
 }
 
+/** Months without any change, most likely forgotten instead of still in progress */
+export const OLD_DAYS = 90
+
+export function isOld(map: Beatmap) {
+  return stageOf(map) !== "qualified" && ageInDays(map) >= OLD_DAYS
+}
+
+/** Old beatmaps are left out of lists, except those the user maps or nominates */
+export function hiddenAsOld(map: Beatmap, userId: string | undefined) {
+  return isOld(map) && map.mapper.osuId !== userId && !partOf(map, userId)
+}
+
 export function ageLabel(map: Beatmap) {
   if (!toDate(map.dateUpdated)) return ""
   const days = ageInDays(map)
