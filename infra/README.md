@@ -111,6 +111,22 @@ For another environment, add a job like `beta` to `.github/workflows/release.yml
 
 Push a version tag, like `git tag v2.0.0` and then `git push origin v2.0.0`. The Release workflow builds it, and once you approve `beta` on the run, deploys the backend and then the website. Then open https://beta-bnplanner.greaper.net and log in.
 
+## Passwords
+
+The MongoDB password, the osu! client secret and the Discord token are in Secrets Manager (`bnplanner-<name>/backend`), not in the Beanstalk settings: the Tomcat platform writes those settings into the system log of the instance. On every deploy, `backend/.platform/hooks/prebuild/02_secrets.sh` writes the secret to `/etc/bnplanner/secrets.yml`, readable only by Tomcat, which `application.yml` imports. They may not contain `"` or `\`.
+
+To change one, update the stack with the new value, then deploy the running version again so the instance fetches it:
+
+```powershell
+function Read-Secret($prompt) { [Net.NetworkCredential]::new("", (Read-Host $prompt -AsSecureString)).Password }
+$mongoPassword = Read-Secret "New MongoDB password"
+aws cloudformation deploy --profile admin --region eu-west-1 --stack-name bnplanner-beta --template-file infra/planner.yml --capabilities CAPABILITY_NAMED_IAM --parameter-overrides "MongoPassword=$mongoPassword"
+$version = aws elasticbeanstalk describe-environments --profile admin --region eu-west-1 --environment-names bnplanner-beta --query "Environments[0].VersionLabel" --output text
+aws elasticbeanstalk update-environment --profile admin --region eu-west-1 --environment-name bnplanner-beta --version-label $version
+```
+
+Use `OsuClientSecret=...` or `DiscordToken=...` the same way.
+
 ## Taking the old data along
 
 When beta works, copy the collections of the old database into `bnplanner2` with `mongodump` and `mongorestore`, or in Atlas: `beatmaps`, `users`, and whatever else the planner reads. Then restart the backend:
