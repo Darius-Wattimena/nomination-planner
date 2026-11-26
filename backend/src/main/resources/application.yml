@@ -1,5 +1,8 @@
 spring.jackson.default-property-inclusion: non_null
 
+# The passwords on AWS, written by backend/.platform/hooks/prebuild/02_secrets.sh. Not there when running locally.
+spring.config.import: "optional:file:/etc/bnplanner/secrets.yml"
+
 # Not running on Kubernetes, the health check only needs the status
 management.endpoint.health.probes.enabled: false
 

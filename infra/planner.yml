@@ -68,6 +68,8 @@ Parameters:
     Default: ""
     Description: Leave empty to not post to Discord
 
+  # The passwords above end up in Secrets Manager, never in the Beanstalk settings. They may not contain " or \.
+
   GitHubRepository:
     Type: String
     Default: Darius-Wattimena@5977713/nomination-planner@1472346118
@@ -238,6 +240,15 @@ Resources:
       HostedZoneConfig:
         Comment: !Sub "Origin of the Nomination Planner (${Name}), delegated from Namecheap"
 
+  # The Tomcat platform writes every Beanstalk setting into the system log of the instance, so the passwords are kept here.
+  # A hook of the backend puts them in a file only Tomcat can read (backend/.platform/hooks/prebuild/02_secrets.sh).
+  BackendSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "bnplanner-${Name}/backend"
+      Description: !Sub "Passwords of the backend of the Nomination Planner (${Name})"
+      SecretString: !Sub '{"mongodb.password": "${MongoPassword}", "osu.clientSecret": "${OsuClientSecret}", "discord.token": "${DiscordToken}"}'
+
   # Gets the certificate for OriginDomain through a DNS record, so no port has to be open for Let's Encrypt
   BackendRole:
     Type: AWS::IAM::Role
@@ -252,7 +263,16 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+        # A terminal on the instance from the AWS console (Session Manager), without SSH
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       Policies:
+        - PolicyName: secrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref BackendSecrets
         - PolicyName: certificate
           PolicyDocument:
             Version: "2012-10-17"
@@ -353,6 +373,9 @@ Resources:
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: CERTIFICATE_DOMAIN
           Value: !Ref OriginDomain
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: SECRET_ID
+          Value: !Ref BackendSecrets
 
         # The settings of the backend, see the README
         - Namespace: aws:elasticbeanstalk:application:environment
@@ -365,14 +388,8 @@ Resources:
           OptionName: mongodb.username
           Value: !Ref MongoUsername
         - Namespace: aws:elasticbeanstalk:application:environment
-          OptionName: mongodb.password
-          Value: !Ref MongoPassword
-        - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: osu.clientId
           Value: !Ref OsuClientId
-        - Namespace: aws:elasticbeanstalk:application:environment
-          OptionName: osu.clientSecret
-          Value: !Ref OsuClientSecret
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: osu.redirectUri
           Value: !Sub "https://${Domain}/login/oauth2/code/osu"
@@ -401,9 +418,6 @@ Resources:
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: discord.enabled
           Value: !If [WithDiscord, "true", "false"]
-        - Namespace: aws:elasticbeanstalk:application:environment
-          OptionName: discord.token
-          Value: !Ref DiscordToken
 
   OriginRecord:
     Type: AWS::Route53::RecordSet
