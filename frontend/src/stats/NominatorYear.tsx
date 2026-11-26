@@ -10,6 +10,7 @@ import {badges, scores} from "./boards";
 import Columns from "./Columns";
 import {Badges} from "./Leaderboards";
 import {debuts, nominatorsOf, perMonth, rankedDate, topBy} from "./stats";
+import {isMissing} from "../utils/users";
 
 interface NominatorYearProps {
   id: string
@@ -39,7 +40,7 @@ export default function NominatorYear({id, self}: NominatorYearProps) {
   const partners = topBy(inYear.flatMap(map => map.gamemodes
     .filter(mode => mode.nominators.some(it => it.nominator.osuId === id))
     .flatMap(mode => mode.nominators).map(it => it.nominator)
-    .filter(it => it.osuId !== id && it.osuId !== "0")
+    .filter(it => it.osuId !== id && !isMissing(it))
     // Once per beatmap
     .filter((user, index, users) => users.findIndex(it => it.osuId === user.osuId) === index)), it => it.osuId)
   const helped = inYear.filter(it => firsts.has(it.osuId))

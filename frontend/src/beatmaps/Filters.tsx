@@ -9,6 +9,8 @@ import type {Token} from "../utils/query";
 import {filterMaps, formatQuery, MODE_WORDS, parseQuery} from "../utils/query";
 import {useSession} from "../utils/session";
 import {STAGES} from "../utils/workflow";
+import {isMissing} from "../utils/users";
+import {focusesByItself} from "../utils/phone";
 
 interface Option {
   key: string
@@ -47,7 +49,7 @@ function isOption(token: Token, option: Option) {
 }
 
 function peopleOptions(key: string, users: User[], self: User | undefined): Option[] {
-  const unique = new Map(users.filter(it => it.osuId !== "0").map(it => [it.osuId, it]))
+  const unique = new Map(users.filter(it => !isMissing(it)).map(it => [it.osuId, it]))
   return Array.from(unique.values())
     .sort((a, b) => Number(b.osuId === self?.osuId) - Number(a.osuId === self?.osuId) || a.username.localeCompare(b.username))
     .map(it => it.osuId === self?.osuId
@@ -263,7 +265,7 @@ function Options({label, options, picked, searchable, tokens, maps, self, onTogg
       {searchable &&
         <div className="filter-search">
           <FaMagnifyingGlass aria-hidden/>
-          <input autoFocus={window.matchMedia("(pointer: fine)").matches} role="combobox" aria-expanded aria-controls={id} aria-activedescendant={activeId} aria-label={`Find a ${label.toLowerCase()}`}
+          <input autoFocus={focusesByItself()} role="combobox" aria-expanded aria-controls={id} aria-activedescendant={activeId} aria-label={`Find a ${label.toLowerCase()}`}
                  placeholder={`Find a ${label.toLowerCase()}`} autoComplete="off" value={text} onKeyDown={onKeyDown} onChange={event => {
             setText(event.target.value)
             setActive(0)

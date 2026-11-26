@@ -6,6 +6,7 @@ import {useSession} from "../utils/session";
 import {canNominate, onProbation} from "../utils/users";
 import {inProgress} from "../utils/involvement";
 import {usePairings} from "../resources/pairings";
+import {focusesByItself} from "../utils/phone";
 
 interface NominatorPickerProps {
   mode: Gamemode
@@ -26,7 +27,7 @@ export default function NominatorPicker({mode, partner, fullOnly, excluded, onPi
 
   // Not on touch screens, where the keyboard would cover the list
   useEffect(() => {
-    if (window.matchMedia("(pointer: fine)").matches) input.current?.focus()
+    if (focusesByItself()) input.current?.focus()
   }, [])
 
   const options = (nominators ?? [])

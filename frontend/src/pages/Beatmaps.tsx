@@ -18,6 +18,7 @@ import {canEdit, useSession} from "../utils/session";
 import {ageInDays, stageOf, STAGES} from "../utils/workflow";
 import {readStored, store} from "../utils/storage";
 import {PlannerError} from "../ui/States";
+import {focusesByItself} from "../utils/phone";
 
 const STEP = 60
 
@@ -112,7 +113,7 @@ export default function Beatmaps() {
                 if (name) saveViews([...saved.filter(it => it.name !== name), {name, query}])
                 setNaming(undefined)
               }}>
-                <input id="view-name" autoFocus aria-label="Name of the view" placeholder="Name, then Enter" value={naming} onChange={event => setNaming(event.target.value)} onBlur={() => setNaming(undefined)}/>
+                <input id="view-name" autoFocus={focusesByItself()} aria-label="Name of the view" placeholder="Name, then Enter" value={naming} onChange={event => setNaming(event.target.value)} onBlur={() => setNaming(undefined)}/>
               </form>
           )}
           <span className="views-end"><RingLegend/></span>

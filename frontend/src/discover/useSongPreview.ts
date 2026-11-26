@@ -7,7 +7,6 @@ function storedVolume() {
   return volume >= 0 && volume <= 1 ? volume : 0.35
 }
 
-/** Plays the preview of the shown beatmap. Once started, the next beatmaps start by themselves. */
 /** Start playing, telling when the browser refuses until someone touches the page */
 function start(player: HTMLAudioElement, onRefused: () => void) {
   player.play().catch(error => {
@@ -16,6 +15,7 @@ function start(player: HTMLAudioElement, onRefused: () => void) {
   })
 }
 
+/** Plays the preview of the shown beatmap. Once started, the next beatmaps start by themselves. */
 export function useSongPreview(id: string | undefined, nextId: string | undefined) {
   const audio = useRef<HTMLAudioElement>(null)
   const wanted = useRef(false)

@@ -10,6 +10,8 @@ import {nextStep} from "../utils/workflow";
 import Cover from "./Cover";
 import {Avatar} from "./Person";
 import {FindContext} from "./useFind";
+import {MISSING_USER_ID} from "../Constants";
+import {focusesByItself} from "../utils/phone";
 
 /** Find a beatmap or nominator, whatever page you are on */
 export function FindProvider({children}: {children: ReactNode}) {
@@ -36,7 +38,7 @@ function Find({onClose}: {onClose: () => void}) {
   const wanted = text.trim().toLowerCase()
   const found = wanted === "" ? [] : maps.filter(it => `${it.artist} ${it.title} ${it.mapper.username} ${it.osuId}`.toLowerCase().includes(wanted)).slice(0, 8)
   const everybody = new Map<string, User>(maps.flatMap(it => it.gamemodes).flatMap(it => it.nominators).map(it => [it.nominator.osuId, it.nominator]))
-  everybody.delete("0")
+  everybody.delete(MISSING_USER_ID)
   const people = wanted === "" ? [] : Array.from(everybody.values()).filter(it => it.username.toLowerCase().includes(wanted)).slice(0, 4)
 
   function go(path: string) {
@@ -54,7 +56,7 @@ function Find({onClose}: {onClose: () => void}) {
     <>
       <form className="find-box" onSubmit={submit}>
         <FaMagnifyingGlass aria-hidden/>
-        <input autoFocus id="find" type="search" enterKeyHint="search" aria-label="Find a beatmap or nominator" placeholder="Beatmap, mapper or nominator" autoComplete="off"
+        <input autoFocus={focusesByItself()} id="find" type="search" enterKeyHint="search" aria-label="Find a beatmap or nominator" placeholder="Beatmap, mapper or nominator" autoComplete="off"
                value={text} onChange={event => setText(event.target.value)}/>
         <button type="button" className="icon-button" aria-label="Close" onClick={onClose}><FaXmark/></button>
       </form>

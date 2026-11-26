@@ -14,6 +14,7 @@ import {canJoin} from "../utils/nominations";
 import {nextStep} from "../utils/workflow";
 import type {OpenAdd} from "./useAddBeatmap";
 import {AddContext} from "./useAddBeatmap";
+import {focusesByItself} from "../utils/phone";
 
 function parse(text: string) {
   const id = text.trim()
@@ -118,7 +119,7 @@ function AddForm({initial, maps, onClose, onOpen}: AddFormProps) {
         <div className="field">
           <label htmlFor="add-link">Link or ID on osu!</label>
           <span className="add-link"><input
-            autoFocus
+            autoFocus={focusesByItself()}
             id="add-link"
             autoComplete="off"
             inputMode="url"

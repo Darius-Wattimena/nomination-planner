@@ -37,10 +37,11 @@ export async function request<T>(config: AxiosRequestConfig, signal?: AbortSigna
     await refreshSession()
   }
 
+  const token = () => getSession()?.accessToken
   const call = () => client.request<T>({
     ...config,
     signal,
-    headers: {...config.headers, Authorization: `Bearer ${getSession()?.accessToken}`}
+    headers: {...config.headers, ...(token() && {Authorization: `Bearer ${token()}`})}
   })
 
   try {

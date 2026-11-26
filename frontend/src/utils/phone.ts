@@ -8,3 +8,6 @@ function subscribe(onChange: () => void) {
 }
 
 export const usePhone = () => useSyncExternalStore(subscribe, () => query.matches)
+
+/** Focusing a field on a phone or tablet opens the keyboard over what you wanted to see */
+export const focusesByItself = () => window.matchMedia("(pointer: fine)").matches

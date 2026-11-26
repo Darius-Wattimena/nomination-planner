@@ -267,7 +267,7 @@ export function changeNominator(mapId: string, mode: Gamemode, oldId: string, us
   }
 }
 
-export function sendChanges() {
+function sendChanges() {
   pending.forEach(send)
   return queue
 }

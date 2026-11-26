@@ -239,15 +239,13 @@ interface SlotInspectorProps {
 function SlotInspector({beatmap, slot, mode, onClose}: SlotInspectorProps) {
   const {maps = []} = usePlanner()
   const {assign, remove} = useNominators(beatmap)
-  const root = useRef<HTMLElement>(null)
   const person: User | undefined = mode?.nominators[slot.index]?.nominator
   const current = person && !isMissing(person) ? person : undefined
-  const other = mode?.nominators[1 - slot.index]?.nominator
-  const partner = other && !isMissing(other) ? other : undefined
+  const partner = mode?.nominators.find((it, index) => index !== slot.index && !isMissing(it.nominator))?.nominator
   const fullOnly = !!mode && (partner ? onProbation(partner, slot.mode) : roleOf(beatmap, mode) === "other")
 
   return (
-    <section className="inspector" ref={root} aria-label="Selected spot" onKeyDown={event => {
+    <section className="inspector" aria-label="Selected spot" onKeyDown={event => {
       // Only leaves the slot, not the beatmap
       if (event.key === "Escape") {
         event.stopPropagation()

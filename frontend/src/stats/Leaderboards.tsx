@@ -7,7 +7,7 @@ import type {Badge, Board, Entry} from "./boards";
 
 const ICONS = {scout: <FaSeedling/>, variety: <FaDoorOpen/>, partners: <FaPeopleGroup/>, hybrids: <FaShuffle/>, volume: <FaDumbbell/>}
 
-export function BoardIcon({id}: {id: string}) {
+function BoardIcon({id}: {id: string}) {
   return <span className="board-icon" aria-hidden>{ICONS[id as keyof typeof ICONS]}</span>
 }
 

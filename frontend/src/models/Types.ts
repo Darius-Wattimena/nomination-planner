@@ -20,6 +20,8 @@ export interface User {
   osuId: string
   username: string
   gamemodes: UserGamemode[]
+  /** Restricted on osu!, left out when not */
+  restricted?: boolean
 }
 
 export interface UserGamemode {

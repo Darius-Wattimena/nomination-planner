@@ -1,5 +1,6 @@
 import type {Beatmap, Gamemode, User} from "../models/Types";
 import {nominatorsOf} from "./stats";
+import {isMissing} from "../utils/users";
 
 export interface Entry {
   user: User
@@ -40,12 +41,12 @@ export function scores(maps: Beatmap[], firsts: Set<string>, mode?: Gamemode): S
         .filter(it => it.nominators.some(slot => slot.nominator.osuId === user.osuId))
         .flatMap(it => it.nominators)
         .forEach(({nominator}) => {
-          if (nominator.osuId !== "0" && nominator.osuId !== user.osuId) score.partners.add(nominator.osuId)
+          if (!isMissing(nominator) && nominator.osuId !== user.osuId) score.partners.add(nominator.osuId)
         })
     })
   })
   // Restricted users have no name to show
-  return Array.from(all.values()).filter(it => it.user.username !== "RESTRICTED")
+  return Array.from(all.values()).filter(it => !it.user.restricted)
 }
 
 function rank(all: Score[], valueOf: (score: Score) => number): Entry[] {
