@@ -19,7 +19,6 @@ import nl.greaper.bnplanner.model.discord.EmbedThumbnail
 import nl.greaper.bnplanner.model.discord.Message
 import nl.greaper.bnplanner.model.discord.getValue
 import nl.greaper.bnplanner.model.osu.BeatmapSet
-import nl.greaper.bnplanner.model.toReadableName
 import nl.greaper.bnplanner.support.Planner.Companion.beatmap
 import nl.greaper.bnplanner.support.Planner.Companion.mode
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -127,10 +126,6 @@ class UtilTest {
     fun `Should have readable names and icons`() {
         assertEquals(listOf("osu", "taiko", "catch", "mania"), Gamemode.entries.map { it.toReadableName() })
         assertEquals(
-            listOf("Mapper", "Beatmap Nominators", "Beatmap Nominators (Probationary)", "Nomination Assessment Team"),
-            Role.entries.map { it.toReadableName() },
-        )
-        assertEquals(
             listOf("❤", "💭", "💔", "🗯", "⏳", "💖", "🗑", "🔨"),
             BeatmapStatus.entries.map { it.getEmojiIcon() },
         )
@@ -159,7 +154,6 @@ class UtilTest {
         assertEquals(RolePermission(Role.Probation, setOf("VIEWER", "EDITOR")), permission(Role.Mapper, Role.Probation))
         assertEquals(nominator, permission(Role.Probation, Role.Nominator))
         assertEquals(admin, permission(Role.Nominator, Role.NominationAssessment, Role.Mapper))
-        assertEquals(RolePermission(Role.NominationAssessment, setOf("BOT")), getAiessRole())
         assertEquals(
             RolePermission(Role.NominationAssessment, setOf("DEVELOPER", "ADMIN", "VIEWER", "EDITOR")),
             getHighestRoleForUser(User("2369776", "", emptyList())),

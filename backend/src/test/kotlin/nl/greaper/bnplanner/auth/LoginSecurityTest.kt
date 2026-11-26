@@ -64,13 +64,4 @@ class LoginSecurityTest : BaseTest() {
         val token = OsuTokenVerifierTest.createToken(expires = 4102444802)
         search("Bearer $token").andExpect { status { isServiceUnavailable() } }
     }
-
-    @Test
-    fun `Should refuse an empty Aiess token when none is configured`() {
-        listOf("Aiess  x", "Aiess ", "Aiess x").forEach {
-            mvc
-                .post("/v2/aiess/event/user") { header(AUTHORIZATION, it) }
-                .andExpect { status { isUnauthorized() } }
-        }
-    }
 }

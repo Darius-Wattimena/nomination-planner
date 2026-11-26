@@ -16,7 +16,6 @@ import nl.greaper.bnplanner.model.beatmap.Beatmap
 import nl.greaper.bnplanner.model.beatmap.BeatmapGamemode
 import nl.greaper.bnplanner.model.beatmap.BeatmapNominator
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
-import nl.greaper.bnplanner.service.AiessService
 import nl.greaper.bnplanner.service.AuthService
 import nl.greaper.bnplanner.service.BeatmapService
 import nl.greaper.bnplanner.service.FixService
@@ -51,7 +50,6 @@ class Planner(
     val osuClient = osuClient()
     val userService = UserService(users, recalculations, osuClient, discordClient)
     val beatmapService = BeatmapService(beatmaps, userService, osuClient, discordClient, sleeper)
-    val aiessService = AiessService(beatmapService, beatmaps, userService, users, discordClient)
     val osuService = OsuService(osuClient, userService, tokens)
     val authService = AuthService(osuService, discordClient)
     val osuJobs = OsuJobs(beatmapService, sleeper)

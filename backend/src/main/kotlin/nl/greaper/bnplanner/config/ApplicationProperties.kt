@@ -33,8 +33,3 @@ data class DiscordProperties(
     val webhook: String,
     val webhookPublic: String,
 )
-
-@ConfigurationProperties("aiess")
-data class AiessProperties(
-    val token: String,
-)

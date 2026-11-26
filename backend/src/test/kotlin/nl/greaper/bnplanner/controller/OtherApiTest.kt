@@ -5,11 +5,7 @@ import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.UserGamemode
-import nl.greaper.bnplanner.model.aiess.AiessResponse
-import nl.greaper.bnplanner.model.aiess.AiessUserEvent
-import nl.greaper.bnplanner.model.aiess.AiessUserEventType
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
-import nl.greaper.bnplanner.service.AiessService
 import nl.greaper.bnplanner.service.OsuJobs
 import nl.greaper.bnplanner.support.ApiTest
 import nl.greaper.bnplanner.support.FakeOsu
@@ -171,107 +167,6 @@ class OtherApiTest : ApiTest() {
             """,
         )
         get("/v2/profile/99/pairing").assertJson("[]")
-    }
-
-    // Aiess
-
-    private fun beatmapEvent(
-        status: String = "Nominated",
-        user: String = """"userId":"2","userName":"Editor",""",
-        modes: String = """["osu"]""",
-    ) = call(
-        As.BOT,
-        "POST",
-        "/v2/aiess/event/beatmap",
-        """
-        {"beatmapSetId":"1","artist":"Artist 1","title":"Title 1","creatorName":"Mapper","creatorId":"10","status":"$status",
-        $user"modes":$modes,"unknown":true}
-        """,
-    )
-
-    @Test
-    fun `Should process a beatmap event`() {
-        beatmapEvent().assertJson("""{"result":true}""")
-
-        val stored = beatmaps.findById("1")!!
-        assertEquals(listOf("Artist 1", "Title 1", "Mapper", "10"), listOf(stored.artist, stored.title, stored.mapper, stored.mapperId))
-        assertEquals(BeatmapStatus.Nominated, stored.status)
-        assertEquals(listOf(mode(Gamemode.osu, "2", firstNominated = true)), stored.gamemodes)
-        assertEquals("Mapper", users.findUser("10")!!.username)
-    }
-
-    @Test
-    fun `Should accept a numeric id and null user in a beatmap event`() {
-        beatmapEvent("Ranked", """"userId":null,"userName":null,""", "[]").assertJson("""{"result":true}""")
-        beatmapEvent("Qualified", """"userId":2,"userName":"Editor",""").assertJson("""{"result":true}""")
-        beatmapEvent("Nominated", "").assertJson("""{"result":true}""")
-    }
-
-    @Test
-    fun `Should fail a beatmap event without modes`() {
-        beatmapEvent(modes = "[]").assertJson("""{"result":false,"error":"No modes are provided"}""", 400)
-    }
-
-    @Test
-    fun `Should refuse an unreadable beatmap event`() {
-        assertEquals(400, beatmapEvent("5x").status)
-        assertEquals(400, beatmapEvent(modes = """["catch"]""").status)
-        assertEquals(400, beatmapEvent(modes = "null").status)
-    }
-
-    @Test
-    fun `SUSPECTED BUG - A number as status of a beatmap event is used as index and not as priority`() {
-        // 6 is the priority of ranked, but the index of graved
-        call(
-            As.BOT,
-            "POST",
-            "/v2/aiess/event/beatmap",
-            """{"beatmapSetId":"1","artist":"","title":"","creatorName":"","creatorId":"10","status":6,"modes":[]}""",
-        ).assertJson("""{"result":true}""")
-        assertEquals(BeatmapStatus.Graved, beatmaps.findById("1")!!.status)
-    }
-
-    private fun userEvent(
-        type: String = "add",
-        group: String = "\"28\"",
-        mode: String = "taiko",
-    ) = call(
-        As.BOT,
-        "POST",
-        "/v2/aiess/event/user",
-        """{"type":"$type","userId":"2","userName":"Editor","groupId":$group,"groupMode":"$mode"}""",
-    )
-
-    @Test
-    fun `Should process a user event`() {
-        userEvent().assertJson("""{"result":true}""")
-        userEvent(group = "7").assertJson("""{"result":true}""")
-        assertEquals(
-            listOf(
-                UserGamemode(Gamemode.osu, Role.Nominator),
-                UserGamemode(Gamemode.taiko, Role.Nominator),
-                UserGamemode(Gamemode.taiko, Role.NominationAssessment),
-            ),
-            users.findUser("2")!!.gamemodes,
-        )
-
-        userEvent("remove").assertJson("""{"result":true}""")
-        assertEquals(
-            listOf(UserGamemode(Gamemode.osu, Role.Nominator), UserGamemode(Gamemode.taiko, Role.NominationAssessment)),
-            users.findUser("2")!!.gamemodes,
-        )
-        assertEquals(400, userEvent("move").status)
-        assertEquals(400, userEvent(mode = "catch").status)
-    }
-
-    @Test
-    fun `Should answer a failed user event as bad request`() {
-        // Never the case at the moment, as every user event succeeds
-        val service = mock<AiessService> { on { processAiessUserEvent(any()) } doReturn AiessResponse(false, "failed") }
-        val response = AiessController(service).userEvent(AiessUserEvent(AiessUserEventType.add, "2", "Editor", "28", Gamemode.osu))
-
-        assertEquals(400, response.statusCode.value())
-        assertEquals(AiessResponse(false, "failed"), response.body)
     }
 
     // Admin

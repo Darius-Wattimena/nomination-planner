@@ -11,7 +11,6 @@ import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.UserGamemode
 import nl.greaper.bnplanner.model.UserRecalculate
-import nl.greaper.bnplanner.model.aiess.AiessUserEvent
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
@@ -79,8 +78,6 @@ class UserService(
 
         return playmodes.map { Gamemode.valueOf(it.lowercase()) }
     }
-
-    fun createUserByAiessEvent(event: AiessUserEvent): User = User(event.userId, event.username, emptyList())
 
     fun createTemporaryUser(osuId: String): User {
         val tempUser = User(osuId, osuId, emptyList())

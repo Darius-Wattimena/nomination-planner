@@ -2,6 +2,7 @@ package nl.greaper.bnplanner.config
 
 import net.dv8tion.jda.api.JDA
 import nl.greaper.bnplanner.Application
+import nl.greaper.bnplanner.DefaultExceptionHandler
 import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.client.DiscordWebhookClient
 import nl.greaper.bnplanner.datasource.DiscordEventListenerDataSource
@@ -19,6 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.ApplicationContext
 import org.springframework.http.HttpHeaders.AUTHORIZATION
+import org.springframework.http.MediaType
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.context.TestPropertySource
@@ -65,7 +67,6 @@ class DiscordEnabledTest {
 
 @SpringBootTest(classes = [Application::class])
 @AutoConfigureMockMvc
-@TestPropertySource(properties = ["aiess.token=made-up-aiess-token"])
 class DiscordDisabledTest {
     companion object {
         @JvmStatic
@@ -88,12 +89,7 @@ class DiscordDisabledTest {
         assertTrue(context.getBeansOfType(DiscordClient::class.java).isEmpty())
         assertTrue(context.getBeansOfType(JDA::class.java).isEmpty())
 
-        // Aiess isn't allowed to use this
-        mvc
-            .post("/v2/admin/sync/users") { header(AUTHORIZATION, "Aiess made-up-aiess-token") }
-            .andExpect {
-                status { isBadRequest() }
-                content { string("Unable to handle request") }
-            }
+        val response = context.getBean(DefaultExceptionHandler::class.java).exception(RuntimeException("made up"))
+        assertEquals("Unable to handle request", response.body)
     }
 }

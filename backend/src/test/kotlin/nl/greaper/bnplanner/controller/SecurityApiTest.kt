@@ -43,8 +43,6 @@ class SecurityApiTest : ApiTest() {
             "ADMIN  | POST   | /v2/admin/sync/beatmaps/pending                              | ",
             "DEVELOPER | POST | /v2/admin/sync/users                                        | ",
             "DEVELOPER | POST | /v2/admin/sync/beatmaps/graveyard                           | ",
-            "BOT    | POST   | /v2/aiess/event/beatmap      | {\"beatmapSetId\":\"1\",\"artist\":\"a\",\"title\":\"t\",\"creatorName\":\"c\",\"creatorId\":\"1\",\"status\":\"Reset\",\"modes\":[]}",
-            "BOT    | POST   | /v2/aiess/event/user         | {\"type\":\"remove\",\"userId\":\"1\",\"userName\":\"u\",\"groupId\":\"7\",\"groupMode\":\"osu\"}",
         ],
     )
     fun `Should only allow the required role`(
@@ -58,7 +56,6 @@ class SecurityApiTest : ApiTest() {
                 As.VIEWER -> setOf(As.VIEWER, As.EDITOR, As.ADMIN, As.DEVELOPER)
                 As.EDITOR -> setOf(As.EDITOR, As.ADMIN, As.DEVELOPER)
                 As.ADMIN -> setOf(As.ADMIN, As.DEVELOPER)
-                As.BOT -> setOf(As.BOT, As.DEVELOPER)
                 else -> setOf(As.DEVELOPER)
             }
         val contentType = if (uri.endsWith("note")) "text/plain" else body?.let { "application/json" }
@@ -98,17 +95,14 @@ class SecurityApiTest : ApiTest() {
             "Bearer  token",
             "Bearer unreadable",
             "Basic abc",
-            "Aiess",
-            "Aiess ",
-            "Aiess other",
-            "Aiess  x",
+            "Aiess x",
         ],
     )
     fun `Should refuse an invalid authorization`(authorization: String) {
         FakeOsu.respond("GET /api/v2/me", """{"id":1,"username":"Viewer"}""")
 
         assertEquals(401, search(authorization))
-        assertEquals(401, call(As.NOBODY, "POST", "/v2/aiess/event/user", headers = mapOf(AUTHORIZATION to authorization)).status)
+        assertEquals(401, call(As.NOBODY, "POST", "/v2/beatmap/add", headers = mapOf(AUTHORIZATION to authorization)).status)
         assertEquals(emptyList<String>(), FakeOsu.calls())
     }
 

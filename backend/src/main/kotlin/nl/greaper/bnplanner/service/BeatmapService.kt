@@ -552,22 +552,6 @@ class BeatmapService(
         return updateBeatmapGamemode(beatmap, updatingGamemode, new)
     }
 
-    fun updateBeatmapGamemodes(
-        beatmap: Beatmap,
-        updatingGamemodes: List<BeatmapGamemode>,
-        status: BeatmapStatus,
-        new: (old: BeatmapGamemode) -> BeatmapGamemode,
-    ): Beatmap {
-        var updateBeatmap = beatmap
-        updatingGamemodes.forEach {
-            updateBeatmap = updateBeatmapGamemode(updateBeatmap, it, new)
-        }
-
-        return updateBeatmap.copy(
-            status = status,
-        )
-    }
-
     fun updateBeatmapGamemode(
         beatmap: Beatmap,
         updatingGamemode: BeatmapGamemode,
@@ -729,32 +713,6 @@ class BeatmapService(
         }
 
         return nominatorChangesText.toString()
-    }
-
-    fun logAiessUpdatedNominator(
-        beatmap: Beatmap,
-        oldNominatorId: String,
-        newNominatorId: String,
-        gamemode: Gamemode,
-    ) {
-        val oldNominator = userService.findUserById(oldNominatorId)
-        val newNominator = userService.findUserById(newNominatorId)
-
-        val nominatorChangesText = getChangedNominatorText(newNominator, oldNominator)
-        val message =
-            StringBuilder()
-                .append(nominatorChangesText)
-                .append("\n**[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})**")
-                .append("\nMapped by [${beatmap.mapper}](https://osu.ppy.sh/users/${beatmap.mapperId}) [${gamemode.toReadableName()}]")
-
-        discordClient?.send(
-            description = message.toString(),
-            color = EmbedColor.BLUE,
-            thumbnail = EmbedThumbnail("https://b.ppy.sh/thumb/${beatmap.osuId}l.jpg"),
-            footer = EmbedFooter("Aiess"),
-            confidential = false,
-            gamemodes = beatmap.gamemodes.map { it.gamemode },
-        )
     }
 
     fun getChangedNominatorText(

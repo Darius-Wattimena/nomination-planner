@@ -36,6 +36,3 @@ discord:
   token: ""
   webhook: ""
   webhookPublic: ""
-
-aiess:
-  token: ""

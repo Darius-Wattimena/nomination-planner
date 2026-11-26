@@ -19,11 +19,3 @@ enum class Role {
             }
     }
 }
-
-fun Role.toReadableName(): String =
-    when (this) {
-        Role.Mapper -> "Mapper"
-        Role.Nominator -> "Beatmap Nominators"
-        Role.Probation -> "Beatmap Nominators (Probationary)"
-        Role.NominationAssessment -> "Nomination Assessment Team"
-    }

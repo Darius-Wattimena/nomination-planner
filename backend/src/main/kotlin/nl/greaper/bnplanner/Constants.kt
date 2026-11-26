@@ -1,6 +1,5 @@
 package nl.greaper.bnplanner
 
-const val UPDATED_STATUS_ICON = "\uD83D\uDCAD" // 💭
 const val RANKED_STATUS_ICON = "\uD83D\uDC96" // 💖
 const val QUALIFY_STATUS_ICON = "❤"
 const val NOMINATE_STATUS_ICON = "\uD83D\uDCAD" // 💭

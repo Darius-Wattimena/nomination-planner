@@ -4,9 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import nl.greaper.bnplanner.config.AiessProperties
 import nl.greaper.bnplanner.service.UserService
-import nl.greaper.bnplanner.util.getAiessRole
 import nl.greaper.bnplanner.util.getHighestRoleForUser
 import org.springframework.http.HttpHeaders.AUTHORIZATION
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
@@ -15,11 +13,9 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
-import java.security.MessageDigest
 
 @Component
 class JwtTokenFilter(
-    private val aiess: AiessProperties,
     private val userService: UserService,
     private val tokenVerifier: OsuTokenVerifier,
 ) : OncePerRequestFilter() {
@@ -38,26 +34,6 @@ class JwtTokenFilter(
         }
 
         when {
-            header.startsWith("Aiess ") -> {
-                val token = findToken(header)
-
-                if (isAiessToken(token)) {
-                    val permission = getAiessRole()
-
-                    val authentication =
-                        UsernamePasswordAuthenticationToken(
-                            permission,
-                            token,
-                            permission.roles.map { SimpleGrantedAuthority("ROLE_$it") },
-                        )
-
-                    authentication.details = WebAuthenticationDetailsSource().buildDetails(request)
-                    SecurityContextHolder.getContext().authentication = authentication
-                    chain.doFilter(request, response)
-                    return
-                }
-            }
-
             header.startsWith("Bearer ") -> {
                 // Get jwt token and validate
                 val token = findToken(header)
@@ -107,13 +83,4 @@ class JwtTokenFilter(
 
     /** Only for headers starting with a scheme and space, so there is always a (possibly empty) token */
     private fun findToken(header: String): String = header.split(" ")[1].trim()
-
-    private fun isAiessToken(token: String): Boolean {
-        // Without a configured token nobody can be Aiess, instead of everyone providing an empty token
-        if (token.isBlank() || aiess.token.isBlank()) {
-            return false
-        }
-
-        return MessageDigest.isEqual(aiess.token.toByteArray(), token.toByteArray())
-    }
 }

@@ -36,7 +36,7 @@ import java.net.http.HttpResponse
 /**
  * The whole application including its security, using a real MongoDB and a fake osu!
  *
- * Nothing of the application itself is mocked, so this shows what the frontend and Aiess get.
+ * Nothing of the application itself is mocked, so this shows what the frontend gets.
  */
 @SpringBootTest(classes = [Application::class], webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
@@ -67,11 +67,9 @@ abstract class ApiTest {
         EDITOR("Bearer ${createToken(subject = "2")}"),
         ADMIN("Bearer ${createToken(subject = "3")}"),
         DEVELOPER("Bearer ${createToken(subject = "2369776")}"),
-        BOT("Aiess $AIESS_TOKEN"),
     }
 
     companion object {
-        const val AIESS_TOKEN = "made-up-aiess-token"
         private val users =
             mapOf(
                 As.VIEWER to User("1", "Viewer", listOf(UserGamemode(Gamemode.osu, Role.Mapper))),
@@ -90,7 +88,6 @@ abstract class ApiTest {
             registry.add("osu.clientId") { "14229" }
             registry.add("osu.clientSecret") { "made-up-secret" }
             registry.add("osu.redirectUri") { "http://localhost:3000/login" }
-            registry.add("aiess.token") { AIESS_TOKEN }
         }
     }
 

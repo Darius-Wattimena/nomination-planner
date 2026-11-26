@@ -23,12 +23,6 @@ fun getRolePermissions(osuRole: Role): RolePermission {
     return RolePermission(osuRole, permissions)
 }
 
-fun getAiessRole(): RolePermission =
-    RolePermission(
-        Role.NominationAssessment,
-        setOf(RolePermission.BOT),
-    )
-
 fun getHighestRoleForUser(user: User?): RolePermission {
     if (user == null) {
         return getRolePermissions(Role.Mapper)

@@ -769,31 +769,12 @@ class BeatmapServiceTest {
         service.updateBeatmapStatus(TOKEN, "1", BeatmapStatus.Reset)
         service.updateBeatmapNominators(TOKEN, "1", listOf(mode(Gamemode.mania)))
         service.updateBeatmapNominator(TOKEN, "1", Gamemode.mania, "0", "10")
-        service.logAiessUpdatedNominator(planner.stored(), "0", "10", Gamemode.mania)
         assertEquals("note", planner.stored().note)
         assertEquals(BeatmapStatus.Reset, planner.stored().status)
         assertEquals(listOf(mode(Gamemode.mania, "10")), planner.stored().gamemodes)
         service.deleteBeatmap(TOKEN, "1")
         assertEquals(emptyList<Beatmap>(), planner.beatmaps.list())
         assertEquals(emptyList<Sent>(), planner.discord.sent)
-    }
-
-    @Test
-    fun `Should report a nominator changed by Aiess`() {
-        users("5", "6")
-        service.logAiessUpdatedNominator(beatmap("1", mode(Gamemode.osu), mode(Gamemode.fruits)), "5", "6", Gamemode.fruits)
-
-        assertEquals(
-            Sent(
-                "${added("6")}\n${removed("5")}$footer [catch]",
-                EmbedColor.BLUE,
-                false,
-                listOf(Gamemode.osu, Gamemode.fruits),
-                EmbedThumbnail("https://b.ppy.sh/thumb/1l.jpg"),
-                EmbedFooter("Aiess"),
-            ),
-            planner.discord.single(),
-        )
     }
 
     // Legacy import
