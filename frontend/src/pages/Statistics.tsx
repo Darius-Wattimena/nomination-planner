@@ -39,7 +39,7 @@ export default function Statistics() {
 
   const ofMode = useMemo(() => (maps ?? []).filter(it => !mode || it.gamemodes.some(own => own.gamemode === mode)), [maps, mode])
   const scope = useMemo(() => year ? ofMode.filter(it => inYear(it, year)) : lastYear ? ofMode.filter(it => inLastYear(it)) : ofMode, [ofMode, lastYear, year])
-  const stars = useMemo(() => network(scope, mode, 48), [scope, mode])
+  const stars = useMemo(() => network(scope, mode), [scope, mode])
   const time = useMemo(() => year
     ? {unit: "month" as const, columns: perMonth(scope, year * 12, year * 12 + (year === thisYear ? new Date().getMonth() : 11)).map(it => ({...it, short: it.label.slice(0, 3)}))}
     : overTime(ofMode, lastYear), [ofMode, scope, lastYear, year, thisYear])

@@ -583,8 +583,31 @@ textarea { width: 100%; resize: vertical; }
 .chart-table table { border-collapse: collapse; font-size: .86rem; }
 .chart-table th, .chart-table td { padding: 4px 24px 5px 0; border-bottom: 1px solid var(--line); font-weight: 400; text-align: left; }
 .chart-table td { text-align: right; font-variant-numeric: tabular-nums; }
-.constellation-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--bar); }
-.constellation-scroll > svg { display: block; width: 100%; min-width: 640px; height: auto; max-height: 640px; }
+.sky { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
+.sky-frame { position: relative; height: min(620px, 70vh); min-height: 320px; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: var(--bar); }
+/* The page doesn't scroll while moving the sky with a finger */
+.sky-frame > svg { display: block; touch-action: none; user-select: none; cursor: grab; }
+.sky-frame > svg:active { cursor: grabbing; }
+.sky-background { fill: transparent; }
+.sky-controls { position: absolute; top: 8px; right: 8px; display: grid; gap: 4px; }
+.sky-controls .icon-button { border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+.sky-controls .icon-button:hover { background: var(--raised); }
+.sky-panel { display: grid; gap: 12px; align-content: start; max-height: min(620px, 70vh); overflow-y: auto; }
+.sky-panel .search { max-width: none; flex: none; }
+.sky-panel h3 { margin: 4px 0 0; font-size: .9375rem; }
+.sky-person { display: flex; align-items: center; gap: 12px; }
+.sky-person > div { display: grid; gap: 2px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sky-person a { color: var(--text); font-weight: 700; }
+.sky-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.sky-list > li.muted { padding: 8px 0; }
+.sky-list button { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; width: 100%; min-height: 44px; padding: 6px 8px; border: 0; border-radius: 4px; background: none; color: var(--text); text-align: left; overflow-wrap: anywhere; }
+.sky-list button:hover { background: var(--raised); }
+.sky-list .load { grid-column: 1 / -1; height: 6px; }
+@media (max-width: 860px) {
+  .sky { grid-template-columns: minmax(0, 1fr); }
+  .sky-frame { height: 60vh; }
+  .sky-panel { max-height: none; overflow: visible; }
+}
 /* Validated against each other, for color blindness too. The place and icons say it as well. */
 .in-osu { --m: var(--mode-osu); }
 .in-taiko { --m: var(--mode-taiko); }
@@ -603,7 +626,7 @@ textarea { width: 100%; resize: vertical; }
 .star-ring { fill: var(--bar); }
 .star-part { fill: none; stroke: var(--m); }
 .star[data-active] .star-ring { fill: var(--text); }
-.star text { fill: var(--text); font-size: 14px; paint-order: stroke; stroke: var(--bar); stroke-width: 4px; stroke-linejoin: round; }
+.star text { fill: var(--text); font-size: 13px; pointer-events: none; paint-order: stroke; stroke: var(--bar); stroke-width: 4px; stroke-linejoin: round; }
 .star[data-faded] { opacity: .22; }
 .constellation-info { min-height: 3em; margin-top: 8px; font-size: .9375rem; }
 .bars { display: grid; gap: 8px; }

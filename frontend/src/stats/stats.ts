@@ -85,8 +85,8 @@ function add(counts: ModeCounts, mode: Gamemode) {
   counts[mode] = (counts[mode] ?? 0) + 1
 }
 
-/** Who ranked beatmaps together: being on the same mode of the same beatmap */
-export function network(maps: Beatmap[], only: Gamemode | undefined, limit: number) {
+/** Who ranked beatmaps together: being on the same mode of the same beatmap, the most active first */
+export function network(maps: Beatmap[], only: Gamemode | undefined) {
   const people = new Map<string, {user: User, count: number, modes: ModeCounts}>()
   const links = new Map<string, Omit<Link, "mode">>()
 
@@ -112,22 +112,9 @@ export function network(maps: Beatmap[], only: Gamemode | undefined, limit: numb
   })
 
   const sorted = Array.from(people.values()).sort((a, b) => b.count - a.count || a.user.username.localeCompare(b.user.username))
-  // Every mode gets its part, or the busiest mode would leave no room for the others
-  const places = new Map<Gamemode, number>()
-  const order = sorted.map((it, index) => {
-    const main = GAMEMODES.reduce((best, mode) => (it.modes[mode] ?? 0) > (it.modes[best] ?? 0) ? mode : best)
-    const place = places.get(main) ?? 0
-    places.set(main, place + 1)
-    return {it, place, index}
-  })
-  const shown = order.sort((a, b) => a.place - b.place || a.index - b.index).slice(0, limit)
-    .sort((a, b) => a.index - b.index).map(({it}) => it)
-  const ids = new Set(shown.map(it => it.user.osuId))
   return {
-    people: shown,
-    hidden: people.size - shown.length,
+    people: sorted,
     links: Array.from(links.values())
-      .filter(it => ids.has(it.a) && ids.has(it.b))
       .map((it): Link => ({...it, mode: GAMEMODES.reduce((best, mode) => (it.modes[mode] ?? 0) > (it.modes[best] ?? 0) ? mode : best)}))
       .sort((a, b) => b.count - a.count)
   }
