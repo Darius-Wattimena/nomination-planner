@@ -90,17 +90,12 @@ class AuthService(
                 }
             }
 
-        val icon =
-            if (loginMessage.startsWith("**ERROR")) {
-                LOGIN_FAILED_ICON
-            } else {
-                LOGIN_ICON
-            }
+        val failed = loginMessage.startsWith("**ERROR")
         discordClient?.send(
-            description = "$icon $loginMessage",
-            color = if (exception != null) EmbedColor.RED else EmbedColor.GREEN,
+            description = "${if (failed) LOGIN_FAILED_ICON else LOGIN_ICON} $loginMessage",
+            color = if (failed) EmbedColor.RED else EmbedColor.GREEN,
             thumbnail = EmbedThumbnail(user?.osuId?.let { "https://a.ppy.sh/$it" } ?: ""),
-            footer = EmbedFooter(user?.username ?: "", "https://a.ppy.sh/${user?.osuId}"),
+            footer = EmbedFooter(user?.username ?: "", user?.osuId?.let { "https://a.ppy.sh/$it" }),
             confidential = true,
             gamemodes = emptyList(),
         )

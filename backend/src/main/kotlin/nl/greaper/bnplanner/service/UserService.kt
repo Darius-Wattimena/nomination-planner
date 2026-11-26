@@ -55,10 +55,11 @@ class UserService(
 
         // NAT members without a gamemode have access to all of them
         if (osuGroup.id == MeGroup.NAT && playmodes.isEmpty()) {
-            return Gamemode.values().toList()
+            return Gamemode.entries.toList()
         }
 
-        return playmodes.map { Gamemode.valueOf(it.lowercase()) }
+        // A gamemode osu! added later is left out, the planner can't show it
+        return playmodes.mapNotNull { mode -> Gamemode.entries.find { it.name == mode.lowercase() } }
     }
 
     /**

@@ -56,8 +56,8 @@ class SyncServiceTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - An unknown beatmap counts as synced`() {
-        assertSynced(1, service.syncSingleBeatmap(TOKEN, "5"))
+    fun `Should not count a beatmap that is not on the planner as synced`() {
+        assertSynced(0, service.syncSingleBeatmap(TOKEN, "5"))
         assertEquals(emptySet<String>(), calls())
     }
 

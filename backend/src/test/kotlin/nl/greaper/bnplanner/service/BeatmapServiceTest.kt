@@ -108,11 +108,16 @@ class BeatmapServiceTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - Should leave out nominators that are unknown, leaving less than two`() {
+    fun `Should keep the place of nominators that are unknown`() {
         planner.save(beatmap("1", mode(Gamemode.osu, "unknown", "-1"), mode(Gamemode.taiko, "-2", "0")))
 
         val found = service.findExposedBeatmap(TOKEN, "1")!!
-        assertEquals(listOf(emptyList(), listOf(none)), found.gamemodes.map { gamemode -> gamemode.nominators.map { it.nominator } })
+
+        fun unknown(id: String) = User(id, "Unknown", emptyList())
+        assertEquals(
+            listOf(listOf(unknown("unknown"), unknown("-1")), listOf(unknown("-2"), none)),
+            found.gamemodes.map { gamemode -> gamemode.nominators.map { it.nominator } },
+        )
     }
 
     @Test
@@ -413,10 +418,10 @@ class BeatmapServiceTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - Syncing a ranked beatmap removes every gamemode when osu returns no nominations`() {
+    fun `Should keep the gamemodes when osu returns no nominations for a ranked beatmap`() {
         FakeOsu.beatmap("1", ranked = 1)
 
-        assertEquals(emptyList<BeatmapGamemode>(), sync(beatmap("1", current)).gamemodes)
+        assertEquals(listOf(current), sync(beatmap("1", current)).gamemodes)
     }
 
     @Test
@@ -451,11 +456,11 @@ class BeatmapServiceTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - Syncing fails on a gamemode the planner does not know`() {
+    fun `Should leave out a gamemode the planner does not know when syncing`() {
         users("5")
-        FakeOsu.beatmap("1", nominations = "[${nomination("5", "new-mode")}]")
+        FakeOsu.beatmap("1", nominations = "[${nomination("5", "new-mode")},${nomination("5", "osu")}]")
 
-        assertThrows<IllegalArgumentException> { sync(beatmap()) }
+        assertEquals(listOf(mode(Gamemode.osu, "5", "0", firstNominated = true)), sync(beatmap()).gamemodes)
     }
 
     // Note
@@ -513,7 +518,11 @@ class BeatmapServiceTest {
 
         assertTrue(service.updateBeatmapStatus(TOKEN, "1", status))
         assertEquals(status, planner.stored().status)
-        assertNull(planner.stored().dateRanked)
+        if (status == BeatmapStatus.Ranked) {
+            assertRecent(planner.stored().dateRanked!!)
+        } else {
+            assertNull(planner.stored().dateRanked)
+        }
         assertRecent(planner.stored().dateUpdated)
         assertEquals(update("$icon **Updated status to $status$boldFooter", EmbedColor.ORANGE, true), planner.discord.single())
     }
@@ -523,8 +532,8 @@ class BeatmapServiceTest {
         planner.save(beatmap(status = BeatmapStatus.Ranked, ranked = UPDATED))
 
         assertTrue(service.updateBeatmapStatus(TOKEN, "1", BeatmapStatus.Pending))
-        // SUSPECTED BUG - The ranked date is kept
-        assertEquals(UPDATED, planner.stored().dateRanked)
+        // No longer ranked
+        assertNull(planner.stored().dateRanked)
         assertEquals(update("⏳ **Updated status to Pending$boldFooter", EmbedColor.ORANGE, true), planner.discord.single())
     }
 
@@ -535,6 +544,11 @@ class BeatmapServiceTest {
         assertTrue(service.updateBeatmapStatus(TOKEN, "1", BeatmapStatus.Pending))
         assertFalse(service.updateBeatmapStatus(TOKEN, "2", BeatmapStatus.Pending))
         assertEquals(beatmap(), planner.stored())
+
+        val ranked = beatmap("3", status = BeatmapStatus.Ranked, ranked = UPDATED)
+        planner.save(ranked)
+        assertTrue(service.updateBeatmapStatus(TOKEN, "3", BeatmapStatus.Ranked))
+        assertEquals(ranked, planner.beatmaps.findById("3"))
         assertEquals(emptyList<Sent>(), planner.discord.sent)
     }
 

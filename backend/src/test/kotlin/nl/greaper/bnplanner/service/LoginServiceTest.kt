@@ -40,7 +40,7 @@ class LoginServiceTest {
         true,
         emptyList(),
         EmbedThumbnail(user?.let { "https://a.ppy.sh/${it.osuId}" } ?: ""),
-        EmbedFooter(user?.username ?: "", "https://a.ppy.sh/${user?.osuId}"),
+        EmbedFooter(user?.username ?: "", user?.osuId?.let { "https://a.ppy.sh/$it" }),
     )
 
     private val user = User("5", "BN", listOf(UserGamemode(Gamemode.osu, Role.Nominator)))
@@ -168,11 +168,10 @@ class LoginServiceTest {
 
         assertNull(auth.login("code="))
         assertNull(auth.refresh("refresh="))
-        // SUSPECTED BUG - Reported in green, as this isn't an exception
         assertEquals(
             listOf(
-                login("📕 **ERROR:** Could not set up context while logging in", EmbedColor.GREEN),
-                login("📕 **ERROR:** Could not set up context while refreshing user login", EmbedColor.GREEN),
+                login("📕 **ERROR:** Could not set up context while logging in", EmbedColor.RED),
+                login("📕 **ERROR:** Could not set up context while refreshing user login", EmbedColor.RED),
             ),
             planner.discord.sent,
         )
@@ -200,7 +199,7 @@ class LoginServiceTest {
 
         assertEquals(
             listOf(
-                login("📕 **ERROR:** Could not find user while logging in", EmbedColor.GREEN),
+                login("📕 **ERROR:** Could not find user while logging in", EmbedColor.RED),
                 login("📕 **ERROR:** Could not set up context while logging in", EmbedColor.RED),
             ),
             planner.discord.sent,

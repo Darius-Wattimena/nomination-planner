@@ -45,27 +45,27 @@ class SyncService(
         beatmapId: String,
     ): SyncInfo {
         log.info { "Syncing beatmap (id = $beatmapId)" }
+        var synced = false
         val duration =
             measureTimeMillis {
-                syncBeatmapById(osuToken, beatmapId)
+                synced = syncBeatmapById(osuToken, beatmapId)
             }
         log.info { "Synced beatmap in $duration ms (id = $beatmapId)" }
 
         return SyncInfo(
             duration = duration,
-            totalSynced = 1,
+            totalSynced = if (synced) 1 else 0,
         )
     }
 
+    /** Whether the beatmap is on the planner */
     private fun syncBeatmapById(
         osuToken: String,
         beatmapId: String,
-    ) {
-        val beatmap = beatmapService.findBeatmap(beatmapId)
-
-        if (beatmap != null) {
-            beatmapService.syncBeatmap(osuToken, beatmap)
-        }
+    ): Boolean {
+        val beatmap = beatmapService.findBeatmap(beatmapId) ?: return false
+        beatmapService.syncBeatmap(osuToken, beatmap)
+        return true
     }
 
     fun syncUsers(

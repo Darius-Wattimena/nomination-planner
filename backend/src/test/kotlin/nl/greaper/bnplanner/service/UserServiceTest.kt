@@ -108,10 +108,10 @@ class UserServiceTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - A user of a gamemode the planner does not know fails`() {
-        FakeOsu.user("5", "BN", """[{"id":28,"playmodes":["new-mode"]}]""")
+    fun `Should leave out a gamemode the planner does not know`() {
+        FakeOsu.user("5", "BN", """[{"id":28,"playmodes":["new-mode","osu"]}]""")
 
-        assertThrows<IllegalArgumentException> { force() }
+        assertEquals(listOf(Gamemode.osu), force()!!.gamemodes.map { it.gamemode })
     }
 
     @Test

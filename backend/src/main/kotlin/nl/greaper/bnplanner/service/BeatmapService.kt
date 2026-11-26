@@ -222,7 +222,7 @@ class BeatmapService(
                         return
                     }
 
-                    val nominatedGamemodes = currentNomination.rulesets.map { ruleset -> Gamemode.valueOf(ruleset) }
+                    val nominatedGamemodes = currentNomination.rulesets.mapNotNull { findGamemode(it, beatmap.osuId) }
                     nominatedGamemodes.map { user.osuId to it }
                 }.flatten()
                 .groupBy({ it.second }, { it.first })
@@ -300,8 +300,8 @@ class BeatmapService(
                 if (newNominators == null) {
                     val resetNominators = beatmapGamemode.nominators.map { it.copy(hasNominated = false) }
 
-                    // When already ranked we can assume this gamemode got removed
-                    if (newStatus == BeatmapStatus.Ranked) {
+                    // When ranked with nominations of other gamemodes, this gamemode got removed
+                    if (newStatus == BeatmapStatus.Ranked && nominators.isNotEmpty()) {
                         return@mapNotNull null
                     }
 
@@ -419,7 +419,12 @@ class BeatmapService(
     ): Boolean {
         val updatedBeatmap =
             dataSource.modify(osuId) { current ->
-                current.copy(status = newStatus, dateUpdated = Instant.now()).takeIf { current.status != newStatus }
+                current
+                    .copy(
+                        status = newStatus,
+                        dateUpdated = Instant.now(),
+                        dateRanked = if (newStatus == BeatmapStatus.Ranked) current.dateRanked ?: Instant.now() else null,
+                    ).takeIf { current.status != newStatus }
             }
 
         updatedBeatmap?.let { logBeatmapStatusChange(osuApiToken, it) }
@@ -713,22 +718,27 @@ class BeatmapService(
         )
     }
 
+    /** A gamemode osu! added later is left out, the planner can't show it */
+    private fun findGamemode(
+        ruleset: String,
+        osuId: String,
+    ): Gamemode? {
+        val gamemode = Gamemode.entries.find { it.name == ruleset }
+        if (gamemode == null) {
+            log.warn { "Unknown gamemode $ruleset nominated (osuId: $osuId)" }
+        }
+        return gamemode
+    }
+
     private fun Beatmap.toExposedBeatmap(): ExposedBeatmap? {
         val mapper = userService.findUserById(mapperId) ?: return null
         val preparedGamemodes =
             gamemodes.map { entry ->
                 val gamemodeNominators =
-                    entry.nominators.mapNotNull {
-                        val nominatorUser = userService.findUserById(it.nominatorId)
-
-                        if (nominatorUser != null) {
-                            ExposedBeatmapNominator(
-                                nominator = nominatorUser,
-                                hasNominated = it.hasNominated,
-                            )
-                        } else {
-                            null
-                        }
+                    entry.nominators.map {
+                        // Keeps their place, a gamemode always has two nominators
+                        val nominator = userService.findUserById(it.nominatorId) ?: User(it.nominatorId, "Unknown", emptyList())
+                        ExposedBeatmapNominator(nominator = nominator, hasNominated = it.hasNominated)
                     }
 
                 ExposedBeatmapGamemode(
