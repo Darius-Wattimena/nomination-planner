@@ -39,7 +39,8 @@ let shown = EMPTY
 /** Everything the backend told us until the token of the last update */
 let feed: Feed | undefined
 let owner: string | undefined
-let loading = false
+/** The reload that is running, so others wait for it instead of starting another */
+let loading: Promise<void> | undefined
 let changes = 0
 const listeners = new Set<() => void>()
 
@@ -79,9 +80,14 @@ function fromFeed(feed: Feed): Pick<PlannerState, "maps" | "nominators"> {
   }
 }
 
-export async function reloadPlanner() {
-  if (loading) return
-  loading = true
+export function reloadPlanner(): Promise<void> {
+  loading ??= load().finally(() => {
+    loading = undefined
+  })
+  return loading
+}
+
+async function load() {
   set({refreshing: true})
   const changesBefore = changes
   const ownerBefore = owner
@@ -92,10 +98,9 @@ export async function reloadPlanner() {
   } catch {
     if (ownerBefore === owner) set({error: true})
   } finally {
-    loading = false
     set({refreshing: false})
-    if (changesBefore !== changes || ownerBefore !== owner) void reloadPlanner()
   }
+  if (changesBefore !== changes || ownerBefore !== owner) await load()
 }
 
 /** Changes show up as soon as the backend has them, for as long as the planner is visible */
