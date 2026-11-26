@@ -1,5 +1,6 @@
 import type {Beatmap, BeatmapStatus, Gamemode, User} from "../models/Types";
 import {MISSING_USER_ID} from "../Constants";
+import {forget, readStored, store} from "../utils/storage";
 
 /** What the backend sends: everything in progress, or only what changed since the token of an earlier update */
 export interface FeedUpdate {
@@ -71,23 +72,15 @@ const KEY = "planner"
 
 /** The last known state, to show right away when the planner is opened again */
 export function readFeed(owner: string): Feed | undefined {
-  try {
-    const stored = JSON.parse(localStorage.getItem(KEY) ?? "null")
-    return stored?.owner === owner && stored.feed?.token && stored.feed.users && stored.feed.beatmaps ? stored.feed : undefined
-  } catch {
-    return undefined
-  }
+  const stored = readStored<{owner: string, feed?: Partial<Feed>}>(KEY)
+  return stored?.owner === owner && stored.feed?.token && stored.feed.users && stored.feed.beatmaps ? stored.feed as Feed : undefined
 }
 
 export function storeFeed(owner: string, feed: Feed) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify({owner, feed}))
-  } catch {
-    // Without it, only the next start is slower
-    forgetFeed()
-  }
+  // Without it, only the next start is slower
+  if (!store(KEY, {owner, feed})) forgetFeed()
 }
 
 export function forgetFeed() {
-  localStorage.removeItem(KEY)
+  forget(KEY)
 }

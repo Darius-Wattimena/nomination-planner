@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {previewUrl} from "../utils/preview";
+import {readStored, store} from "../utils/storage";
 
 function storedVolume() {
-  const volume = Number(localStorage.getItem("volume") ?? 0.35)
+  const volume = Number(readStored("volume") ?? 0.35)
   return volume >= 0 && volume <= 1 ? volume : 0.35
 }
 
@@ -97,11 +98,7 @@ export function useSongPreview(id: string | undefined, nextId: string | undefine
 
   useEffect(() => {
     element().volume = volume
-    try {
-      localStorage.setItem("volume", String(volume))
-    } catch {
-      // Only a preference
-    }
+    store("volume", volume)
   }, [volume])
 
   return {

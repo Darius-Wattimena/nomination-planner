@@ -1,17 +1,14 @@
 import {useSyncExternalStore} from "react";
 import type {UserContext} from "../models/Types";
+import {forget, readStored, storeFirst} from "./storage";
 
 const KEY = "userContext"
 const listeners = new Set<() => void>()
 let current = read()
 
 function read(): UserContext | undefined {
-  try {
-    const stored = JSON.parse(localStorage.getItem(KEY) ?? "null")
-    return stored?.accessToken ? stored : undefined
-  } catch {
-    return undefined
-  }
+  const stored = readStored<UserContext>(KEY)
+  return stored?.accessToken ? stored : undefined
 }
 
 function notify() {
@@ -24,11 +21,9 @@ export function getSession() {
 
 export function setSession(session: UserContext | undefined) {
   current = session
-  if (session) {
-    localStorage.setItem(KEY, JSON.stringify(session))
-  } else {
-    localStorage.removeItem(KEY)
-  }
+  // osu! replaces the refresh token, so losing it means logging in again
+  if (session) storeFirst(KEY, session)
+  else forget(KEY)
   notify()
 }
 

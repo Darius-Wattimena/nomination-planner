@@ -1,10 +1,11 @@
 import {useState} from "react";
+import {readText, store} from "./storage";
 
 export type Theme = "dark" | "light"
 
 function preferredTheme(): Theme {
   // The planner has always been dark, light is something to choose
-  return localStorage.getItem("theme") === "light" ? "light" : "dark"
+  return readText("theme")?.replaceAll('"', "") === "light" ? "light" : "dark"
 }
 
 export function applyTheme(theme: Theme = preferredTheme()) {
@@ -16,7 +17,7 @@ export function useTheme() {
 
   function toggle() {
     const next = theme === "dark" ? "light" : "dark"
-    localStorage.setItem("theme", next)
+    store("theme", next)
     applyTheme(next)
     setTheme(next)
   }

@@ -5,6 +5,7 @@ import {useSession} from "../utils/session";
 import Api from "./Api";
 import {request} from "./client";
 import {NOBODY} from "./feed";
+import {forget, readStored, store} from "../utils/storage";
 
 /**
  * Every ranked beatmap with only what the statistics need. Kept in the browser and only what changed is asked for,
@@ -73,21 +74,13 @@ function toBeatmaps({names, beatmaps}: Ranked): Beatmap[] {
 }
 
 function read(userId: string): Ranked | undefined {
-  try {
-    const stored = JSON.parse(localStorage.getItem(KEY) ?? "null")
-    return stored?.owner === userId && stored.ranked?.token ? stored.ranked : undefined
-  } catch {
-    return undefined
-  }
+  const stored = readStored<{owner: string, ranked?: Ranked}>(KEY)
+  return stored?.owner === userId && stored.ranked?.token ? stored.ranked : undefined
 }
 
-function store(userId: string, value: Ranked) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify({owner: userId, ranked: value}))
-  } catch {
-    // Too large for this browser, only opening the statistics again is slower
-    localStorage.removeItem(KEY)
-  }
+function remember(userId: string, value: Ranked) {
+  // Too large for this browser, only opening the statistics again is slower
+  if (!store(KEY, {owner: userId, ranked: value})) forget(KEY)
 }
 
 function load(userId: string) {
@@ -111,7 +104,7 @@ function load(userId: string) {
       loadedAt = Date.now()
       if (changed) {
         set({maps: toBeatmaps(ranked), error: false})
-        store(userId, ranked)
+        remember(userId, ranked)
       }
     })
     .catch(() => {
@@ -125,7 +118,7 @@ function load(userId: string) {
 export function forgetRanked() {
   owner = undefined
   ranked = undefined
-  localStorage.removeItem(KEY)
+  forget(KEY)
 }
 
 export function useRanked() {

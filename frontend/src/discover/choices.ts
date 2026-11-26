@@ -1,4 +1,5 @@
 import {useState} from "react";
+import {readStored, store} from "../utils/storage";
 
 export type Choice = "pass" | "like"
 
@@ -13,12 +14,8 @@ type Choices = Record<string, Entry>
 const PASS_DURATION = 30 * 86_400_000
 
 function read(key: string): Choices {
-  try {
-    const stored: Choices = JSON.parse(localStorage.getItem(key) ?? "{}")
-    return Object.fromEntries(Object.entries(stored).filter(([, it]) => it.choice === "like" || Date.now() - it.at < PASS_DURATION))
-  } catch {
-    return {}
-  }
+  const stored = readStored<Choices>(key) ?? {}
+  return Object.fromEntries(Object.entries(stored).filter(([, it]) => it.choice === "like" || Date.now() - it.at < PASS_DURATION))
 }
 
 /** What you thought of beatmaps, only kept in this browser */
@@ -28,11 +25,8 @@ export function useChoices(userId: string) {
 
   function save(next: Choices) {
     setChoices(next)
-    try {
-      localStorage.setItem(key, JSON.stringify(next))
-    } catch {
-      // Not being able to remember it must not get in the way
-    }
+    // Not being able to remember it must not get in the way
+    store(key, next)
   }
 
   return {

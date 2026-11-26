@@ -16,20 +16,13 @@ import {usePhone} from "../utils/phone";
 import {filterMaps, MODE_WORDS} from "../utils/query";
 import {canEdit, useSession} from "../utils/session";
 import {ageInDays, stageOf, STAGES} from "../utils/workflow";
+import {readStored, store} from "../utils/storage";
 
 const STEP = 60
 
 interface SavedView {
   name: string
   query: string
-}
-
-function readStored<T>(key: string, fallback: T): T {
-  try {
-    return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback
-  } catch {
-    return fallback
-  }
 }
 
 export default function Beatmaps() {
@@ -39,10 +32,10 @@ export default function Beatmaps() {
   const openAdd = useAddBeatmap()
   const [params, setParams] = useSearchParams()
   const phone = usePhone()
-  const [chosen, setLayout] = useState<"board" | "list">(() => readStored("boardLayout", "board"))
+  const [chosen, setLayout] = useState<"board" | "list">(() => readStored<"board" | "list">("boardLayout") ?? "board")
   // Columns need room next to each other
   const layout = phone ? "list" : chosen
-  const [saved, setSaved] = useState<SavedView[]>(() => readStored("savedViews", []))
+  const [saved, setSaved] = useState<SavedView[]>(() => readStored<SavedView[]>("savedViews") ?? [])
   const [naming, setNaming] = useState<string>()
   const [limit, setLimit] = useState(STEP)
 
@@ -64,9 +57,9 @@ export default function Beatmaps() {
     setParams(next, {replace: true})
   }
 
-  function store(next: SavedView[]) {
+  function saveViews(next: SavedView[]) {
     setSaved(next)
-    localStorage.setItem("savedViews", JSON.stringify(next))
+    store("savedViews", next)
   }
 
   const found = useMemo(() => filterMaps(maps ?? [], query, user), [maps, query, user])
@@ -94,7 +87,7 @@ export default function Beatmaps() {
               {(["board", "list"] as const).map(it => (
                 <button key={it} aria-pressed={layout === it} onClick={() => {
                   setLayout(it)
-                  localStorage.setItem("boardLayout", JSON.stringify(it))
+                  store("boardLayout", it)
                 }}>{it === "board" ? <FaTableColumns/> : <FaList/>}{it === "board" ? "Columns" : "List"}</button>
               ))}
             </div>}
@@ -107,7 +100,7 @@ export default function Beatmaps() {
           {saved.map(view => (
             <span key={view.name} className="view view-saved" data-active={view.query === query || undefined}>
               <button aria-pressed={view.query === query} onClick={() => update({q: view.query})}>{view.name}</button>
-              <button aria-label={`Delete view ${view.name}`} onClick={() => store(saved.filter(it => it !== view))}><FaXmark/></button>
+              <button aria-label={`Delete view ${view.name}`} onClick={() => saveViews(saved.filter(it => it !== view))}><FaXmark/></button>
             </span>
           ))}
           {!isSaved && (naming === undefined
@@ -115,7 +108,7 @@ export default function Beatmaps() {
             : <form onSubmit={event => {
                 event.preventDefault()
                 const name = naming.trim()
-                if (name) store([...saved.filter(it => it.name !== name), {name, query}])
+                if (name) saveViews([...saved.filter(it => it.name !== name), {name, query}])
                 setNaming(undefined)
               }}>
                 <input id="view-name" autoFocus aria-label="Name of the view" placeholder="Name, then Enter" value={naming} onChange={event => setNaming(event.target.value)} onBlur={() => setNaming(undefined)}/>
