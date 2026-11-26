@@ -7,7 +7,7 @@ import {MapCard, MapRow} from "../beatmaps/MapRow";
 import Filters from "../beatmaps/Filters";
 import {GAMEMODES} from "../Constants";
 import type {Beatmap} from "../models/Types";
-import {reloadPlanner, usePlanner} from "../resources/planner";
+import {usePlanner} from "../resources/planner";
 import {useAddBeatmap} from "../beatmaps/useAddBeatmap";
 import {Freshness, RingLegend} from "../ui/Help";
 import PageHeader from "../ui/PageHeader";
@@ -17,6 +17,7 @@ import {filterMaps, MODE_WORDS} from "../utils/query";
 import {canEdit, useSession} from "../utils/session";
 import {ageInDays, stageOf, STAGES} from "../utils/workflow";
 import {readStored, store} from "../utils/storage";
+import {PlannerError} from "../ui/States";
 
 const STEP = 60
 
@@ -118,7 +119,7 @@ export default function Beatmaps() {
         </div>
         <Filters query={query} onChange={q => update({q})} maps={maps ?? []} stages={layout === "list"}/>
 
-        {error && <p className="alert alert-error" role="alert">Could not refresh the planner. <button className="link" onClick={() => void reloadPlanner()}>Try again</button></p>}
+        {error && <PlannerError/>}
         {!maps && !error && <ul className="map-list" aria-busy aria-label="Loading">{[0, 1, 2, 3, 4].map(it => <li key={it} className="map-row skeleton"/>)}</ul>}
         {maps && found.length === 0 &&
           <EmptyState title="Nothing matches">

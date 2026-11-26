@@ -1,13 +1,11 @@
 import type {ReactNode} from "react";
 import {Link, useLocation} from "react-router";
 import logo from "../assets/greaper.png";
-import {useNominators} from "../beatmaps/actions";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
-import {GAMEMODE_NAMES} from "../Constants";
-import type {Beatmap, Gamemode, User} from "../models/Types";
-import {reloadPlanner, usePlanner} from "../resources/planner";
+import type {Beatmap, User} from "../models/Types";
+import {usePlanner} from "../resources/planner";
 import PageHeader from "../ui/PageHeader";
 import {Freshness} from "../ui/Help";
 import {LoginButton} from "../ui/States";
@@ -16,6 +14,8 @@ import type {Part} from "../utils/workflow";
 import {stageOf, suggestions} from "../utils/workflow";
 import {involvementOf} from "../utils/involvement";
 import {usePairings} from "../resources/pairings";
+import JoinButton from "../beatmaps/JoinButton";
+import {PlannerError} from "../ui/States";
 
 const GROUPS: {id: Part, title: string, hint: string}[] = [
   {id: "move", title: "Waiting for your nomination", hint: "The other nominator is done, or it has to be checked again"},
@@ -88,7 +88,7 @@ function Workspace({user}: {user: User}) {
   return (
     <div className="page">
         <PageHeader title={title} subtitle={<>{user.username} <Freshness/></>}/>
-        {error && <p className="alert alert-error" role="alert">Could not refresh the planner. <button className="link" onClick={() => void reloadPlanner()}>Try again</button></p>}
+        {error && <PlannerError/>}
         {!maps && !error && <ul className="map-list" aria-busy aria-label="Loading">{[0, 1, 2, 3].map(it => <li key={it} className="map-row skeleton"/>)}</ul>}
 
         {!nominator && own}
@@ -124,7 +124,3 @@ function Workspace({user}: {user: User}) {
   )
 }
 
-function JoinButton({beatmap, mode, user}: {beatmap: Beatmap, mode: Gamemode, user: User}) {
-  const {join} = useNominators(beatmap)
-  return <button className="button button-tint" onClick={() => join(mode, user)} aria-label={`I'll nominate ${beatmap.title} for ${GAMEMODE_NAMES[mode]}`}>I'll nominate</button>
-}

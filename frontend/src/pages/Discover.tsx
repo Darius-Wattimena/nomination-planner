@@ -2,7 +2,6 @@ import type {PointerEvent as ReactPointerEvent} from "react";
 import {useRef, useState} from "react";
 import {Link} from "react-router";
 import {FaArrowUpRightFromSquare, FaHeart, FaPause, FaPlay, FaRotateLeft, FaVolumeHigh, FaVolumeXmark, FaXmark} from "react-icons/fa6";
-import {useNominators} from "../beatmaps/actions";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
@@ -11,7 +10,7 @@ import type {Choice} from "../discover/choices";
 import {useChoices} from "../discover/choices";
 import {useSongPreview} from "../discover/useSongPreview";
 import type {Beatmap, Gamemode, User} from "../models/Types";
-import {reloadPlanner, usePlanner} from "../resources/planner";
+import {usePlanner} from "../resources/planner";
 import Cover from "../ui/Cover";
 import ModeIcon from "../ui/ModeIcon";
 import PageHeader from "../ui/PageHeader";
@@ -22,6 +21,8 @@ import {canEdit, useSession} from "../utils/session";
 import {canNominate} from "../utils/users";
 import {ageLabel, suggestions} from "../utils/workflow";
 import {usePairings} from "../resources/pairings";
+import JoinButton from "../beatmaps/JoinButton";
+import {PlannerError} from "../ui/States";
 
 const SWIPE = 110
 
@@ -98,7 +99,7 @@ function Deck({user}: {user: User}) {
           }
         </PageHeader>
 
-        {error && <p className="alert alert-error" role="alert">Could not refresh the planner. <button className="link" onClick={() => void reloadPlanner()}>Try again</button></p>}
+        {error && <PlannerError/>}
         {!maps && !error && <Loading/>}
 
         <div className="discover">
@@ -113,7 +114,7 @@ function Deck({user}: {user: User}) {
               <Card key={current.map.osuId} map={current.map} mode={current.mode} reason={current.reason} song={song} onDecide={decide} onOpen={() => open(current.map.osuId)}/>
               <div className="deck-actions">
                 <button className="deck-button" onClick={() => decide("pass")}><FaXmark/>Skip</button>
-                <JoinButton key={current.map.osuId} map={current.map} mode={current.mode} user={user}/>
+                <JoinButton key={current.map.osuId} beatmap={current.map} mode={current.mode} user={user} className="deck-button deck-join"/>
                 <button className="deck-button deck-like" onClick={() => decide("like")}><FaHeart/>Interested</button>
               </div>
               <div className="deck-foot">
@@ -135,7 +136,7 @@ function Deck({user}: {user: User}) {
               : <ul className="map-list">
                   {liked.map(it => (
                     <MapRow key={it.map.osuId} beatmap={it.map} selected={opened === it.map.osuId} reason={it.reason} onOpen={() => open(it.map.osuId)}>
-                      <JoinButton map={it.map} mode={it.mode} user={user} small/>
+                      <JoinButton beatmap={it.map} mode={it.mode} user={user}/>
                       <button className="icon-button" aria-label={`Remove ${it.map.title}`} title="Remove" onClick={() => forget(it.map.osuId)}><FaXmark/></button>
                     </MapRow>
                   ))}
@@ -148,14 +149,6 @@ function Deck({user}: {user: User}) {
   )
 }
 
-function JoinButton({map, mode, user, small}: {map: Beatmap, mode: Gamemode, user: User, small?: boolean}) {
-  const {join} = useNominators(map)
-  return (
-    <button className={small ? "button button-tint" : "deck-button deck-join"} aria-label={`I'll nominate ${map.title} for ${GAMEMODE_NAMES[mode]}`} onClick={() => join(mode, user)}>
-      I'll nominate
-    </button>
-  )
-}
 
 interface CardProps {
   map: Beatmap
