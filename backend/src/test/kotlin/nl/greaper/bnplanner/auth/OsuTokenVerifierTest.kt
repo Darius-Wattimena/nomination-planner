@@ -15,7 +15,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -179,7 +179,7 @@ class OsuTokenVerifierTest {
     }
 
     /** Counts the calls itself, as Mockito remembers every call */
-    private class CountingClient : OsuHttpClient(OsuProperties("14229", "", ""), ObjectMapper()) {
+    private class CountingClient : OsuHttpClient(OsuProperties("14229", "", ""), JsonMapper()) {
         var calls = 0
         var owner: (String) -> String? = { "123" }
 

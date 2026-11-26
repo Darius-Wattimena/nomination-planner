@@ -9,7 +9,6 @@ import nl.greaper.bnplanner.model.osu.Me
 import nl.greaper.bnplanner.model.osu.OsuOAuth
 import nl.greaper.bnplanner.model.osu.RefreshToken
 import nl.greaper.bnplanner.util.shouldSkipUser
-import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
@@ -18,9 +17,9 @@ import org.springframework.http.ResponseEntity
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpClientErrorException
+import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
-import org.springframework.web.client.RestTemplate
-import org.springframework.web.client.postForEntity
+import org.springframework.web.client.toEntity
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.module.kotlin.readValue
 
@@ -31,22 +30,27 @@ class OsuHttpClient(
 ) {
     val log = KotlinLogging.logger { }
 
-    private val rest = RestTemplate()
-    private val authRest = RestTemplate()
-    internal val verifyRest =
-        RestTemplate(
-            SimpleClientHttpRequestFactory().apply {
-                setConnectTimeout(5_000)
-                setReadTimeout(5_000)
-            },
-        )
-    private val authHeaders = HttpHeaders()
+    private val rest = RestClient.create()
+    private val verifyRest =
+        RestClient
+            .builder()
+            .requestFactory(
+                SimpleClientHttpRequestFactory().apply {
+                    setConnectTimeout(5_000)
+                    setReadTimeout(5_000)
+                },
+            ).build()
     private val tokenUri = "${config.baseUrl}/oauth/token"
 
-    init {
-        authHeaders.contentType = MediaType.APPLICATION_JSON
-        authHeaders.accept = listOf(MediaType.APPLICATION_JSON)
-    }
+    private fun postToken(body: Any): ResponseEntity<AuthToken> =
+        rest
+            .post()
+            .uri(tokenUri)
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(MediaType.APPLICATION_JSON)
+            .body(objectMapper.writeValueAsString(body))
+            .retrieve()
+            .toEntity<AuthToken>()
 
     /**
      * Get a token from the osu server
@@ -61,11 +65,8 @@ class OsuHttpClient(
                 redirect_uri = config.redirectUri,
             )
 
-        val body = objectMapper.writeValueAsString(osuOAuth)
-        val request = HttpEntity(body, authHeaders)
-
         return try {
-            authRest.postForEntity(tokenUri, request)
+            postToken(osuOAuth)
         } catch (error: Throwable) {
             log.error(error) { "Could not get auth token" }
             null
@@ -75,17 +76,15 @@ class OsuHttpClient(
     /** A token of the planner itself, without any user, which can only read what is public */
     fun findClientToken(): AuthToken? {
         val body =
-            objectMapper.writeValueAsString(
-                mapOf(
-                    "client_id" to config.clientId.toInt(),
-                    "client_secret" to config.clientSecret,
-                    "grant_type" to "client_credentials",
-                    "scope" to "public",
-                ),
+            mapOf(
+                "client_id" to config.clientId.toInt(),
+                "client_secret" to config.clientSecret,
+                "grant_type" to "client_credentials",
+                "scope" to "public",
             )
 
         return try {
-            authRest.postForEntity<AuthToken>(tokenUri, HttpEntity(body, authHeaders)).body
+            postToken(body).body
         } catch (ex: RestClientException) {
             log.error(ex) { "Could not get a token of the planner itself" }
             null
@@ -101,11 +100,8 @@ class OsuHttpClient(
                 refresh_token = refreshToken,
             )
 
-        val body = objectMapper.writeValueAsString(preparedRefreshToken)
-        val request = HttpEntity(body, authHeaders)
-
         return try {
-            authRest.postForEntity(tokenUri, request)
+            postToken(preparedRefreshToken)
         } catch (ex: HttpClientErrorException) {
             if (ex.statusCode == HttpStatus.UNAUTHORIZED) {
                 log.info { "[UNAUTHORIZED] User trying to login via their refresh token, but it isn't valid" }
@@ -123,11 +119,14 @@ class OsuHttpClient(
      */
     fun findTokenOwnerId(token: String): String? {
         // Never share these headers between calls, as this decides who the user is
-        val request = HttpEntity<Void>(HttpHeaders().apply { setBearerAuth(token) })
-
         return try {
-            val response = verifyRest.exchange("${config.baseUrl}/api/v2/me", HttpMethod.GET, request, Me::class.java)
-            response.body?.id
+            verifyRest
+                .get()
+                .uri("${config.baseUrl}/api/v2/me")
+                .headers { it.setBearerAuth(token) }
+                .retrieve()
+                .body(Me::class.java)
+                ?.id
         } catch (ex: HttpClientErrorException) {
             if (ex.statusCode == HttpStatus.UNAUTHORIZED || ex.statusCode == HttpStatus.FORBIDDEN) {
                 null
@@ -205,25 +204,28 @@ class OsuHttpClient(
         body: String = "",
         includeBearer: Boolean,
     ): ResponseEntity<String> {
-        // Never share these headers between calls, as they would use the token of each other
-        val headers = HttpHeaders()
-        if (includeBearer) {
-            headers.setBearerAuth(authToken)
-        } else {
-            headers.set(HttpHeaders.AUTHORIZATION, authToken)
-        }
-
-        val request =
-            if (body == "") {
-                HttpEntity(headers)
-            } else {
-                HttpEntity(body, headers)
-            }
         val requestUri = "${config.baseUrl}/api/v2$uri"
 
         log.info { "$method ==> $requestUri" }
 
-        return rest.exchange(requestUri, method, request, String::class.java)
+        // Never share headers between calls, as they would use the token of each other
+        val request =
+            rest
+                .method(method)
+                .uri(requestUri)
+                .headers {
+                    if (includeBearer) {
+                        it.setBearerAuth(authToken)
+                    } else {
+                        it.set(HttpHeaders.AUTHORIZATION, authToken)
+                    }
+                }
+
+        if (body != "") {
+            request.body(body)
+        }
+
+        return request.retrieve().toEntity<String>()
     }
 }
 
