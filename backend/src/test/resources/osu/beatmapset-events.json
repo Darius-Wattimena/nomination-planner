@@ -1,0 +1,172 @@
+{
+ "events": [
+  {
+   "id": 8058989,
+   "type": "qualify",
+   "comment": null,
+   "created_at": "2026-11-26T18:51:07Z",
+   "user_id": null,
+   "beatmapset": {
+    "id": 2527957,
+    "artist": "Camellia",
+    "title": "NEURO-CLOUD-9",
+    "creator": "oid45",
+    "user_id": 27710732,
+    "status": "qualified"
+   }
+  },
+  {
+   "id": 8058988,
+   "type": "nominate",
+   "comment": {
+    "modes": [
+     "mania"
+    ]
+   },
+   "created_at": "2026-11-26T18:51:07Z",
+   "user_id": 34587251,
+   "beatmapset": {
+    "id": 2527957,
+    "artist": "Camellia",
+    "title": "NEURO-CLOUD-9",
+    "creator": "oid45",
+    "user_id": 27710732,
+    "status": "qualified"
+   }
+  },
+  {
+   "id": 8058785,
+   "type": "rank",
+   "comment": null,
+   "created_at": "2026-11-26T16:47:13Z",
+   "user_id": null,
+   "beatmapset": {
+    "id": 2652052,
+    "artist": "yuxuki waga feat. IA",
+    "title": "Changes",
+    "creator": "SN707",
+    "user_id": 31404061,
+    "status": "ranked"
+   }
+  },
+  {
+   "id": 8057494,
+   "type": "nomination_reset_received",
+   "comment": {
+    "beatmap_discussion_id": 5887075,
+    "beatmap_discussion_post_id": null,
+    "source_user_id": 10415491,
+    "source_user_username": "Amasugi"
+   },
+   "created_at": "2026-11-26T03:43:13Z",
+   "user_id": 16712231,
+   "beatmapset": {
+    "id": 2589812,
+    "artist": "CHiCO with HoneyWorks",
+    "title": "Kimi no Sei de Aishiteru (TV Size)",
+    "creator": "Amasugi",
+    "user_id": 10415491,
+    "status": "pending"
+   }
+  },
+  {
+   "id": 8057493,
+   "type": "nomination_reset_received",
+   "comment": {
+    "beatmap_discussion_id": 5887075,
+    "beatmap_discussion_post_id": null,
+    "source_user_id": 10415491,
+    "source_user_username": "Amasugi"
+   },
+   "created_at": "2026-11-26T03:43:13Z",
+   "user_id": 14800030,
+   "beatmapset": {
+    "id": 2589812,
+    "artist": "CHiCO with HoneyWorks",
+    "title": "Kimi no Sei de Aishiteru (TV Size)",
+    "creator": "Amasugi",
+    "user_id": 10415491,
+    "status": "pending"
+   }
+  },
+  {
+   "id": 8057492,
+   "type": "nomination_reset_received",
+   "comment": {
+    "beatmap_discussion_id": 5887075,
+    "beatmap_discussion_post_id": null,
+    "source_user_id": 10415491,
+    "source_user_username": "Amasugi"
+   },
+   "created_at": "2026-11-26T03:43:13Z",
+   "user_id": 845733,
+   "beatmapset": {
+    "id": 2589812,
+    "artist": "CHiCO with HoneyWorks",
+    "title": "Kimi no Sei de Aishiteru (TV Size)",
+    "creator": "Amasugi",
+    "user_id": 10415491,
+    "status": "pending"
+   }
+  },
+  {
+   "id": 8057491,
+   "type": "disqualify",
+   "comment": {
+    "beatmap_discussion_id": 5887075,
+    "beatmap_discussion_post_id": null,
+    "nominator_ids": [
+     845733,
+     14800030,
+     16712231
+    ],
+    "beatmap_ids": [
+     5778202,
+     5778221,
+     5778243,
+     5778257,
+     5778349,
+     5887115,
+     5889980,
+     5892693,
+     5892694
+    ]
+   },
+   "created_at": "2026-11-26T03:43:13Z",
+   "user_id": 10415491,
+   "beatmapset": {
+    "id": 2589812,
+    "artist": "CHiCO with HoneyWorks",
+    "title": "Kimi no Sei de Aishiteru (TV Size)",
+    "creator": "Amasugi",
+    "user_id": 10415491,
+    "status": "pending"
+   }
+  },
+  {
+   "id": 8057264,
+   "type": "nomination_reset",
+   "comment": {
+    "beatmap_discussion_id": 5886886,
+    "beatmap_discussion_post_id": null,
+    "nominator_ids": [
+     10449071
+    ]
+   },
+   "created_at": "2026-11-26T00:51:41Z",
+   "user_id": 3,
+   "beatmapset": {
+    "id": 1316949,
+    "artist": "Chimame-tai",
+    "title": "Nakayoshi! Maru! Nakayoshi! (TV Size)",
+    "creator": "Faputa",
+    "user_id": 845733,
+    "status": "pending"
+   }
+  }
+ ],
+ "reviewsConfig": {
+  "max_blocks": 100
+ },
+ "users": []
+}
