@@ -3,7 +3,7 @@ import {Link, NavLink, Outlet} from "react-router";
 import {FaBoxArchive, FaChartColumn, FaHeadphones, FaHouse, FaMagnifyingGlass, FaMoon, FaPeopleGroup, FaShieldHalved, FaSun, FaTableColumns} from "react-icons/fa6";
 import logo from "../assets/greaper.png";
 import {usePlanner, usePlannerRefresh} from "../resources/planner";
-import {canEdit, isAdmin, useSession} from "../utils/session";
+import {canEdit, isAdmin, useSession, useSessionKnown} from "../utils/session";
 import {useTheme} from "../utils/theme";
 import AccountMenu from "./AccountMenu";
 import {useFind} from "./useFind";
@@ -12,6 +12,7 @@ import {involvementOf} from "../utils/involvement";
 
 export default function Shell() {
   const session = useSession()
+  const known = useSessionKnown()
   const user = session?.user
   const openFind = useFind()
   const {theme, toggle} = useTheme()
@@ -46,7 +47,7 @@ export default function Shell() {
               </>
             : <>
                 <button className="icon-button" aria-label={themeLabel} title={themeLabel} onClick={toggle}>{theme === "dark" ? <FaSun/> : <FaMoon/>}</button>
-                <LoginButton/>
+                {known && <LoginButton/>}
               </>
           }
         </div>

@@ -1,15 +1,15 @@
 import {useSyncExternalStore} from "react";
 import type {UserContext} from "../models/Types";
-import {forget, readStored, storeFirst} from "./storage";
+import {forget, store} from "./storage";
 
-const KEY = "userContext"
+/** Tells other tabs that someone logged out, or in */
+const CHANGED = "sessionChanged"
 const listeners = new Set<() => void>()
-let current = read()
+let current: UserContext | undefined
+let known = false
 
-function read(): UserContext | undefined {
-  const stored = readStored<UserContext>(KEY)
-  return stored?.accessToken ? stored : undefined
-}
+// Before the login moved to a cookie the osu! tokens were kept here
+forget("userContext")
 
 function notify() {
   listeners.forEach(listener => listener())
@@ -21,19 +21,20 @@ export function getSession() {
 
 export function setSession(session: UserContext | undefined) {
   current = session
-  // osu! replaces the refresh token, so losing it means logging in again
-  if (session) storeFirst(KEY, session)
-  else forget(KEY)
+  known = true
   notify()
 }
 
-// Keep several open tabs on the same token, as osu! replaces the refresh token on every refresh
-window.addEventListener("storage", event => {
-  if (event.key === KEY || event.key === null) {
-    current = read()
-    notify()
-  }
-})
+/** Let the other open tabs find out who is logged in again */
+export function announceSessionChange() {
+  store(CHANGED, Date.now())
+}
+
+export function onSessionChangeElsewhere(listener: () => void) {
+  window.addEventListener("storage", event => {
+    if (event.key === CHANGED) listener()
+  })
+}
 
 function subscribe(listener: () => void) {
   listeners.add(listener)
@@ -44,6 +45,11 @@ function subscribe(listener: () => void) {
 
 export function useSession() {
   return useSyncExternalStore(subscribe, getSession)
+}
+
+/** Whether the backend told who is logged in yet */
+export function useSessionKnown() {
+  return useSyncExternalStore(subscribe, () => known)
 }
 
 export function canEdit(session: UserContext | undefined) {

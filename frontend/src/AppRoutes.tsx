@@ -4,7 +4,7 @@ import {Link, Route, Routes, useLocation} from 'react-router';
 import PageHeader from "./ui/PageHeader";
 import Shell from "./ui/Shell";
 import {EmptyState, Loading, LoginButton} from "./ui/States";
-import {useSession} from "./utils/session";
+import {useSession, useSessionKnown} from "./utils/session";
 
 const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/Login"));
@@ -38,9 +38,11 @@ export default function AppRoutes() {
 
 function RequireAuth({children}: {children: ReactNode}) {
   const session = useSession()
+  const known = useSessionKnown()
   const location = useLocation()
 
   if (session?.user) return <>{children}</>
+  if (!known) return <Loading/>
 
   return (
     <EmptyState title="Log in to continue">

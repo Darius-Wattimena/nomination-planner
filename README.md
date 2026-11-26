@@ -7,7 +7,16 @@ The Nomination Planner is a web application designed to help Beatmap Nominators 
 
 ## Run locally
 
-Use Java 21 for the backend. Put your osu! OAuth client in `backend/src/main/resources/application-local.yml` and set the same client ID as `osu_id` in `frontend/src/Settings.ts`.
+Use Java 21 for the backend. Put your osu! OAuth client in `backend/src/main/resources/application-local.yml`:
+
+```
+osu:
+  client-id: "12978"
+  client-secret: "..."
+  redirect-uri: "http://localhost:8080/login/oauth2/code/osu"
+```
+
+The callback URL of the OAuth client at osu! has to be that same `redirect-uri`. Logging in goes through the backend, which keeps the login in a session in MongoDB and sends the browser back to http://localhost:3000.
 
 Backend, needs a local MongoDB:
 

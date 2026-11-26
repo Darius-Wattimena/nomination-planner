@@ -5,10 +5,9 @@ export type BeatmapPage = 'PENDING' | 'RANKED' | 'GRAVEYARD'
 export interface UserContext {
   // The backend leaves the user out when it could not be found
   user?: User
-  accessToken: string
-  refreshToken: string
-  validUntilEpochMilli: number
   permission: RolePermission
+  /** Sent along with every change */
+  csrfToken: string
 }
 
 export interface RolePermission {

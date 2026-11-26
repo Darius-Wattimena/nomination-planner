@@ -3,59 +3,61 @@ import axios from "axios";
 import {useCallback, useEffect, useState} from "react";
 import {CONFIG} from "../Settings";
 import type {UserContext} from "../models/Types";
-import {getSession, setSession} from "../utils/session";
+import {announceSessionChange, getSession, onSessionChangeElsewhere, setSession} from "../utils/session";
 import Api from "./Api";
 
-const client = axios.create({baseURL: CONFIG.api_url})
+// The login is a cookie of the backend, which the browser only sends along when asked to
+const client = axios.create({baseURL: CONFIG.api_url, withCredentials: true})
 
-let refreshing: Promise<void> | undefined
-
-// Only one refresh may run at a time, as osu! invalidates a refresh token once it is used
-function refreshSession(): Promise<void> {
-  const session = getSession()
-  if (!session) return Promise.reject(new Error("Not logged in"))
-
-  if (!refreshing) {
-    refreshing = client.request<UserContext>(Api.refresh(session.refreshToken))
-      .then(result => setSession(result.data))
-      .catch(error => {
-        // Only a refused refresh ends the session, not an unreachable backend
-        if ((error as AxiosError).response) setSession(undefined)
-        throw error
-      })
-      .finally(() => {
-        refreshing = undefined
-      })
+/** Ask the backend who is logged in on this browser */
+export async function loadSession() {
+  try {
+    const result = await client.request<UserContext | "">(Api.session())
+    setSession(result.status === 200 && result.data ? result.data : undefined)
+  } catch {
+    // Without an answer nobody can be logged in, the pages tell the backend can't be reached
+    setSession(undefined)
   }
-  return refreshing
+}
+
+onSessionChangeElsewhere(() => void loadSession())
+
+function isChange(config: AxiosRequestConfig) {
+  return !["GET", "HEAD", "OPTIONS"].includes((config.method ?? "GET").toUpperCase())
 }
 
 /** Perform a call on behalf of the logged-in user */
 export async function request<T>(config: AxiosRequestConfig, signal?: AbortSignal): Promise<T> {
-  const session = getSession()
-  if (session && Date.now() >= session.validUntilEpochMilli) {
-    await refreshSession()
+  // Changes need the token of the session, which a page of another site can't know
+  const call = () => {
+    const token = isChange(config) && getSession()?.csrfToken
+    return client.request<T>({...config, signal, headers: {...config.headers, ...(token && {"X-CSRF-TOKEN": token})}})
   }
-
-  const token = () => getSession()?.accessToken
-  const call = () => client.request<T>({
-    ...config,
-    signal,
-    headers: {...config.headers, ...(token() && {Authorization: `Bearer ${token()}`})}
-  })
 
   try {
     return (await call()).data
   } catch (error) {
-    if (statusOf(error) !== 401) throw error
-    await refreshSession()
-    return (await call()).data
+    const status = statusOf(error)
+    const before = getSession()
+    // Logged out, in another tab or because osu! no longer accepts the login
+    if (status === 401 && before) await loadSession()
+    // Logged in again in another tab, which gave the session a new token
+    if (status === 403 && before && isChange(config)) {
+      await loadSession()
+      if (getSession() && getSession()?.csrfToken !== before.csrfToken) return (await call()).data
+    }
+    throw error
   }
 }
 
-export async function login(code: string) {
-  const result = await client.request<UserContext>(Api.login(code))
-  setSession(result.data)
+/** Log out on this browser */
+export async function logOutSession() {
+  try {
+    await request(Api.logout())
+  } finally {
+    setSession(undefined)
+    announceSessionChange()
+  }
 }
 
 export function statusOf(error: unknown) {

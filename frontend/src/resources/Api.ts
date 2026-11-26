@@ -11,16 +11,14 @@ function toParams(values: object) {
 }
 
 const Api = {
-  // The backend drops the last character of these two bodies: the '=' axios adds when form encoding a string
-  login: (code: string): AxiosRequestConfig => ({
-    method: 'POST',
-    url: '/v2/auth',
-    data: code
+  // Who is logged in, empty when nobody is
+  session: (): AxiosRequestConfig => ({
+    method: 'GET',
+    url: '/v2/session'
   }),
-  refresh: (refreshToken: string): AxiosRequestConfig => ({
+  logout: (): AxiosRequestConfig => ({
     method: 'POST',
-    url: '/v2/auth/refresh',
-    data: refreshToken
+    url: '/v2/logout'
   }),
   addBeatmap: (osuId: string, gamemodes: Gamemode[]): AxiosRequestConfig => ({
     method: 'POST',
