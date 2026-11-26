@@ -20,9 +20,11 @@ describe("parseQuery", () => {
   })
 
   it("writes the same query back", () => {
-    const query = 'tv mode:catch bn:"Some One" "two words"'
+    const query = 'tv mode:catch bn:"Some One" "two words" bn:""'
 
     expect(formatQuery(parseQuery(query))).toBe(query)
+    expect(formatQuery([{key: "bn", value: 'say "hi"'}])).toBe('bn:"say hi"')
+    expect(parseQuery('a"b')).toEqual([{value: 'a"b'}])
   })
 })
 
@@ -83,5 +85,6 @@ describe("filterMaps", () => {
 
     expect(filterMaps([hybrid], "mode:osu is:open", me)).toEqual([])
     expect(filterMaps([hybrid], "mode:catch is:open", me)).toEqual([hybrid])
+    expect(filterMaps([hybrid], "mode:osu IS:Open", me)).toEqual([])
   })
 })

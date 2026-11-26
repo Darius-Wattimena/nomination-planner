@@ -1,6 +1,7 @@
 import type {Beatmap, User} from "../models/Types";
 import {Gamemode} from "../models/Types";
 import {openSpot, openSpots} from "./nominations";
+import {isMissing} from "./users";
 import {partOf, isStale, stageOf} from "./workflow";
 
 /** A query is plain text, so it can be typed, shared and saved: "tv size mode:catch is:open" */
@@ -32,7 +33,8 @@ export function parseQuery(text: string): Token[] {
 
 export function formatQuery(tokens: Token[]) {
   return tokens.map(({key, value}) => {
-    const text = /\s/.test(value) ? `"${value}"` : value
+    // A quoted value can't hold quotes itself
+    const text = value === "" || /\s/.test(value) ? `"${value.replaceAll('"', "")}"` : value
     return key ? `${key}:${text}` : text
   }).join(" ")
 }
@@ -49,7 +51,7 @@ function matches(map: Beatmap, {key, value}: Token, user: User | undefined): boo
     case "by":
       return text === "me" ? map.mapper.osuId === user?.osuId : map.mapper.osuId === text || map.mapper.username.toLowerCase().includes(text)
     case "bn":
-      return map.gamemodes.some(mode => mode.nominators.some(({nominator}) => nominator.osuId !== "0"
+      return map.gamemodes.some(mode => mode.nominators.some(({nominator}) => !isMissing(nominator)
         && (text === "me" ? nominator.osuId === user?.osuId : nominator.osuId === text || nominator.username.toLowerCase().includes(text))))
     case "is":
       if (text === "open") return openSpots(map) > 0
@@ -73,7 +75,7 @@ export function filterMaps(maps: Beatmap[], text: string, user: User | undefined
   })
   // With a mode and is:open, the open slot has to be in that mode
   const modes = groups.get("mode")
-  const onlyOpen = tokens.some(it => it.key === "is" && it.value === "open")
+  const onlyOpen = tokens.some(it => it.key === "is" && it.value.toLowerCase() === "open")
 
   return maps.filter(map =>
     Array.from(groups.values()).every(group => group.some(token => matches(map, token, user)))
