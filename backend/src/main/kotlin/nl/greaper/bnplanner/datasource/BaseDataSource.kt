@@ -2,7 +2,6 @@ package nl.greaper.bnplanner.datasource
 
 import com.mongodb.client.MongoCollection
 import com.mongodb.client.MongoDatabase
-import com.mongodb.client.model.Filters
 import org.bson.Document
 
 /** A collection whose values are turned into documents by hand, so the stored shape is always known */
@@ -17,12 +16,6 @@ abstract class BaseDataSource<T : Any>(
     protected abstract fun fromDocument(document: Document): T
 
     fun list(): List<T> = collection.find().toList().map { fromDocument(it) }
-
-    fun findFirst(): T? = collection.find().first()?.let { fromDocument(it) }
-
-    fun deleteById(id: String) = collection.deleteOne(Filters.eq("_id", id))
-
-    fun deleteMany() = collection.deleteMany(Document())
 
     fun insertOne(value: T) = collection.insertOne(toDocument(value))
 }

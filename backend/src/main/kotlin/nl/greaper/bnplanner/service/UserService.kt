@@ -5,12 +5,10 @@ import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.client.OsuRequestException
 import nl.greaper.bnplanner.datasource.UserDataSource
-import nl.greaper.bnplanner.datasource.UserRecalculateDataSource
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.UserGamemode
-import nl.greaper.bnplanner.model.UserRecalculate
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
@@ -22,7 +20,6 @@ import org.springframework.stereotype.Service
 @Service
 class UserService(
     private val dataSource: UserDataSource,
-    private val recalculateDataSource: UserRecalculateDataSource,
     private val osuHttpClient: OsuHttpClient,
     private val discordClient: DiscordClient?,
 ) {
@@ -62,13 +59,6 @@ class UserService(
         }
 
         return playmodes.map { Gamemode.valueOf(it.lowercase()) }
-    }
-
-    fun createTemporaryUser(osuId: String): User {
-        val tempUser = User(osuId, osuId, emptyList())
-        recalculateDataSource.insertOne(UserRecalculate(osuId))
-        dataSource.saveUser(tempUser)
-        return tempUser
     }
 
     /**

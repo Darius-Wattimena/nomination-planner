@@ -20,7 +20,6 @@ import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmap
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmapGamemode
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmapNominator
-import nl.greaper.bnplanner.model.beatmap.LegacyBeatmap
 import nl.greaper.bnplanner.model.beatmap.NewBeatmap
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
@@ -396,12 +395,6 @@ class BeatmapService(
         return ofPage.intersect(wanted).ifEmpty { ofPage }
     }
 
-    @Deprecated("Endpoint has been removed, to be removed")
-    fun importLegacyBeatmaps(legacyBeatmaps: List<LegacyBeatmap>) {
-        val convertedBeatmaps = legacyBeatmaps.mapNotNull { convertLegacyBeatmapToBeatmap(it) }
-        dataSource.insertMany(convertedBeatmaps)
-    }
-
     fun updateBeatmapNote(
         osuApiToken: String,
         osuId: String,
@@ -715,44 +708,6 @@ class BeatmapService(
             editor = editor,
             confidential = false,
             gamemodes = gamemodesToMessage,
-        )
-    }
-
-    private fun convertLegacyBeatmapToBeatmap(legacyBeatmap: LegacyBeatmap): Beatmap? {
-        val nominatorOne = legacyBeatmap.nominators.getOrNull(0)?.toString() ?: MISSING_USER_ID
-        val nominatorTwo = legacyBeatmap.nominators.getOrNull(1)?.toString() ?: MISSING_USER_ID
-
-        // This should never happen
-        val beatmapStatus = BeatmapStatus.fromPriorityStatus(legacyBeatmap.status.toInt()) ?: return null
-
-        val catchGamemode =
-            BeatmapGamemode(
-                gamemode = Gamemode.fruits,
-                nominators =
-                    listOf(
-                        BeatmapNominator(nominatorOne, legacyBeatmap.nominatedByBNOne),
-                        BeatmapNominator(nominatorTwo, legacyBeatmap.nominatedByBNTwo),
-                    ),
-                isReady = legacyBeatmap.nominatedByBNOne || legacyBeatmap.nominatedByBNTwo,
-            )
-
-        if (legacyBeatmap._id == 0L) {
-            log.debug { "Found a beatmap with Id 0? ${legacyBeatmap.artist} - ${legacyBeatmap.title} by ${legacyBeatmap.mapper}" }
-        }
-
-        // TODO instead of using the legacy data, retrieve the beatmap from the osu api
-        return Beatmap(
-            osuId = legacyBeatmap._id.toString(),
-            artist = legacyBeatmap.artist,
-            title = legacyBeatmap.title,
-            note = legacyBeatmap.note,
-            mapper = legacyBeatmap.mapper,
-            mapperId = legacyBeatmap.mapperId.toString(),
-            status = beatmapStatus,
-            gamemodes = listOf(catchGamemode),
-            dateAdded = Instant.ofEpochSecond(legacyBeatmap.dateAdded),
-            dateUpdated = Instant.ofEpochSecond(legacyBeatmap.dateUpdated),
-            dateRanked = Instant.ofEpochSecond(legacyBeatmap.dateRanked),
         )
     }
 

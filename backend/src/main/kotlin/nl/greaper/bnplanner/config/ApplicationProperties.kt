@@ -30,6 +30,4 @@ data class CorsProperties(
 @ConfigurationProperties("discord")
 data class DiscordProperties(
     val token: String,
-    val webhook: String,
-    val webhookPublic: String,
 )

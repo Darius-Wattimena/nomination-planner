@@ -5,7 +5,6 @@ import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.UserGamemode
-import nl.greaper.bnplanner.model.UserRecalculate
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
@@ -144,15 +143,6 @@ class UserServiceTest {
         assertNull(service.findUserById("-1"))
         assertNull(service.findUserById("-2"))
         assertEquals(User("0", "None", emptyList()), service.findUserById("0"))
-    }
-
-    @Test
-    fun `Should create a temporary user to recalculate`() {
-        val expected = User("5", "5", emptyList())
-
-        assertEquals(expected, service.createTemporaryUser("5"))
-        assertEquals(expected, service.findUserById("5"))
-        assertEquals(UserRecalculate("5"), planner.recalculations.findFirst())
     }
 
     @Test

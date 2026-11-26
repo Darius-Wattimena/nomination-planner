@@ -15,8 +15,6 @@ osu:
   clientSecret: ""
   redirectUri: ""
 
-recalculation.active: false
-
 beatmaps.keep-old: true
 
 planner.wait-millis: 400
@@ -33,5 +31,3 @@ cors:
 discord:
   enabled: false
   token: ""
-  webhook: ""
-  webhookPublic: ""

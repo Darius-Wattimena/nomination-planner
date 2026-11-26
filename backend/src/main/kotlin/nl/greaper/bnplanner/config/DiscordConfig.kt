@@ -51,29 +51,15 @@ class DiscordConfig(
                 when (event.subcommandName) {
                     "register" -> handleListenerRegister(event)
                     "remove" -> handleListenerRemove(event)
-                    "status" -> handleStatus(event)
                 }
             }
         }
 
         override fun onGuildReady(event: GuildReadyEvent) {
-            // ID of Nomination Planner servers
-            val commands =
-                if (event.guild.id == "761157153884864532") {
-                    getCommand(developerServer = true)
-                } else {
-                    getCommand(developerServer = false)
-                }
-
-            // Add the commands to the guild
             event.guild
                 .updateCommands()
-                .addCommands(commands)
+                .addCommands(command())
                 .queue()
-        }
-
-        private fun handleStatus(event: SlashCommandInteractionEvent) {
-            event.reply("TODO status message").queue()
         }
 
         private fun handleListenerRemove(event: SlashCommandInteractionEvent) {
@@ -216,10 +202,10 @@ class DiscordConfig(
             }
         }
 
-        private fun getCommand(developerServer: Boolean): SlashCommandData {
+        private fun command(): SlashCommandData {
             val gamemodeOption =
                 OptionData(OptionType.STRING, "gamemode", "The osu! gamemode the event is for")
-                    .addChoices(Gamemode.values().map { Choice(it.toReadableName(), it.name) })
+                    .addChoices(Gamemode.entries.map { Choice(it.toReadableName(), it.name) })
 
             val registerCommand =
                 SubcommandData("register", "Register a listener of bnplanner events")
@@ -227,15 +213,9 @@ class DiscordConfig(
 
             val removeCommand = SubcommandData("remove", "Remove a listener of bnplanner events")
 
-            val commandData = Commands.slash("planner", "All nomination planner slash commands")
-
-            return if (developerServer) {
-                val statusCommand = SubcommandData("status", "Return the current status of the Nomination Planner")
-
-                commandData.addSubcommands(registerCommand, removeCommand, statusCommand)
-            } else {
-                commandData.addSubcommands(registerCommand, removeCommand)
-            }
+            return Commands
+                .slash("planner", "All nomination planner slash commands")
+                .addSubcommands(registerCommand, removeCommand)
         }
     }
 }

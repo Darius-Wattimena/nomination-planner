@@ -180,18 +180,12 @@ class DiscordBotTest {
     // Other commands
 
     @Test
-    fun `Should reply to the status command`() {
-        discord.slashCommand(source, subcommand = "status", guildId = null)
-
-        assertEquals(listOf("TODO status message"), discord.replies)
-    }
-
-    @Test
     fun `Should ignore other commands`() {
         discord.slashCommand(source, subcommand = "status", isFromGuild = false)
         discord.slashCommand(source, name = "other", subcommand = "status")
         discord.slashCommand(source, subcommand = "other")
         discord.slashCommand(source, subcommand = null)
+        discord.slashCommand(source, subcommand = "other", guildId = null)
 
         assertNoAnswer()
     }
@@ -227,15 +221,6 @@ class DiscordBotTest {
     }
 
     @Test
-    fun `Should add the status command to the server of the planner`() {
-        discord.guildReady(source, "761157153884864532")
-        val commands = subcommands()
-
-        assertEquals(listOf("register", "remove", "status"), commands.keys.toList())
-        assertEquals("Return the current status of the Nomination Planner", commands["status"]!!.getString("description"))
-    }
-
-    @Test
     fun `Should log in using the configured token`() {
         val jda = mock<JDA>()
         val builder = mock<JDABuilder>()
@@ -244,7 +229,7 @@ class DiscordBotTest {
 
         Mockito.mockStatic(JDABuilder::class.java).use { builders ->
             builders.`when`<JDABuilder> { JDABuilder.createDefault("made-up-token") }.thenReturn(builder)
-            assertSame(jda, DiscordConfig(source).jda(DiscordProperties("made-up-token", "", "")))
+            assertSame(jda, DiscordConfig(source).jda(DiscordProperties("made-up-token")))
         }
     }
 

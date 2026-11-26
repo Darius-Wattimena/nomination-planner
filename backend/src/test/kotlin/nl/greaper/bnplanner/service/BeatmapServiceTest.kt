@@ -10,7 +10,6 @@ import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmap
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmapGamemode
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmapNominator
-import nl.greaper.bnplanner.model.beatmap.LegacyBeatmap
 import nl.greaper.bnplanner.model.beatmap.NewBeatmap
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
@@ -696,113 +695,5 @@ class BeatmapServiceTest {
         service.deleteBeatmap(TOKEN, "1")
         assertEquals(emptyList<Beatmap>(), planner.beatmaps.list())
         assertEquals(emptyList<Sent>(), planner.discord.sent)
-    }
-
-    // Legacy import
-
-    private val legacy =
-        LegacyBeatmap(
-            _id = 7,
-            artist = "Artist 7",
-            title = "Title 7",
-            note = "note",
-            mapper = "Mapper",
-            mapperId = 10,
-            status = 5,
-            nominators = listOf(5, 6, 7),
-            dateAdded = 1_600_000_000,
-            dateUpdated = 1_600_000_001,
-            dateRanked = 1_600_000_002,
-            nominatedByBNOne = true,
-        )
-
-    @Suppress("DEPRECATION")
-    private fun import(vararg beatmaps: LegacyBeatmap): List<Beatmap> {
-        service.importLegacyBeatmaps(beatmaps.toList())
-        return planner.beatmaps.list()
-    }
-
-    @Test
-    fun `Should import a legacy beatmap`() {
-        assertEquals(
-            listOf(
-                Beatmap(
-                    "7",
-                    "Artist 7",
-                    "Title 7",
-                    "note",
-                    "Mapper",
-                    "10",
-                    BeatmapStatus.Pending,
-                    listOf(mode(Gamemode.fruits, "5", "6", firstNominated = true, isReady = true)),
-                    Instant.ofEpochSecond(1_600_000_000),
-                    Instant.ofEpochSecond(1_600_000_001),
-                    Instant.ofEpochSecond(1_600_000_002),
-                ),
-            ),
-            import(legacy),
-        )
-    }
-
-    @Test
-    fun `Should import a legacy beatmap with missing details`() {
-        val minimal = LegacyBeatmap(0, "a", "t", "", "m", 1, 6, emptyList())
-
-        assertEquals(
-            listOf(
-                Beatmap(
-                    "0",
-                    "a",
-                    "t",
-                    "",
-                    "m",
-                    "1",
-                    BeatmapStatus.Ranked,
-                    listOf(mode(Gamemode.fruits)),
-                    Instant.EPOCH,
-                    Instant.EPOCH,
-                    Instant.EPOCH,
-                ),
-                Beatmap(
-                    "7",
-                    "Artist 7",
-                    "Title 7",
-                    "note",
-                    "Mapper",
-                    "10",
-                    BeatmapStatus.Pending,
-                    listOf(mode(Gamemode.fruits, "5", "0", secondNominated = true, isReady = true)),
-                    Instant.EPOCH,
-                    Instant.EPOCH,
-                    Instant.EPOCH,
-                ),
-            ),
-            import(
-                minimal,
-                minimal.copy(_id = 8, status = 9),
-                legacy.copy(
-                    nominators = listOf(5),
-                    nominatedByBNOne = false,
-                    nominatedByBNTwo = true,
-                    dateAdded = 0,
-                    dateUpdated = 0,
-                    dateRanked = 0,
-                ),
-            ),
-        )
-    }
-
-    @ParameterizedTest
-    @ValueSource(longs = [1, 2, 3, 4, 5, 6, 7, 8])
-    fun `Should import every legacy status`(status: Long) {
-        assertEquals(BeatmapStatus.entries[status.toInt() - 1], import(legacy.copy(status = status)).single().status)
-    }
-
-    @ParameterizedTest
-    @EnumSource(BeatmapStatus::class)
-    fun `Should expose every status`(status: BeatmapStatus) {
-        planner.save(beatmap(status = status))
-
-        assertEquals(status, service.findExposedBeatmap(TOKEN, "1")!!.status)
     }
 }

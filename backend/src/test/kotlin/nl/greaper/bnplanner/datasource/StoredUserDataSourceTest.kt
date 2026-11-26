@@ -4,7 +4,6 @@ import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.UserGamemode
-import nl.greaper.bnplanner.model.UserRecalculate
 import nl.greaper.bnplanner.model.osu.AuthToken
 import nl.greaper.bnplanner.support.Planner
 import nl.greaper.bnplanner.support.TestMongo
@@ -80,39 +79,5 @@ class StoredUserDataSourceTest {
 
         assertEquals(emptyList<Throwable>(), failures.toList())
         assertEquals(4000, users.allUsers().size)
-    }
-
-    @Test
-    fun `Should store recalculations by the id of the user`() {
-        planner.recalculations.insertOne(UserRecalculate("1"))
-
-        assertEquals(listOf(Document("_id", "1")), TestMongo.documents("usersRecalculate"))
-        assertEquals(UserRecalculate("1"), planner.recalculations.findFirst())
-        assertEquals(1, planner.recalculations.deleteById("1").deletedCount)
-    }
-
-    @Test
-    fun `Should store a token with a generated id`() {
-        val token = AuthToken("Bearer", 86400, "made-up-access", "made-up-refresh")
-        planner.tokens.insertOne(token)
-
-        val stored = TestMongo.documents("authToken").single()
-        assertTrue(stored["_id"] is ObjectId)
-        stored.remove("_id")
-        assertEquals(
-            Document.parse(
-                """{"token_type": "Bearer", "expires_in": 86400, "access_token": "made-up-access", "refresh_token": "made-up-refresh"}""",
-            ),
-            stored,
-        )
-        assertEquals(token, planner.tokens.findFirst())
-        assertEquals(1, planner.tokens.deleteMany().deletedCount)
-    }
-
-    @Test
-    fun `Should read a token stored without refresh token`() {
-        TestMongo.insert("authToken", """{"token_type": "Bearer", "expires_in": 86400.0, "access_token": "made-up-access"}""")
-
-        assertEquals(AuthToken("Bearer", 86400, "made-up-access"), planner.tokens.findFirst())
     }
 }

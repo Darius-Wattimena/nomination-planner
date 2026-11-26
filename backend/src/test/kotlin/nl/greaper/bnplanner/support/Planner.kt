@@ -5,9 +5,7 @@ import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
-import nl.greaper.bnplanner.datasource.OsuTokenDataSource
 import nl.greaper.bnplanner.datasource.UserDataSource
-import nl.greaper.bnplanner.datasource.UserRecalculateDataSource
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
@@ -44,13 +42,11 @@ class Planner(
 
     val beatmaps = BeatmapDataSource(TestMongo.database, true)
     val users = UserDataSource(TestMongo.database)
-    val recalculations = UserRecalculateDataSource(TestMongo.database)
-    val tokens = OsuTokenDataSource(TestMongo.database)
 
     val osuClient = osuClient()
-    val userService = UserService(users, recalculations, osuClient, discordClient)
+    val userService = UserService(users, osuClient, discordClient)
     val beatmapService = BeatmapService(beatmaps, userService, osuClient, discordClient, sleeper)
-    val osuService = OsuService(osuClient, userService, tokens)
+    val osuService = OsuService(osuClient, userService)
     val authService = AuthService(osuService, discordClient)
     val osuJobs = OsuJobs(beatmapService, sleeper)
     val syncService = SyncService(userService, beatmapService, osuJobs, sleeper)

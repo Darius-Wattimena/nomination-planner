@@ -165,14 +165,6 @@ class OsuHttpClientRequestTest {
     }
 
     @Test
-    fun `Should send the token as is when it already includes bearer`() {
-        FakeOsu.user("5", "BN")
-        client.findUserWithId("Bearer token", "5", includeBearer = false)
-
-        assertEquals("Bearer token", FakeOsu.requests.single().header("Authorization"))
-    }
-
-    @Test
     fun `Should not request users that are always restricted`() {
         listOf("3071175", "2697284", "6694242").forEach {
             FakeOsu.user(it, "Someone")
@@ -227,9 +219,6 @@ class OsuHttpClientRequestTest {
         assertEquals(beatmapSet, client.findBeatmapWithId("token", "1"))
         assertEquals(listOf("GET /api/v2/beatmapsets/1"), FakeOsu.calls())
         assertEquals("Bearer token", FakeOsu.requests.single().header("Authorization"))
-
-        client.findBeatmapWithId("Bearer other", "1", includeBearer = false)
-        assertEquals("Bearer other", FakeOsu.requests.last().header("Authorization"))
     }
 
     @Test
@@ -256,32 +245,10 @@ class OsuHttpClientRequestTest {
     }
 
     @Test
-    fun `Should find the ranked beatmaps of a mapper`() {
-        respondBeatmap()
-        FakeOsu.respond(
-            "GET /api/v2/users/10/beatmapsets/ranked",
-            """[{"id":1,"title":"t","artist":"a","creator":"c","user_id":10,"ranked":1,"last_updated":"2024-05-06T07:08:09Z"}]""",
-        )
-
-        assertEquals(listOf("1"), client.findBeatmapsByMapper(10, "token").map { it.id })
-        assertEquals("Bearer token", FakeOsu.requests.single().header("Authorization"))
-        client.findBeatmapsByMapper(10, "Bearer other", includeBearer = false)
-        assertEquals("Bearer other", FakeOsu.requests.last().header("Authorization"))
-    }
-
-    @Test
-    fun `Should find no ranked beatmaps when osu fails or gives an unexpected answer`() {
-        FakeOsu.respond("GET /api/v2/users/5/beatmapsets/ranked", "", 200)
-        FakeOsu.respond("GET /api/v2/users/6/beatmapsets/ranked", "not json")
-
-        listOf(4, 5, 6).forEach { assertTrue(client.findBeatmapsByMapper(it, "token").isEmpty()) }
-    }
-
-    @Test
     fun `Should be able to send a body`() {
         FakeOsu.respond("POST /api/v2/path", "answer")
 
-        assertEquals("answer", client.request("/path", HttpMethod.POST, "token", "body", includeBearer = true).body)
+        assertEquals("answer", client.request("/path", HttpMethod.POST, "token", "body").body)
         assertEquals("body", FakeOsu.requests.single().body)
     }
 

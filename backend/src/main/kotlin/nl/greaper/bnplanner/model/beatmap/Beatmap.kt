@@ -1,10 +1,6 @@
 package nl.greaper.bnplanner.model.beatmap
 
 import nl.greaper.bnplanner.model.Gamemode
-import nl.greaper.bnplanner.util.BeatmapStatusDeserializer
-import nl.greaper.bnplanner.util.BeatmapStatusSerializer
-import tools.jackson.databind.annotation.JsonDeserialize
-import tools.jackson.databind.annotation.JsonSerialize
 import java.time.Instant
 
 data class Beatmap(
@@ -14,15 +10,13 @@ data class Beatmap(
     val note: String,
     val mapper: String,
     val mapperId: String,
-    @JsonSerialize(using = BeatmapStatusSerializer::class)
-    @JsonDeserialize(using = BeatmapStatusDeserializer::class)
     val status: BeatmapStatus,
     val gamemodes: List<BeatmapGamemode>,
     val dateAdded: Instant,
     val dateUpdated: Instant,
     val dateRanked: Instant?,
     /** The gamemodes that can be the main one, which is the only one that needs two nominations. Null when unknown. */
-    val mainGamemodes: List<Gamemode>? = null,
+    val mainGamemodes: List<Gamemode>?,
 )
 
 data class BeatmapGamemode(

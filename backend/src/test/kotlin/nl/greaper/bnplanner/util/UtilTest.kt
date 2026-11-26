@@ -16,7 +16,6 @@ import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedMessage
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
-import nl.greaper.bnplanner.model.discord.Message
 import nl.greaper.bnplanner.model.discord.getValue
 import nl.greaper.bnplanner.model.osu.BeatmapSet
 import nl.greaper.bnplanner.support.Planner.Companion.beatmap
@@ -28,31 +27,17 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.boot.builder.SpringApplicationBuilder
-import tools.jackson.databind.json.JsonMapper
-import tools.jackson.databind.module.SimpleModule
 import java.time.Instant
 
 class UtilTest {
     @Test
-    fun `Should read and write a status as its priority`() {
-        val mapper =
-            JsonMapper
-                .builder()
-                .addModule(
-                    SimpleModule()
-                        .addSerializer(BeatmapStatusSerializer())
-                        .addDeserializer(BeatmapStatus::class.java, BeatmapStatusDeserializer()),
-                ).build()
-
+    fun `Should know the priority of every status`() {
         BeatmapStatus.entries.forEachIndexed { index, status ->
-            assertEquals("${index + 1}", mapper.writeValueAsString(status))
-            assertEquals(status, mapper.readValue("${index + 1}", BeatmapStatus::class.java))
             assertEquals(index + 1, status.toPriorityStatus())
             assertEquals(status, BeatmapStatus.fromPriorityStatus(index + 1))
         }
-        assertNull(mapper.readValue("0", BeatmapStatus::class.java))
-        assertNull(mapper.readValue("9", BeatmapStatus::class.java))
-        assertThrows<Exception> { mapper.readValue("\"Pending\"", BeatmapStatus::class.java) }
+        assertNull(BeatmapStatus.fromPriorityStatus(0))
+        assertNull(BeatmapStatus.fromPriorityStatus(9))
     }
 
     @Test
@@ -227,7 +212,6 @@ class UtilTest {
     fun `Should create a Discord message`() {
         val embed = EmbedMessage("text", 1, EmbedThumbnail("url"), EmbedFooter("footer"))
 
-        assertEquals(listOf(embed), Message(listOf(embed)).embeds)
         assertNull(embed.footer.icon_url)
     }
 
