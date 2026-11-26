@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react";
+import {useMemo, useState} from "react";
 import {useSearchParams} from "react-router";
 import {FaList, FaPlus, FaTableColumns, FaXmark} from "react-icons/fa6";
 import {useOpenMap} from "../beatmaps/useOpenMap";
@@ -6,7 +6,7 @@ import MapView from "../beatmaps/MapView";
 import {MapCard, MapRow} from "../beatmaps/MapRow";
 import Filters from "../beatmaps/Filters";
 import {GAMEMODES} from "../Constants";
-import {Beatmap} from "../models/Types";
+import type {Beatmap} from "../models/Types";
 import {reloadPlanner, usePlanner} from "../resources/planner";
 import {useAddBeatmap} from "../beatmaps/AddBeatmap";
 import {Freshness, RingLegend} from "../ui/Help";
@@ -76,7 +76,12 @@ export default function Beatmaps() {
   }))
   const ordered = columns.flatMap(it => it.maps)
 
-  useEffect(() => setLimit(STEP), [query, layout])
+  // Start with a short list again for another search or layout
+  const [limitFor, setLimitFor] = useState(`${query}|${layout}`)
+  if (limitFor !== `${query}|${layout}`) {
+    setLimitFor(`${query}|${layout}`)
+    setLimit(STEP)
+  }
   const ids = (layout === "list" ? ordered.slice(0, limit) : columns.flatMap(it => it.maps.slice(0, limit))).map(it => it.osuId)
 
   const isSaved = [...views, ...saved].some(it => it.query === query)

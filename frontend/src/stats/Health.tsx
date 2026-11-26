@@ -1,6 +1,6 @@
 import {Link} from "react-router";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
-import {Gamemode} from "../models/Types";
+import type {Gamemode} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import ModeIcon from "../ui/ModeIcon";
 import {MODE_WORDS} from "../utils/query";

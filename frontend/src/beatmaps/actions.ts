@@ -1,5 +1,5 @@
 import {GAMEMODE_NAMES, MISSING_USER_ID} from "../Constants";
-import {Beatmap, Gamemode, User} from "../models/Types";
+import type {Beatmap, Gamemode, User} from "../models/Types";
 import {changeNominator, ConflictError, NOBODY} from "../resources/planner";
 import {useToast} from "../ui/Toast";
 

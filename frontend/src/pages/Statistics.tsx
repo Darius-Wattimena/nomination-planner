@@ -3,7 +3,7 @@ import {useSearchParams} from "react-router";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
-import {Gamemode} from "../models/Types";
+import type {Gamemode} from "../models/Types";
 import {useRanked} from "../resources/ranked";
 import Columns, {Table} from "../stats/Columns";
 import Constellation from "../stats/Constellation";

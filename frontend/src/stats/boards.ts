@@ -1,4 +1,4 @@
-import {Beatmap, Gamemode, User} from "../models/Types";
+import type {Beatmap, Gamemode, User} from "../models/Types";
 import {nominatorsOf} from "./stats";
 
 export interface Entry {

@@ -1,4 +1,4 @@
-import {ReactNode} from "react";
+import type {ReactNode} from "react";
 import {Link, useLocation} from "react-router";
 import logo from "../assets/greaper.png";
 import {useNominators} from "../beatmaps/actions";
@@ -6,7 +6,7 @@ import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
 import {GAMEMODE_NAMES} from "../Constants";
-import {Beatmap, Gamemode, Pairing, User} from "../models/Types";
+import type {Beatmap, Gamemode, Pairing, User} from "../models/Types";
 import Api from "../resources/Api";
 import {useQuery} from "../resources/client";
 import {reloadPlanner, usePlanner} from "../resources/planner";
@@ -14,7 +14,8 @@ import PageHeader from "../ui/PageHeader";
 import {Freshness} from "../ui/Help";
 import {LoginButton} from "../ui/States";
 import {canEdit, useSession} from "../utils/session";
-import {deskGroup, DeskGroup, stageOf, suggestions} from "../utils/workflow";
+import type {DeskGroup} from "../utils/workflow";
+import {deskGroup, stageOf, suggestions} from "../utils/workflow";
 
 const GROUPS: {id: DeskGroup, title: string, hint: string}[] = [
   {id: "move", title: "Waiting for your nomination", hint: "The other nominator is done, or it has to be checked again"},

@@ -1,7 +1,8 @@
-import axios, {AxiosError, AxiosRequestConfig} from "axios";
+import type {AxiosError, AxiosRequestConfig} from "axios";
+import axios from "axios";
 import {useCallback, useEffect, useState} from "react";
 import {CONFIG} from "../Settings";
-import {UserContext} from "../models/Types";
+import type {UserContext} from "../models/Types";
 import {getSession, setSession} from "../utils/session";
 import Api from "./Api";
 
@@ -68,10 +69,17 @@ export function useQuery<T>(config: AxiosRequestConfig | undefined) {
   const [version, setVersion] = useState(0)
   const key = config && JSON.stringify(config)
 
+  // Show loading as soon as something else is asked for
+  const asked = `${key}#${version}`
+  const [loadingFor, setLoadingFor] = useState(asked)
+  if (key && loadingFor !== asked) {
+    setLoadingFor(asked)
+    setState(previous => ({...previous, loading: true, error: false}))
+  }
+
   useEffect(() => {
     if (!key) return
     const controller = new AbortController()
-    setState(previous => ({...previous, loading: true, error: false}))
 
     request<T>(JSON.parse(key), controller.signal)
       .then(data => {

@@ -4,7 +4,7 @@ import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
 import {Gamemode} from "../models/Types";
 import ModeIcon from "../ui/ModeIcon";
 import {Table} from "./Columns";
-import {Link, network} from "./stats";
+import type {Link, network} from "./stats";
 
 type Network = ReturnType<typeof network>
 type Person = Network["people"][number]

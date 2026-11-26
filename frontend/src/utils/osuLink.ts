@@ -1,4 +1,4 @@
-import {Gamemode} from "../models/Types";
+import type {Gamemode} from "../models/Types";
 
 const LINK = /^(?:https?:\/\/)?(?:osu|old)\.ppy\.sh\/(?:beatmapsets|s)\/(\d+)(?:\S*#(osu|taiko|fruits|mania)\b)?\S*$/
 

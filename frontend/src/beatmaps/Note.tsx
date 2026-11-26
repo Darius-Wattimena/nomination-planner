@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from "react";
-import {Beatmap} from "../models/Types";
+import type {Beatmap} from "../models/Types";
 import {saveNote} from "../resources/planner";
 
 /** Saves by itself, there is nothing to remember */
@@ -7,7 +7,9 @@ export default function Note({beatmap, editable}: {beatmap: Beatmap, editable: b
   const [note, setNote] = useState(beatmap.note ?? "")
   const [state, setState] = useState<"idle" | "dirty" | "saving" | "saved" | "failed">("idle")
   const latest = useRef({note, beatmap, dirty: false})
-  latest.current = {...latest.current, note, beatmap}
+  useEffect(() => {
+    latest.current = {...latest.current, note, beatmap}
+  })
 
   async function save() {
     if (!latest.current.dirty) return

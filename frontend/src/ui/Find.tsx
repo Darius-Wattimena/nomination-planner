@@ -1,8 +1,9 @@
-import {createContext, FormEvent, ReactNode, useContext, useState} from "react";
+import type {FormEvent, ReactNode} from "react";
+import {createContext, useContext, useState} from "react";
 import Modal from "react-modal";
 import {useNavigate} from "react-router";
 import {FaMagnifyingGlass, FaXmark} from "react-icons/fa6";
-import {User} from "../models/Types";
+import type {User} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import {useSession} from "../utils/session";
 import {nextStep} from "../utils/workflow";

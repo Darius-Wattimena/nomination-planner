@@ -1,5 +1,5 @@
 import {FaAngleLeft, FaAngleRight, FaAnglesLeft, FaAnglesRight} from "react-icons/fa6";
-import {PageLimit} from "../models/Types";
+import type {PageLimit} from "../models/Types";
 
 const PAGE_SIZES: Record<PageLimit, number> = {TEN: 10, TWENTY: 20, FIFTY: 50}
 

@@ -1,5 +1,5 @@
-import {AxiosRequestConfig} from "axios";
-import {BeatmapFilter, BeatmapStatus, Gamemode, PageLimit} from "../models/Types";
+import type {AxiosRequestConfig} from "axios";
+import type {BeatmapFilter, BeatmapStatus, Gamemode, PageLimit} from "../models/Types";
 
 function toParams(values: object) {
   const params: Record<string, string> = {}

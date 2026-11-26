@@ -1,4 +1,5 @@
-import {PointerEvent as ReactPointerEvent, useEffect, useRef, useState} from "react";
+import type {PointerEvent as ReactPointerEvent} from "react";
+import {useRef, useState} from "react";
 import {Link} from "react-router";
 import {FaArrowUpRightFromSquare, FaHeart, FaPause, FaPlay, FaRotateLeft, FaVolumeHigh, FaVolumeXmark, FaXmark} from "react-icons/fa6";
 import {useNominators} from "../beatmaps/actions";
@@ -6,9 +7,10 @@ import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
-import {Choice, useChoices} from "../discover/choices";
+import type {Choice} from "../discover/choices";
+import {useChoices} from "../discover/choices";
 import {useSongPreview} from "../discover/useSongPreview";
-import {Beatmap, Gamemode, Pairing, User} from "../models/Types";
+import type {Beatmap, Gamemode, Pairing, User} from "../models/Types";
 import Api from "../resources/Api";
 import {useQuery} from "../resources/client";
 import {reloadPlanner, usePlanner} from "../resources/planner";
@@ -63,7 +65,7 @@ function Deck({user}: {user: User}) {
   const liked = suggestions(maps ?? [], user, rankedWith).filter(it => choices[it.map.osuId]?.choice === "like")
   const passed = available.filter(it => choices[it.map.osuId]?.choice === "pass").length
 
-  useEffect(() => setCurrentId(current?.map.osuId), [current?.map.osuId])
+  if (current?.map.osuId !== currentId) setCurrentId(current?.map.osuId)
 
   const song = useSongPreview(current?.map.osuId, upcoming[0]?.map.osuId)
 

@@ -1,5 +1,5 @@
 import {GAMEMODE_NAMES} from "../Constants";
-import {Beatmap, BeatmapGamemode} from "../models/Types";
+import type {Beatmap, BeatmapGamemode} from "../models/Types";
 import {roleOf, spots} from "../utils/nominations";
 import {isMissing, sortedModes} from "../utils/users";
 import ModeIcon from "./ModeIcon";

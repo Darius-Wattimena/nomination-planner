@@ -1,7 +1,8 @@
-import {createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useState} from "react";
+import type {FormEvent, ReactNode} from "react";
+import {createContext, useCallback, useContext, useEffect, useState} from "react";
 import {useNavigate} from "react-router";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
-import {Beatmap, Gamemode} from "../models/Types";
+import type {Beatmap, Gamemode} from "../models/Types";
 import {addBeatmap, NOBODY, setNominator, usePlanner} from "../resources/planner";
 import Cover from "../ui/Cover";
 import Dialog from "../ui/Dialog";

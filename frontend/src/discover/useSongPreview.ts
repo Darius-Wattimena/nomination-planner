@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 import {previewUrl} from "../utils/preview";
 
 function storedVolume() {
@@ -7,6 +7,14 @@ function storedVolume() {
 }
 
 /** Plays the preview of the shown beatmap. Once started, the next beatmaps start by themselves. */
+/** Start playing, telling when the browser refuses until someone touches the page */
+function start(player: HTMLAudioElement, onRefused: () => void) {
+  player.play().catch(error => {
+    // Changing to another beatmap also interrupts playing, that is not a failure
+    if (error?.name === "NotAllowedError") onRefused()
+  })
+}
+
 export function useSongPreview(id: string | undefined, nextId: string | undefined) {
   const audio = useRef<HTMLAudioElement>(null)
   const wanted = useRef(false)
@@ -20,15 +28,22 @@ export function useSongPreview(id: string | undefined, nextId: string | undefine
     return audio.current
   }
 
+  // Playing on its own is refused until someone touches the page
+  const refused = useCallback(() => {
+    wanted.current = false
+    setPlaying(false)
+  }, [])
+
   function play() {
-    const player = element()
-    player.play().catch(error => {
-      // Changing to another beatmap also interrupts playing, that is not a failure
-      if (error?.name === "NotAllowedError") {
-        wanted.current = false
-        setPlaying(false)
-      }
-    })
+    start(element(), refused)
+  }
+
+  // A new song starts at the beginning, and might exist after all
+  const [songFor, setSongFor] = useState(id)
+  if (songFor !== id) {
+    setSongFor(id)
+    setProgress(0)
+    setMissing(false)
   }
 
   useEffect(() => {
@@ -60,16 +75,14 @@ export function useSongPreview(id: string | undefined, nextId: string | undefine
   useEffect(() => {
     const player = element()
     player.pause()
-    setProgress(0)
-    setMissing(false)
     if (!id) {
       player.removeAttribute("src")
       return
     }
     player.preload = "none"
     player.src = previewUrl(id)
-    if (wanted.current) play()
-  }, [id])
+    if (wanted.current) start(player, refused)
+  }, [id, refused])
 
   // Have the next song ready, but only for those who are listening
   useEffect(() => {

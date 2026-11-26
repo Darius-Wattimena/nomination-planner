@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react";
 import {Link} from "react-router";
-import {Beatmap, Pairing, User} from "../models/Types";
+import type {Beatmap, Pairing, User} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import {useRanked} from "../resources/ranked";
 import {Avatar, RoleBadges} from "../ui/Person";

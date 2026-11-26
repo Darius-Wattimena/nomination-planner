@@ -1,5 +1,5 @@
 import {useSyncExternalStore} from "react";
-import {UserContext} from "../models/Types";
+import type {UserContext} from "../models/Types";
 
 const KEY = "userContext"
 const listeners = new Set<() => void>()

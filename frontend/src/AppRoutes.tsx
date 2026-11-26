@@ -1,4 +1,5 @@
-import {lazy, ReactNode, Suspense} from "react";
+import type {ReactNode} from "react";
+import {lazy, Suspense} from "react";
 import {Link, Route, Routes, useLocation} from 'react-router';
 import PageHeader from "./ui/PageHeader";
 import Shell from "./ui/Shell";

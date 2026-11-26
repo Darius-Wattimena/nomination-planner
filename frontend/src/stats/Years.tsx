@@ -1,7 +1,7 @@
 import {useMemo} from "react";
 import {Link} from "react-router";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
-import {Beatmap, Gamemode} from "../models/Types";
+import type {Beatmap, Gamemode} from "../models/Types";
 import ModeIcon from "../ui/ModeIcon";
 import {Avatar} from "../ui/Person";
 import {network, nominatorsOf, perMonth, rankedDate} from "./stats";

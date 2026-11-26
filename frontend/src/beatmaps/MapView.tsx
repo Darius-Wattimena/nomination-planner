@@ -1,8 +1,10 @@
-import {TouchEvent as ReactTouchEvent, useRef, useState} from "react";
+import type {TouchEvent as ReactTouchEvent} from "react";
+import {useRef, useState} from "react";
 import Modal from "react-modal";
 import {FaArrowUpRightFromSquare, FaCheck, FaChevronLeft, FaChevronRight, FaLink, FaPlus, FaRegComments, FaXmark} from "react-icons/fa6";
 import {GAMEMODE_NAMES, GAMEMODES, MISSING_USER_ID, ROLES} from "../Constants";
-import {Beatmap, BeatmapGamemode, BeatmapStatus, Gamemode, User} from "../models/Types";
+import type {Beatmap, BeatmapGamemode, Gamemode, User} from "../models/Types";
+import {BeatmapStatus} from "../models/Types";
 import Api from "../resources/Api";
 import {request} from "../resources/client";
 import {deleteBeatmap, putBeatmap, refreshBeatmap, useBeatmap, usePlanner} from "../resources/planner";

@@ -1,5 +1,5 @@
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
-import {Beatmap, Gamemode, User} from "../models/Types";
+import type {Beatmap, Gamemode, User} from "../models/Types";
 import {isMissing, sortedModes} from "../utils/users";
 import {toDate} from "../utils/workflow";
 

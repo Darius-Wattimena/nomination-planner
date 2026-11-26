@@ -5,7 +5,8 @@ import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
 import {GAMEMODE_NAMES, GAMEMODES, ROLES} from "../Constants";
-import {Beatmap, Gamemode, Pairing, User, UserRole} from "../models/Types";
+import type {Beatmap, Pairing, User, UserRole} from "../models/Types";
+import {Gamemode} from "../models/Types";
 import Api from "../resources/Api";
 import {useQuery} from "../resources/client";
 import {usePlanner} from "../resources/planner";
@@ -19,7 +20,8 @@ import {MODE_WORDS} from "../utils/query";
 import {useSession} from "../utils/session";
 import {needsFullNominator, openSpot, openSpots} from "../utils/nominations";
 import {highestRole, isMissing} from "../utils/users";
-import {ageInDays, deskGroup, DeskGroup, stageOf} from "../utils/workflow";
+import type {DeskGroup} from "../utils/workflow";
+import {ageInDays, deskGroup, stageOf} from "../utils/workflow";
 
 const TEAM_ROLES: UserRole[] = ["NominationAssessment", "Nominator", "Probation"]
 const PLATE = 5

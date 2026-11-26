@@ -5,7 +5,7 @@ import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import Pagination from "../beatmaps/Pagination";
 import {GAMEMODES} from "../Constants";
-import {Beatmap, BeatmapFilter, BeatmapPage, PageLimit} from "../models/Types";
+import type {Beatmap, BeatmapFilter, BeatmapPage, PageLimit} from "../models/Types";
 import Api from "../resources/Api";
 import {useQuery} from "../resources/client";
 import Cover from "../ui/Cover";
@@ -20,8 +20,11 @@ import {toDate} from "../utils/workflow";
 export default function Archive({page}: {page: BeatmapPage}) {
   const user = useSession()?.user
   const [params, setParams] = useSearchParams()
+  // Several changes may follow each other before the page shows them
   const latest = useRef(params)
-  latest.current = params
+  useEffect(() => {
+    latest.current = params
+  }, [params])
 
   const number = Number(params.get("page"))
   const pageNumber = Number.isInteger(number) && number > 1 ? number : 1

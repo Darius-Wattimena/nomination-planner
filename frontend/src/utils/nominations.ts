@@ -1,4 +1,4 @@
-import {Beatmap, BeatmapGamemode, BeatmapNominator, Gamemode, User} from "../models/Types";
+import type {Beatmap, BeatmapGamemode, BeatmapNominator, Gamemode, User} from "../models/Types";
 import {canNominate, isMissing, isNominator, onProbation, sortedModes} from "./users";
 
 /*

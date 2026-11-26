@@ -1,4 +1,4 @@
-import {Beatmap, BeatmapStatus, Gamemode, User} from "../models/Types";
+import type {Beatmap, BeatmapStatus, Gamemode, User} from "../models/Types";
 import {MISSING_USER_ID} from "../Constants";
 
 /** What the backend sends: everything in progress, or only what changed since the token of an earlier update */

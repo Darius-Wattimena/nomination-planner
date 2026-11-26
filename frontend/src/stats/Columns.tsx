@@ -1,5 +1,6 @@
 import {useState} from "react";
-import {Column, scale} from "./stats";
+import type {Column} from "./stats";
+import {scale} from "./stats";
 
 interface ColumnsProps {
   columns: Column[]

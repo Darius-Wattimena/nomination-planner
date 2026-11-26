@@ -1,10 +1,12 @@
-import {KeyboardEvent, ReactNode, useEffect, useMemo, useRef, useState} from "react";
+import type {KeyboardEvent, ReactNode} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import {FaCheck, FaChevronDown, FaFilter, FaMagnifyingGlass, FaXmark} from "react-icons/fa6";
 import {GAMEMODE_NAMES, GAMEMODES, PENDING_STATUSES} from "../Constants";
-import {Beatmap, User} from "../models/Types";
+import type {Beatmap, User} from "../models/Types";
 import ModeIcon from "../ui/ModeIcon";
 import {Avatar} from "../ui/Person";
-import {filterMaps, formatQuery, MODE_WORDS, parseQuery, Token} from "../utils/query";
+import type {Token} from "../utils/query";
+import {filterMaps, formatQuery, MODE_WORDS, parseQuery} from "../utils/query";
 import {useSession} from "../utils/session";
 import {STAGES} from "../utils/workflow";
 
@@ -27,6 +29,17 @@ const MORE: Option[] = [
   {key: "is", value: "stale", label: "Gone quiet"},
   {key: "is", value: "noted", label: "Has a note"}
 ]
+const MORE_AND_STAGES = [...MORE, ...STAGE_OPTIONS]
+
+// The keys each menu picks from
+const KEYS = {
+  mode: ["mode"],
+  bn: ["bn"],
+  by: ["by"],
+  status: ["status"],
+  is: ["is"],
+  isAndStage: ["is", "stage"],
+}
 
 function isOption(token: Token, option: Option) {
   const value = token.value.toLowerCase()
@@ -53,17 +66,18 @@ interface FiltersProps {
 /** Search, and a menu for everything that can be filtered on. What is typed as bn:name ends up in the menus. */
 export default function Filters({query, onChange, maps, stages}: FiltersProps) {
   const self = useSession()?.user
-  const tokens = parseQuery(query)
+  const tokens = useMemo(() => parseQuery(query), [query])
   const filters = tokens.filter(it => it.key)
   const words = formatQuery(tokens.filter(it => !it.key))
   const [text, setText] = useState(words)
   const [shown, setShown] = useState(false)
 
   // Follow changes from outside, without touching what is being typed
-  useEffect(() => {
-    const typed = formatQuery(parseQuery(text).filter(it => !it.key))
-    if (typed !== words) setText(words)
-  }, [words])
+  const [followed, setFollowed] = useState(words)
+  if (followed !== words) {
+    setFollowed(words)
+    if (formatQuery(parseQuery(text).filter(it => !it.key)) !== words) setText(words)
+  }
 
   const nominators = useMemo(() => peopleOptions("bn", maps.flatMap(it => it.gamemodes).flatMap(it => it.nominators).map(it => it.nominator), self), [maps, self])
   const mappers = useMemo(() => peopleOptions("by", maps.map(it => it.mapper), self), [maps, self])
@@ -106,11 +120,11 @@ export default function Filters({query, onChange, maps, stages}: FiltersProps) {
         <FaFilter aria-hidden/><span>{filters.length > 0 ? `Filters: ${filters.length}` : "Filters"}</span>
       </button>
       <div className="filter-menus" data-shown={shown || undefined}>
-      <FilterMenu {...menu} label="Mode" keys={["mode"]} options={MODES}/>
-      <FilterMenu {...menu} label="Nominator" keys={["bn"]} options={nominators} searchable/>
-      <FilterMenu {...menu} label="Mapper" keys={["by"]} options={mappers} searchable/>
-      <FilterMenu {...menu} label="Status" keys={["status"]} options={STATUSES}/>
-      <FilterMenu {...menu} label="More" keys={showStages ? ["is", "stage"] : ["is"]} options={showStages ? [...MORE, ...STAGE_OPTIONS] : MORE}/>
+      <FilterMenu {...menu} label="Mode" keys={KEYS.mode} options={MODES}/>
+      <FilterMenu {...menu} label="Nominator" keys={KEYS.bn} options={nominators} searchable/>
+      <FilterMenu {...menu} label="Mapper" keys={KEYS.by} options={mappers} searchable/>
+      <FilterMenu {...menu} label="Status" keys={KEYS.status} options={STATUSES}/>
+      <FilterMenu {...menu} label="More" keys={showStages ? KEYS.isAndStage : KEYS.is} options={showStages ? MORE_AND_STAGES : MORE}/>
       {filters.length > 0 && <button className="button button-ghost" onClick={() => onChange(words)}>Clear filters</button>}
       </div>
     </div>
@@ -134,12 +148,12 @@ function FilterMenu({label, keys, options, searchable, tokens, maps, self, onCha
   const root = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
 
-  const own = tokens.filter(it => it.key && keys.includes(it.key))
+  const own = useMemo(() => tokens.filter(it => it.key && keys.includes(it.key)), [tokens, keys])
   // Something typed can be part of a name, so it isn't always one of the options
-  const all = [
+  const all = useMemo(() => [
     ...own.filter(token => !options.some(it => isOption(token, it))).map((token): Option => ({key: token.key!, value: token.value, label: token.value})),
     ...options
-  ]
+  ], [own, options])
   const picked = all.filter(option => own.some(it => isOption(it, option)))
 
   useEffect(() => {
@@ -208,7 +222,7 @@ function Options({label, options, picked, searchable, tokens, maps, self, onTogg
   const counts = useMemo(() => new Map(options.map(option => {
     const others = tokens.filter(it => option.key === "is" ? !isOption(it, option) : it.key !== option.key)
     return [option, filterMaps(maps, formatQuery([...others, option]), self).length]
-  })), [options.length, tokens.map(it => `${it.key}:${it.value}`).join(" "), maps, self])
+  })), [options, tokens, maps, self])
   const countOf = (option: Option) => Array.from(counts).find(([it]) => it.key === option.key && it.value === option.value)?.[1] ?? 0
 
   // Keep the order while picking, people with nothing to show go last

@@ -1,5 +1,5 @@
 import {ROLES} from "../Constants";
-import {Gamemode, User, UserRole} from "../models/Types";
+import type {Gamemode, User, UserRole} from "../models/Types";
 import {avatarUrl} from "../utils/users";
 import ModeIcon from "./ModeIcon";
 

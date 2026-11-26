@@ -1,4 +1,4 @@
-import {ComponentType, SVGProps} from "react";
+import type {ComponentType, SVGProps} from "react";
 import OsuLogo from "../assets/osu.svg?react";
 import TaikoLogo from "../assets/taiko.svg?react";
 import CatchLogo from "../assets/catch.svg?react";

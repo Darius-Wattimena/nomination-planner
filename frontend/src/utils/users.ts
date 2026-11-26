@@ -1,5 +1,5 @@
 import {GAMEMODES, MISSING_USER_ID} from "../Constants";
-import {Beatmap, BeatmapGamemode, Gamemode, User, UserRole} from "../models/Types";
+import type {Beatmap, BeatmapGamemode, Gamemode, User, UserRole} from "../models/Types";
 
 const RANKING: UserRole[] = ["NominationAssessment", "Nominator", "Probation", "Mapper"]
 

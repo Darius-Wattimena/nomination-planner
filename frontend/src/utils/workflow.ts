@@ -1,5 +1,6 @@
 import {GAMEMODE_NAMES} from "../Constants";
-import {Beatmap, BeatmapStatus, Gamemode, User} from "../models/Types";
+import type {Beatmap, Gamemode, User} from "../models/Types";
+import {BeatmapStatus} from "../models/Types";
 import {canClaim, lacksFullNominator, modesMissing, needsFullNominator, openSpot, openSpots, othersAreDone, roleOf, spots} from "./nominations";
 import {isMissing} from "./users";
 

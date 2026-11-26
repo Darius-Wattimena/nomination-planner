@@ -1,4 +1,5 @@
-import {BeatmapStatus, Gamemode, UserRole} from "./models/Types";
+import type {UserRole} from "./models/Types";
+import {BeatmapStatus, Gamemode} from "./models/Types";
 
 export const MISSING_USER_ID = "0"
 

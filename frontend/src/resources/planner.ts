@@ -1,12 +1,14 @@
 import {useEffect, useSyncExternalStore} from "react";
 import {MISSING_USER_ID} from "../Constants";
-import {Beatmap, BeatmapGamemode, BeatmapStatus, Gamemode, User} from "../models/Types";
+import type {Beatmap, BeatmapGamemode, Gamemode, User} from "../models/Types";
+import {BeatmapStatus} from "../models/Types";
 import {setSession, useSession} from "../utils/session";
 import {highestRole} from "../utils/users";
 import Api from "./Api";
 import {request, useQuery} from "./client";
 import {forgetRanked} from "./ranked";
-import {applyUpdate, Feed, FeedUpdate, forgetFeed, NOBODY, readFeed, storeFeed, toBeatmap} from "./feed";
+import type {Feed, FeedUpdate} from "./feed";
+import {applyUpdate, forgetFeed, NOBODY, readFeed, storeFeed, toBeatmap} from "./feed";
 
 export {NOBODY}
 

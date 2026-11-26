@@ -16,7 +16,7 @@ export default defineConfig({
         // Libraries change less often than the planner, so they stay cached between releases
         codeSplitting: {
           groups: [
-            { name: 'react', test: /node_modules[\/](react|react-dom|react-router|scheduler)[\/]/ },
+            { name: 'react', test: /node_modules[/\\](react|react-dom|react-router|scheduler)[/\\]/ },
             { name: 'vendor', test: /node_modules/ },
           ],
         },

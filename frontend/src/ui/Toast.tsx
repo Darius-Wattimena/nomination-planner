@@ -1,4 +1,5 @@
-import {createContext, ReactNode, useCallback, useContext, useRef, useState} from "react";
+import type {ReactNode} from "react";
+import {createContext, useCallback, useContext, useRef, useState} from "react";
 import {UNDO_TIME} from "../resources/planner";
 import {FaXmark} from "react-icons/fa6";
 

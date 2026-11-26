@@ -1,6 +1,6 @@
-import {ReactNode} from "react";
+import type {ReactNode} from "react";
 import {FaHourglassHalf} from "react-icons/fa6";
-import {Beatmap, User} from "../models/Types";
+import type {Beatmap, User} from "../models/Types";
 import Cover from "../ui/Cover";
 import {People} from "../ui/Person";
 import {Rings} from "../ui/Ring";

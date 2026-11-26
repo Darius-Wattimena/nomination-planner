@@ -1,5 +1,6 @@
 import {useEffect, useSyncExternalStore} from "react";
-import {Beatmap, BeatmapStatus, Gamemode} from "../models/Types";
+import type {Beatmap, Gamemode} from "../models/Types";
+import {BeatmapStatus} from "../models/Types";
 import {useSession} from "../utils/session";
 import Api from "./Api";
 import {request} from "./client";

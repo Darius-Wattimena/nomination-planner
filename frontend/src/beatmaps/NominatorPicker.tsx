@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from "react";
-import {Gamemode, Pairing, User} from "../models/Types";
+import type {Gamemode, Pairing, User} from "../models/Types";
 import Api from "../resources/Api";
 import {useQuery} from "../resources/client";
 import {usePlanner} from "../resources/planner";

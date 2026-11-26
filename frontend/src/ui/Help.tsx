@@ -1,4 +1,5 @@
-import {createContext, ReactNode, useContext, useEffect, useState} from "react";
+import type {ReactNode} from "react";
+import {createContext, useContext, useEffect, useState} from "react";
 import {reloadPlanner, usePlanner} from "../resources/planner";
 import Dialog from "./Dialog";
 
@@ -55,7 +56,7 @@ export function RingLegend() {
 /** How recent everything on the page is */
 export function Freshness() {
   const {loadedAt, refreshing, error} = usePlanner()
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 20_000)

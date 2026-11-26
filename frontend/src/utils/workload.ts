@@ -1,4 +1,4 @@
-import {Beatmap} from "../models/Types";
+import type {Beatmap} from "../models/Types";
 import {deskGroup} from "./workflow";
 
 /** What a nominator currently has on their plate */

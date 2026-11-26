@@ -1,7 +1,9 @@
-import {FormEvent, useEffect, useState} from "react";
+import type {FormEvent} from "react";
+import {useEffect, useState} from "react";
 import {Link} from "react-router";
 import {PENDING_STATUSES} from "../Constants";
-import {BeatmapStatus, SyncInfo} from "../models/Types";
+import type {SyncInfo} from "../models/Types";
+import {BeatmapStatus} from "../models/Types";
 import Api from "../resources/Api";
 import {request} from "../resources/client";
 import {ConfirmDialog} from "../ui/Dialog";

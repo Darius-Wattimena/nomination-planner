@@ -3,7 +3,7 @@ import {Link} from "react-router";
 import {FaDoorOpen, FaDumbbell, FaPeopleGroup, FaSeedling, FaShuffle} from "react-icons/fa6";
 import {Avatar} from "../ui/Person";
 import {useSession} from "../utils/session";
-import {Badge, Board, Entry} from "./boards";
+import type {Badge, Board, Entry} from "./boards";
 
 const ICONS = {scout: <FaSeedling/>, variety: <FaDoorOpen/>, partners: <FaPeopleGroup/>, hybrids: <FaShuffle/>, volume: <FaDumbbell/>}
 

@@ -1,4 +1,5 @@
-import {Beatmap, Gamemode, User} from "../models/Types";
+import type {Beatmap, User} from "../models/Types";
+import {Gamemode} from "../models/Types";
 import {openSpot, openSpots} from "./nominations";
 import {deskGroup, isStale, stageOf} from "./workflow";
 

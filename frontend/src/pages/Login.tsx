@@ -32,7 +32,7 @@ export default function Login() {
     login(code)
       .then(() => getSession()?.user ? navigate(returnTo, {replace: true}) : fail())
       .catch(fail)
-  }, [])
+  }, [navigate, params])
 
   return (
     <div className="welcome">
