@@ -5,8 +5,7 @@ import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
 import {GAMEMODE_NAMES, GAMEMODES, ROLES} from "../Constants";
-import type {User, UserRole} from "../models/Types";
-import {Gamemode} from "../models/Types";
+import type {Gamemode, User, UserRole} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import NominatorYear, {NewPairings, NominatorBadges} from "../stats/NominatorYear";
 import Cover from "../ui/Cover";
@@ -18,7 +17,7 @@ import OwnModesDialog from "../ui/OwnModes";
 import {MODE_WORDS} from "../utils/query";
 import {useSession} from "../utils/session";
 import {needsFullNominator, openSpot, openSpots} from "../utils/nominations";
-import {choosesOwnModes, highestRole, isMissing, modesOf} from "../utils/users";
+import {choosesOwnModes, highestRole, isMissing, modesOf, roleModes} from "../utils/users";
 import type {Part} from "../utils/workflow";
 import {ageInDays, stageOf} from "../utils/workflow";
 import type {Involvement} from "../utils/involvement";
@@ -59,7 +58,8 @@ function Overview() {
   const self = useSession()?.user
   const {maps = [], nominators} = usePlanner()
   const {selected, open, close} = useOpenMap()
-  const [mode, setMode] = useState<Gamemode>(modesOf(self)[0] ?? Gamemode.Osu)
+  // Somebody who follows several modes, or none, starts with everyone
+  const [mode, setMode] = useState<Gamemode | undefined>(modesOf(self).length === 1 ? modesOf(self)[0] : undefined)
   const [sorting, setSorting] = useState<Sorting>("free")
   const [role, setRole] = useState<UserRole>()
   const [text, setText] = useState("")
@@ -89,20 +89,20 @@ function Overview() {
       : a.user.username.localeCompare(b.user.username))
 
   const help = maps
-    .filter(map => stageOf(map) !== "qualified" && openSpots(map) > 0 && map.gamemodes.some(it => it.gamemode === mode && openSpot(map, it)))
-    .map(map => {
-      const slots = map.gamemodes.find(it => it.gamemode === mode)!.nominators
-      const partner = slots.find(it => !isMissing(it.nominator))
-      return {map, partner: partner?.nominator, nominated: !!partner?.hasNominated, full: needsFullNominator(map, map.gamemodes.find(it => it.gamemode === mode)!)}
-    })
+    .filter(map => stageOf(map) !== "qualified" && openSpots(map) > 0)
+    .flatMap(map => map.gamemodes.filter(it => (!mode || it.gamemode === mode) && openSpot(map, it)).slice(0, 1).map(open => {
+      const partner = open.nominators.find(it => !isMissing(it.nominator))
+      return {map, partner: partner?.nominator, nominated: !!partner?.hasNominated, full: needsFullNominator(map, open)}
+    }))
     .sort((a, b) => Number(b.nominated) - Number(a.nominated) || Number(!!b.partner) - Number(!!a.partner) || ageInDays(b.map) - ageInDays(a.map))
 
   const loading = !nominators
 
   return (
     <div className="page">
-      <PageHeader title="Nominators" subtitle={members.length > 0 ? `${members.length} nominators for ${GAMEMODE_NAMES[mode]}. ${help.length} ${help.length === 1 ? "beatmap is" : "beatmaps are"} looking for one` : " "}>
+      <PageHeader title="Nominators" subtitle={members.length > 0 ? `${members.length} nominators for ${mode ? GAMEMODE_NAMES[mode] : "all modes"}. ${help.length} ${help.length === 1 ? "beatmap is" : "beatmaps are"} looking for one` : " "}>
         <div className="segmented" role="group" aria-label="Game mode">
+          <button aria-pressed={!mode} onClick={() => setMode(undefined)}>All</button>
           {GAMEMODES.map(it => <button key={it} aria-pressed={mode === it} aria-label={GAMEMODE_NAMES[it]} onClick={() => setMode(it)}><ModeIcon mode={it}/><span className="segmented-text">{GAMEMODE_NAMES[it]}</span></button>)}
         </div>
       </PageHeader>
@@ -149,7 +149,7 @@ function Overview() {
                 </li>
               ))}
             </ul>
-            <Link className="button button-ghost" to={`/beatmaps?q=mode%3A${MODE_WORDS[mode]}%20is%3Aopen`}>Show all of them</Link>
+            <Link className="button button-ghost" to={`/beatmaps?q=${encodeURIComponent(mode ? `mode:${MODE_WORDS[mode]} is:open` : "is:open")}`}>Show all of them</Link>
           </aside>
         }
       </div>
@@ -158,10 +158,10 @@ function Overview() {
   )
 }
 
-function MemberCard({member, mode, free, self}: {member: Member, mode: Gamemode, free: boolean, self: boolean}) {
+function MemberCard({member, mode, free, self}: {member: Member, mode?: Gamemode, free: boolean, self: boolean}) {
   const {user, inProgress, moves, qualified, together} = member
   const role = ROLES[highestRole(user, mode)]
-  const others = user.gamemodes.filter(it => it.gamemode !== mode && it.role !== "Mapper").map(it => it.gamemode)
+  const others = roleModes(user).filter(it => it !== mode)
   const facts = [
     moves > 0 && `${moves} waiting for ${self ? "you" : "them"}`,
     qualified > 0 && `${qualified} qualified`,
@@ -175,8 +175,9 @@ function MemberCard({member, mode, free, self}: {member: Member, mode: Gamemode,
         <div>
           <Link className="member-name" to={`/team?user=${user.osuId}`}>{user.username}</Link>
           <span className="member-roles">
-            <span className={`role-badge ${role.className}`} title={role.name}>{role.short}</span>
-            {others.map(it => <ModeIcon key={it} mode={it}/>)}
+            {mode
+              ? <><span className={`role-badge ${role.className}`} title={role.name}>{role.short}</span>{others.map(it => <ModeIcon key={it} mode={it}/>)}</>
+              : <RoleBadges user={{...user, gamemodes: user.gamemodes.filter(it => it.role !== "Mapper")}}/>}
           </span>
         </div>
         <span className="member-load" data-free={free || undefined}>{inProgress.length === 0 ? "Nothing planned" : `${inProgress.length} in progress`}</span>
