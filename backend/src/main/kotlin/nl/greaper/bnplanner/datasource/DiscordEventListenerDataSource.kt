@@ -11,13 +11,15 @@ import org.bson.Document
 import org.bson.conversions.Bson
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
+import java.util.concurrent.CopyOnWriteArrayList
 
 @Component
 @ConditionalOnProperty(prefix = "discord", name = ["enabled"], havingValue = "true")
 class DiscordEventListenerDataSource(
     database: MongoDatabase,
 ) : BaseDataSource<DiscordEventListener>(database, "discord") {
-    private val listeners = this.list().toMutableList()
+    // Read by the threads sending messages while the bot changes it
+    private val listeners = CopyOnWriteArrayList(this.list())
 
     override fun toDocument(value: DiscordEventListener): Document =
         Document("guildId", value.guildId)

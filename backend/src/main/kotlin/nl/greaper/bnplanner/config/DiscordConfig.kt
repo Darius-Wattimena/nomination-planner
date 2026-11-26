@@ -120,15 +120,16 @@ class DiscordConfig(
         }
 
         private fun handleListenerRegister(event: SlashCommandInteractionEvent) {
-            event.deferReply().queue()
-
             val gamemodeValue = event.getOption("gamemode")?.asString
-            val gamemode =
-                if (gamemodeValue != null) {
-                    Gamemode.valueOf(gamemodeValue.lowercase())
-                } else {
-                    null
-                }
+            val gamemode = gamemodeValue?.let { value -> Gamemode.entries.find { it.name == value.lowercase() } }
+
+            // Only the choices of the command are known, so this answers right away
+            if (gamemodeValue != null && gamemode == null) {
+                event.reply("Unknown gamemode `$gamemodeValue`").queue()
+                return
+            }
+
+            event.deferReply().queue()
 
             val isAdmin = event.member?.permissions?.contains(Permission.ADMINISTRATOR) == true
 
@@ -166,6 +167,8 @@ class DiscordConfig(
                     guildId = guildId,
                     channelId = channelId,
                     gamemode = gamemode,
+                    // Only the developer can make a channel confidential, registering it again keeps that
+                    confidential = existingListener?.confidential ?: false,
                 )
 
             // Listener doesn't exist yet, create a new one
@@ -174,7 +177,7 @@ class DiscordConfig(
                     dataSource.create(newListener).wasAcknowledged()
                 } else {
                     // Listener is already known for this channel, update it with the new configuration
-                    dataSource.replace(existingListener, newListener).modifiedCount == 1L
+                    dataSource.replace(existingListener, newListener).matchedCount == 1L
                 }
 
             if (success) {

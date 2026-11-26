@@ -33,7 +33,7 @@ class DiscordWebhookClient(
         description = description,
         color = color,
         thumbnail = EmbedThumbnail("https://b.ppy.sh/thumb/${beatmapId}l.jpg"),
-        footer = EmbedFooter(editor?.username ?: "", "https://a.ppy.sh/${editor?.osuId}"),
+        footer = EmbedFooter(editor?.username ?: "", editor?.let { "https://a.ppy.sh/${it.osuId}" }),
         confidential = confidential,
         gamemodes = gamemodes,
     )

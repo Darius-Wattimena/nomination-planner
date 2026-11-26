@@ -91,11 +91,12 @@ class DiscordBotTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - Registering a confidential channel again makes it public`() {
+    fun `Should keep a confidential channel confidential when registering it again`() {
         source.create(listener(confidential = true))
         discord.slashCommand(source, subcommand = "register")
 
-        assertEquals(listOf(listener()), source.list())
+        assertAnswer("**Registered listener at channel**\nGamemode = `all`", green)
+        assertEquals(listOf(listener(confidential = true)), source.list())
     }
 
     @Test
@@ -127,10 +128,12 @@ class DiscordBotTest {
     }
 
     @Test
-    fun `SUSPECTED BUG - An unknown gamemode fails after promising an answer`() {
-        assertThrows<IllegalArgumentException> { discord.slashCommand(source, subcommand = "register", gamemode = "catch") }
-        assertEquals(1, discord.deferred)
-        assertTrue(discord.messages.isEmpty())
+    fun `Should refuse an unknown gamemode right away`() {
+        discord.slashCommand(source, subcommand = "register", gamemode = "catch")
+
+        assertEquals(listOf("Unknown gamemode `catch`"), discord.replies)
+        assertEquals(0, discord.deferred)
+        assertEquals(emptyList<DiscordEventListener>(), source.list())
     }
 
     // Remove
@@ -323,14 +326,13 @@ class DiscordBotTest {
 
         discord.messages.clear()
         client.sendBeatmapUpdate("text", EmbedColor.RED, "7", null, false, emptyList())
-        // SUSPECTED BUG - There is no such user
         val footer =
             discord.messages
                 .single()
                 .embed
                 .getObject("footer")
         assertEquals("", footer.getString("text"))
-        assertEquals("https://a.ppy.sh/null", footer.getString("icon_url"))
+        assertFalse(footer.hasKey("icon_url"))
     }
 
     @Test
