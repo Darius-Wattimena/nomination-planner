@@ -28,17 +28,15 @@ While beta and the old production both run, you pay for both. The old one costs 
 
 ## Setting up beta
 
-### 1. Look up the IDs
+### 1. Look up the certificate
 
-```powershell
-aws route53 list-hosted-zones-by-name --dns-name greaper.net --query "HostedZones[0].Id" --output text
-```
+The DNS of `greaper.net` is at Namecheap. Only the origin address gets its own Route 53 zone, created by the stack.
 
 ```powershell
 aws acm list-certificates --region us-east-1 --query "CertificateSummaryList[?DomainName=='greaper.net' && Status=='ISSUED'].CertificateArn" --output text
 ```
 
-These are the `HostedZoneId` (without `/hostedzone/`) and the `CloudFrontCertificateArn`.
+This is the `CloudFrontCertificateArn`.
 
 To check whether the account already knows GitHub (then use `CreateGitHubOidcProvider=false`):
 
@@ -56,21 +54,41 @@ The backend creates the database `bnplanner2` on its own. The Atlas user needs `
 
 ### 4. Create the stack
 
-Run this in your own terminal. It asks nothing, so fill in the values. The passwords stay out of the template.
+Run this in your own terminal from the root of the repository. It asks for the passwords, so they stay out of the template and out of your history.
 
 ```powershell
-aws cloudformation deploy --region eu-west-1 --stack-name bnplanner-beta --template-file infra/planner.yml --capabilities CAPABILITY_NAMED_IAM --parameter-overrides HostedZoneId=... CloudFrontCertificateArn=... MongoHost=... MongoUsername=... MongoPassword=... OsuClientId=... OsuClientSecret=...
+function Read-Secret($prompt) { [Net.NetworkCredential]::new("", (Read-Host $prompt -AsSecureString)).Password }
+$mongoPassword = Read-Secret "MongoDB password"
+$osuSecret = Read-Secret "osu! client secret"
+aws cloudformation deploy --region eu-west-1 --stack-name bnplanner-beta --template-file infra/planner.yml --capabilities CAPABILITY_NAMED_IAM --parameter-overrides CloudFrontCertificateArn=... MongoHost=... MongoUsername=... "MongoPassword=$mongoPassword" OsuClientId=... "OsuClientSecret=$osuSecret"
 ```
 
 This takes 15 to 20 minutes, mostly for CloudFront and Beanstalk. The backend starts with the sample application of Beanstalk until the first deploy.
 
 The certificate is only requested once the first tag is deployed. If that deploy fails, the reason is in `/var/log/eb-hooks.log` of the instance: Beanstalk console, Logs, Request last 100 lines. Let's Encrypt gives out at most 5 of the same certificate a week, and a new instance asks again, so don't replace the instance over and over.
 
-This needs an AWS user that can create IAM roles, CloudFront and Route 53 records. The user `darius` can't even read IAM and Route 53.
+This needs an AWS user that can create IAM roles, CloudFront and Route 53 zones. The user `darius` can't, so sign in with `aws login --profile admin` and add `--profile admin`.
+
+### 5. Namecheap
+
+The outputs of the stack say where the records point to:
+
+```powershell
+aws cloudformation describe-stacks --region eu-west-1 --stack-name bnplanner-beta --query "Stacks[0].Outputs" --output table
+```
+
+Under Domain List, greaper.net, Advanced DNS, add:
+
+| Type | Host | Value |
+|---|---|---|
+| CNAME | `beta-bnplanner` | `WebsiteCname`, like `d1234abcd.cloudfront.net` |
+| NS | `beta-bnplanner-origin` | each of the 4 `OriginNameServers`, one record each |
+
+These win over the wildcard `*.greaper.net`. Wait until `nslookup -type=NS beta-bnplanner-origin.greaper.net` shows the AWS name servers before the first deploy, as Let's Encrypt looks there.
 
 Later changes to the template go through the same command. Parameters you leave out keep the value they had.
 
-### 5. GitHub
+### 6. GitHub
 
 In the repository settings, go to Environments and create `beta`. Add these variables (not secrets) from the outputs of the stack:
 
@@ -87,7 +105,7 @@ aws cloudformation describe-stacks --region eu-west-1 --stack-name bnplanner-bet
 
 Optional: add yourself as a required reviewer, so every deploy waits for your approval.
 
-### 6. Deploy
+### 7. Deploy
 
 Push a version tag, like `git tag v2.0.0` and then `git push origin v2.0.0`. Both workflows check the tag and deploy it. Then open https://beta-bnplanner.greaper.net and log in.
 
