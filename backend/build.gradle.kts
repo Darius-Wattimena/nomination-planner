@@ -56,7 +56,6 @@ dependencies {
 
     // Logging
     implementation("io.github.oshai:kotlin-logging-jvm:8.0.7")
-    implementation("ch.qos.logback:logback-classic")
 
     // Discord
     implementation("net.dv8tion:JDA:6.7.0") {

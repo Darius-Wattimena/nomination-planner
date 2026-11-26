@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component
 
 @Component
 @ConditionalOnProperty(prefix = "discord", name = ["enabled"], havingValue = "true")
-class DiscordWebhookClient(
+class DiscordBotClient(
     private val dataSource: DiscordEventListenerDataSource,
     private val jda: JDA,
 ) : DiscordClient {

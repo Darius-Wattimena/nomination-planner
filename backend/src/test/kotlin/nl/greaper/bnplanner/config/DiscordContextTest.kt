@@ -3,8 +3,8 @@ package nl.greaper.bnplanner.config
 import net.dv8tion.jda.api.JDA
 import nl.greaper.bnplanner.Application
 import nl.greaper.bnplanner.DefaultExceptionHandler
+import nl.greaper.bnplanner.client.DiscordBotClient
 import nl.greaper.bnplanner.client.DiscordClient
-import nl.greaper.bnplanner.client.DiscordWebhookClient
 import nl.greaper.bnplanner.datasource.DiscordEventListenerDataSource
 import nl.greaper.bnplanner.service.BeatmapService
 import nl.greaper.bnplanner.support.FakeJda
@@ -57,7 +57,7 @@ class DiscordEnabledTest {
         discord.addChannel("secret")
         whenever(jda.getTextChannelById("secret")).thenAnswer { discord.jda.getTextChannelById("secret") }
 
-        assertTrue(context.getBean(DiscordClient::class.java) is DiscordWebhookClient)
+        assertTrue(context.getBean(DiscordClient::class.java) is DiscordBotClient)
         assertEquals(1, context.getBean(DiscordEventListenerDataSource::class.java).getListeners().size)
 
         context.getBean(BeatmapService::class.java).logBeatmapDelete(TOKEN, beatmap())

@@ -4,7 +4,7 @@ import com.mongodb.client.result.InsertOneResult
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.utils.data.DataObject
-import nl.greaper.bnplanner.client.DiscordWebhookClient
+import nl.greaper.bnplanner.client.DiscordBotClient
 import nl.greaper.bnplanner.datasource.DiscordEventListenerDataSource
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.User
@@ -238,7 +238,7 @@ class DiscordBotTest {
 
     // Sending events
 
-    private val client by lazy { DiscordWebhookClient(source, discord.jda) }
+    private val client by lazy { DiscordBotClient(source, discord.jda) }
 
     private fun send(
         confidential: Boolean,

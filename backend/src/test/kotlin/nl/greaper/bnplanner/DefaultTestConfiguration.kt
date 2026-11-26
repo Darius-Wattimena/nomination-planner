@@ -67,20 +67,12 @@ class DefaultTestConfiguration {
 
     fun getMockMongoDB(): MongoDatabase =
         mock {
-            val mockCollection =
-                mock<MongoCollection<Any>> {
-                    val iterable = getMockIterable<Any>()
-                    on { createIndex(any<Bson>(), any()) } doReturn ""
-                    on { find() } doReturn iterable
-                    on { find(any<Bson>()) } doReturn iterable
-                }
             val documents = getMockIterable<Document>()
             val mockDocuments =
                 mock<MongoCollection<Document>> {
                     on { find() } doReturn documents
                     on { find(any<Bson>()) } doReturn documents
                 }
-            on { getCollection(any(), any<Class<Any>>()) } doReturn mockCollection
             on { getCollection(any()) } doReturn mockDocuments
             on { listCollectionNames() } doReturn mock()
         }
