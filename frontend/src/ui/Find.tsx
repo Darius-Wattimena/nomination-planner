@@ -1,5 +1,5 @@
 import type {FormEvent, ReactNode} from "react";
-import {createContext, useContext, useState} from "react";
+import {useState} from "react";
 import Modal from "react-modal";
 import {useNavigate} from "react-router";
 import {FaMagnifyingGlass, FaXmark} from "react-icons/fa6";
@@ -9,10 +9,7 @@ import {useSession} from "../utils/session";
 import {nextStep} from "../utils/workflow";
 import Cover from "./Cover";
 import {Avatar} from "./Person";
-
-const FindContext = createContext<() => void>(() => {})
-
-export const useFind = () => useContext(FindContext)
+import {FindContext} from "./useFind";
 
 /** Find a beatmap or nominator, whatever page you are on */
 export function FindProvider({children}: {children: ReactNode}) {

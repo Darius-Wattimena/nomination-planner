@@ -1,7 +1,7 @@
 import {GAMEMODE_NAMES, MISSING_USER_ID} from "../Constants";
 import type {Beatmap, Gamemode, User} from "../models/Types";
 import {changeNominator, ConflictError, NOBODY} from "../resources/planner";
-import {useToast} from "../ui/Toast";
+import {useToast} from "../ui/useToast";
 
 /** Change the nominators of a beatmap. Everything can be undone, so nothing has to be confirmed up front. */
 export function useNominators(beatmap: Beatmap) {

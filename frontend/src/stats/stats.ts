@@ -182,3 +182,32 @@ export function scale(max: number) {
   const top = Math.max(step, Math.ceil(max / step) * step)
   return {top, ticks: Array.from({length: Math.round(top / step) + 1}, (_, index) => index * step)}
 }
+
+export interface Summary {
+  ranked: number
+  mappers: number
+  nominators: number
+  firsts: number
+  hybrids: number
+}
+
+export function summarize(maps: Beatmap[], firsts: Set<string>, mode?: Gamemode): Summary {
+  return {
+    ranked: maps.length,
+    mappers: new Set(maps.map(it => it.mapper.osuId)).size,
+    nominators: new Set(maps.flatMap(it => nominatorsOf(it, mode)).map(it => it.osuId)).size,
+    firsts: maps.filter(it => firsts.has(it.osuId)).length,
+    hybrids: maps.filter(it => it.gamemodes.length > 1).length
+  }
+}
+
+export function inYear(map: Beatmap, year: number) {
+  return rankedDate(map)?.getFullYear() === year
+}
+
+/** The same part of the year before, so an unfinished year isn't compared to a whole one */
+export function yearBefore(maps: Beatmap[], year: number, now = new Date()) {
+  const end = new Date(now)
+  end.setFullYear(now.getFullYear() - 1)
+  return maps.filter(it => inYear(it, year - 1) && (year !== now.getFullYear() || rankedDate(it)! <= end))
+}

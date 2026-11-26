@@ -15,7 +15,7 @@ import {Avatar, RoleBadges} from "../ui/Person";
 import {Ring} from "../ui/Ring";
 import {EmptyState, Loading} from "../ui/States";
 import StatusBadge from "../ui/StatusBadge";
-import {useToast} from "../ui/Toast";
+import {useToast} from "../ui/useToast";
 import {canEdit, isAdmin, useSession} from "../utils/session";
 import {canJoin, doneNominations, isHybrid, lacksFullNominator, needsFullNominator, neededNominations, openSpot, roleOf, spots} from "../utils/nominations";
 import {highestRole, isMissing, onProbation, sortedModes} from "../utils/users";

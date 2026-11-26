@@ -1,18 +1,9 @@
 import type {ReactNode} from "react";
-import {createContext, useCallback, useContext, useRef, useState} from "react";
+import {useCallback, useRef, useState} from "react";
 import {UNDO_TIME} from "../resources/planner";
 import {FaXmark} from "react-icons/fa6";
-
-interface ToastOptions {
-  kind?: "success" | "error"
-  undo?: () => void
-}
-
-type ShowToast = (message: string, options?: ToastOptions) => void
-
-const ToastContext = createContext<ShowToast>(() => {})
-
-export const useToast = () => useContext(ToastContext)
+import type {ShowToast, ToastOptions} from "./useToast";
+import {ToastContext} from "./useToast";
 
 export function ToastProvider({children}: {children: ReactNode}) {
   const [toasts, setToasts] = useState<(ToastOptions & {id: number, message: string})[]>([])

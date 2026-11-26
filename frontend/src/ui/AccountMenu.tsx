@@ -4,7 +4,7 @@ import {FaCircleQuestion, FaMoon, FaRightFromBracket, FaSun} from "react-icons/f
 import type {User} from "../models/Types";
 import {logOut} from "../resources/planner";
 import {useTheme} from "../utils/theme";
-import {useHelp} from "./Help";
+import {useHelp} from "./useHelp";
 import {Avatar} from "./Person";
 
 /** Everything that isn't needed all day */

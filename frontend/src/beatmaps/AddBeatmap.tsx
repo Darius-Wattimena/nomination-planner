@@ -1,5 +1,5 @@
 import type {FormEvent, ReactNode} from "react";
-import {createContext, useCallback, useContext, useEffect, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 import {useNavigate} from "react-router";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
 import type {Beatmap, Gamemode} from "../models/Types";
@@ -7,17 +7,13 @@ import {addBeatmap, NOBODY, setNominator, usePlanner} from "../resources/planner
 import Cover from "../ui/Cover";
 import Dialog from "../ui/Dialog";
 import {ModePicker} from "../ui/ModeIcon";
-import {useToast} from "../ui/Toast";
+import {useToast} from "../ui/useToast";
 import {parseOsuLink} from "../utils/osuLink";
 import {canEdit, useSession} from "../utils/session";
 import {canJoin} from "../utils/nominations";
 import {nextStep} from "../utils/workflow";
-
-type OpenAdd = (link?: string) => void
-
-const AddContext = createContext<OpenAdd>(() => {})
-
-export const useAddBeatmap = () => useContext(AddContext)
+import type {OpenAdd} from "./useAddBeatmap";
+import {AddContext} from "./useAddBeatmap";
 
 function isTyping(target: EventTarget | null) {
   return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))

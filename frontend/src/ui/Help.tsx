@@ -1,11 +1,8 @@
 import type {ReactNode} from "react";
-import {createContext, useContext, useEffect, useState} from "react";
+import {useEffect, useState} from "react";
 import {reloadPlanner, usePlanner} from "../resources/planner";
 import Dialog from "./Dialog";
-
-const HelpContext = createContext<() => void>(() => {})
-
-export const useHelp = () => useContext(HelpContext)
+import {HelpContext} from "./useHelp";
 
 export function HelpProvider({children}: {children: ReactNode}) {
   const [open, setOpen] = useState(false)

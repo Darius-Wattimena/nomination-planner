@@ -6,7 +6,7 @@ import {usePlanner, usePlannerRefresh} from "../resources/planner";
 import {canEdit, isAdmin, useSession} from "../utils/session";
 import {useTheme} from "../utils/theme";
 import AccountMenu from "./AccountMenu";
-import {useFind} from "./Find";
+import {useFind} from "./useFind";
 import {LoginButton} from "./States";
 import {involvementOf} from "../utils/involvement";
 

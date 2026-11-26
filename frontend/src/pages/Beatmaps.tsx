@@ -8,7 +8,7 @@ import Filters from "../beatmaps/Filters";
 import {GAMEMODES} from "../Constants";
 import type {Beatmap} from "../models/Types";
 import {reloadPlanner, usePlanner} from "../resources/planner";
-import {useAddBeatmap} from "../beatmaps/AddBeatmap";
+import {useAddBeatmap} from "../beatmaps/useAddBeatmap";
 import {Freshness, RingLegend} from "../ui/Help";
 import PageHeader from "../ui/PageHeader";
 import {EmptyState} from "../ui/States";

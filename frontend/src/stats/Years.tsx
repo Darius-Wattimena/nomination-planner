@@ -4,36 +4,8 @@ import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
 import type {Beatmap, Gamemode} from "../models/Types";
 import ModeIcon from "../ui/ModeIcon";
 import {Avatar} from "../ui/Person";
-import {network, nominatorsOf, perMonth, rankedDate} from "./stats";
-
-export interface Summary {
-  ranked: number
-  mappers: number
-  nominators: number
-  firsts: number
-  hybrids: number
-}
-
-export function summarize(maps: Beatmap[], firsts: Set<string>, mode?: Gamemode): Summary {
-  return {
-    ranked: maps.length,
-    mappers: new Set(maps.map(it => it.mapper.osuId)).size,
-    nominators: new Set(maps.flatMap(it => nominatorsOf(it, mode)).map(it => it.osuId)).size,
-    firsts: maps.filter(it => firsts.has(it.osuId)).length,
-    hybrids: maps.filter(it => it.gamemodes.length > 1).length
-  }
-}
-
-export function inYear(map: Beatmap, year: number) {
-  return rankedDate(map)?.getFullYear() === year
-}
-
-/** The same part of the year before, so an unfinished year isn't compared to a whole one */
-export function yearBefore(maps: Beatmap[], year: number, now = new Date()) {
-  const end = new Date(now)
-  end.setFullYear(now.getFullYear() - 1)
-  return maps.filter(it => inYear(it, year - 1) && (year !== now.getFullYear() || rankedDate(it)! <= end))
-}
+import type {Summary} from "./stats";
+import {inYear, network, nominatorsOf, perMonth, rankedDate, summarize} from "./stats";
 
 interface FiguresProps {
   summary: Summary
