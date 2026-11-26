@@ -1,4 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import type {User} from "../models/Types";
 import {BeatmapStatus, Gamemode} from "../models/Types";
 import {beatmap, bn, mode, probation} from "../test/builders";
 import {ageInDays, ageLabel, partOf, isStale, nextStep, stageOf, suggestions, toDate} from "./workflow";
@@ -125,7 +126,7 @@ function user1Taiko() {
 
 describe("suggestions", () => {
   const me = bn("5")
-  const rankedWith = (name: string) => name === "User 2" ? 3 : 0
+  const rankedWith = (user: User) => user.osuId === "2" ? 3 : 0
 
   it("suggests beatmaps closest to being done first", () => {
     const empty = beatmap({osuId: "1"})

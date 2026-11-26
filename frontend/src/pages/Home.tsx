@@ -6,9 +6,7 @@ import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
 import {GAMEMODE_NAMES} from "../Constants";
-import type {Beatmap, Gamemode, Pairing, User} from "../models/Types";
-import Api from "../resources/Api";
-import {useQuery} from "../resources/client";
+import type {Beatmap, Gamemode, User} from "../models/Types";
 import {reloadPlanner, usePlanner} from "../resources/planner";
 import PageHeader from "../ui/PageHeader";
 import {Freshness} from "../ui/Help";
@@ -17,6 +15,7 @@ import {canEdit, useSession} from "../utils/session";
 import type {Part} from "../utils/workflow";
 import {stageOf, suggestions} from "../utils/workflow";
 import {involvementOf} from "../utils/involvement";
+import {usePairings} from "../resources/pairings";
 
 const GROUPS: {id: Part, title: string, hint: string}[] = [
   {id: "move", title: "Waiting for your nomination", hint: "The other nominator is done, or it has to be checked again"},
@@ -54,7 +53,7 @@ function Workspace({user}: {user: User}) {
   const {maps, error} = usePlanner()
   const {selected, open, close} = useOpenMap()
   const nominator = canEdit(session)
-  const pairings = useQuery<Pairing[]>(nominator ? Api.fetchPairings(user.osuId) : undefined)
+  const {rankedWith} = usePairings(nominator ? user.osuId : undefined)
 
   const row = (beatmap: Beatmap, reason?: string, action?: ReactNode) => (
     <MapRow key={beatmap.osuId} beatmap={beatmap} selected={selected === beatmap.osuId} onOpen={() => open(beatmap.osuId)} reason={reason}>{action}</MapRow>
@@ -67,7 +66,7 @@ function Workspace({user}: {user: User}) {
   const busy = groups.some(it => it.maps.length > 0)
   const mapped = all.filter(it => it.mapper.osuId === user.osuId).sort((a, b) => Number(stageOf(b) === "attention") - Number(stageOf(a) === "attention"))
   const fits = nominator
-    ? suggestions(all, user, name => pairings.data?.find(it => it.name === name)?.pairingRanked ?? 0).slice(0, 6)
+    ? suggestions(all, user, rankedWith).slice(0, 6)
     : []
 
   // In the order of the page, every beatmap once

@@ -166,8 +166,8 @@ class OtherApiTest : ApiTest() {
 
         get("/v2/profile/2/pairing").assertJson(
             """
-            [{"name":"Admin","pairingPending":1,"pairingRanked":0,"pairingGraved":1},
-            {"name":"Viewer","pairingPending":0,"pairingRanked":1,"pairingGraved":0}]
+            [{"osuId":"3","name":"Admin","pairingPending":1,"pairingRanked":0,"pairingGraved":1},
+            {"osuId":"1","name":"Viewer","pairingPending":0,"pairingRanked":1,"pairingGraved":0}]
             """,
         )
         get("/v2/profile/99/pairing").assertJson("[]")

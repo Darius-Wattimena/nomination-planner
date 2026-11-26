@@ -1,12 +1,11 @@
 import {useEffect, useRef, useState} from "react";
-import type {Gamemode, Pairing, User} from "../models/Types";
-import Api from "../resources/Api";
-import {useQuery} from "../resources/client";
+import type {Gamemode, User} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import {Avatar, RoleBadges} from "../ui/Person";
 import {useSession} from "../utils/session";
 import {canNominate, onProbation} from "../utils/users";
 import {inProgress} from "../utils/involvement";
+import {usePairings} from "../resources/pairings";
 
 interface NominatorPickerProps {
   mode: Gamemode
@@ -23,7 +22,7 @@ export default function NominatorPicker({mode, partner, fullOnly, excluded, onPi
   const {maps = [], nominators} = usePlanner()
   const [text, setText] = useState("")
   const input = useRef<HTMLInputElement>(null)
-  const pairings = useQuery<Pairing[]>(partner && Api.fetchPairings(partner.osuId))
+  const {rankedWith} = usePairings(partner?.osuId)
 
   // Not on touch screens, where the keyboard would cover the list
   useEffect(() => {
@@ -36,7 +35,7 @@ export default function NominatorPicker({mode, partner, fullOnly, excluded, onPi
     .map(user => ({
       user,
       load: inProgress(maps, user.osuId),
-      together: pairings.data?.find(it => it.name === user.username)?.pairingRanked ?? 0
+      together: rankedWith(user)
     }))
     .sort((a, b) => Number(b.user.osuId === self?.osuId) - Number(a.user.osuId === self?.osuId) || b.together - a.together || a.load - b.load)
 

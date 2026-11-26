@@ -87,8 +87,8 @@ export function NominatorBadges({id}: {id: string}) {
 export function NewPairings({user, pairings}: {user: User, pairings: Pairing[]}) {
   const modes = user.gamemodes.filter(it => it.role !== "Mapper").map(it => it.gamemode)
   const {nominators = []} = usePlanner()
-  const known = new Set(pairings.filter(it => it.pairingRanked > 0 || it.pairingPending > 0).map(it => it.name))
-  const fresh = nominators.filter(it => it.osuId !== user.osuId && !known.has(it.username) && modes.some(mode => canNominate(it, mode))).slice(0, 6)
+  const known = new Set(pairings.filter(it => it.pairingRanked > 0 || it.pairingPending > 0).map(it => it.osuId))
+  const fresh = nominators.filter(it => it.osuId !== user.osuId && !known.has(it.osuId) && modes.some(mode => canNominate(it, mode))).slice(0, 6)
   if (fresh.length === 0) return null
 
   return (

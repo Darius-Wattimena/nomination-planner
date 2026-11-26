@@ -5,10 +5,8 @@ import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
 import {GAMEMODE_NAMES, GAMEMODES, ROLES} from "../Constants";
-import type {Pairing, User, UserRole} from "../models/Types";
+import type {User, UserRole} from "../models/Types";
 import {Gamemode} from "../models/Types";
-import Api from "../resources/Api";
-import {useQuery} from "../resources/client";
 import {usePlanner} from "../resources/planner";
 import NominatorYear, {NewPairings, NominatorBadges} from "../stats/NominatorYear";
 import Cover from "../ui/Cover";
@@ -24,6 +22,7 @@ import type {Part} from "../utils/workflow";
 import {ageInDays, stageOf} from "../utils/workflow";
 import type {Involvement} from "../utils/involvement";
 import {involvementOf} from "../utils/involvement";
+import {usePairings} from "../resources/pairings";
 
 const TEAM_ROLES: UserRole[] = ["NominationAssessment", "Nominator", "Probation"]
 const SHOWN_COVERS = 5
@@ -64,7 +63,7 @@ function Overview() {
   const [role, setRole] = useState<UserRole>()
   const [text, setText] = useState("")
 
-  const pairings = useQuery<Pairing[]>(self && Api.fetchPairings(self.osuId))
+  const {rankedWith} = usePairings(self?.osuId)
 
   const members = (nominators ?? []).filter(it => highestRole(it, mode) !== "Mapper").map((user): Member => {
     const all = involvementOf(maps, user.osuId)
@@ -73,7 +72,7 @@ function Overview() {
       inProgress: all.filter(it => it.part !== "qualified").sort((a, b) => ORDER.indexOf(a.part) - ORDER.indexOf(b.part) || ageInDays(b.map) - ageInDays(a.map)),
       moves: all.filter(it => it.part === "move").length,
       qualified: all.filter(it => it.part === "qualified").length,
-      together: pairings.data?.find(it => it.name === user.username)?.pairingRanked ?? 0
+      together: rankedWith(user)
     }
   })
   // Being free is relative, what is much for one team is little for another
@@ -197,7 +196,7 @@ function Profile({id}: {id: string}) {
   const self = useSession()?.user
   const {maps = [], nominators = []} = usePlanner()
   const {selected, open, close} = useOpenMap()
-  const pairings = useQuery<Pairing[]>(Api.fetchPairings(id))
+  const pairings = usePairings(id)
 
   const isSelf = id === self?.osuId
   const known = maps.flatMap(it => [...it.gamemodes.flatMap(mode => mode.nominators).map(slot => slot.nominator), it.mapper]).find(it => it.osuId === id)
@@ -208,7 +207,7 @@ function Profile({id}: {id: string}) {
     .map(it => it.map)
   const partners = [...(pairings.data ?? [])].sort((a, b) => b.pairingRanked - a.pairingRanked || b.pairingPending - a.pairingPending).slice(0, 8)
   const most = Math.max(1, ...partners.map(it => it.pairingRanked + it.pairingPending))
-  const withMe = self && !isSelf ? pairings.data?.find(it => it.name === self.username) : undefined
+  const withMe = self && !isSelf ? pairings.pairingWith(self) : undefined
 
   return (
     <div className="page">
@@ -249,7 +248,7 @@ function Profile({id}: {id: string}) {
             {pairings.data && partners.length === 0 && <p className="muted">Nobody yet.</p>}
             <ul className="partners">
               {partners.map(it => (
-                <li key={it.name}>
+                <li key={it.osuId}>
                   <span>{it.name}</span>
                   <span className="load-text">{it.pairingRanked}{it.pairingPending > 0 && ` + ${it.pairingPending}`}</span>
                   <span className="load" role="img" aria-label={`${it.pairingRanked} ranked, ${it.pairingPending} now`}>

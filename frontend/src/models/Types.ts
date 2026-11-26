@@ -43,6 +43,7 @@ export interface Beatmap {
 }
 
 export interface Pairing {
+  osuId: string
   name: string
   pairingPending: number
   pairingRanked: number

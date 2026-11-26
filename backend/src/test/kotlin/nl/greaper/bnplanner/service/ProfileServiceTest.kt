@@ -29,7 +29,7 @@ class ProfileServiceTest {
         planner.save(beatmap("6", mode(Gamemode.osu, "6", "7")))
 
         assertEquals(
-            listOf(ProfileStatisticsPairInfo("Alice", 0, 1, 2), ProfileStatisticsPairInfo("Zed", 6, 2, 1)),
+            listOf(ProfileStatisticsPairInfo("7", "Alice", 0, 1, 2), ProfileStatisticsPairInfo("6", "Zed", 6, 2, 1)),
             pairing(),
         )
     }
@@ -47,15 +47,15 @@ class ProfileServiceTest {
         planner.user("5", "Me")
         planner.save(beatmap("1", mode(Gamemode.osu, "5", "5")))
 
-        assertEquals(listOf(ProfileStatisticsPairInfo("Me", 1, 0, 0)), pairing())
+        assertEquals(listOf(ProfileStatisticsPairInfo("5", "Me", 1, 0, 0)), pairing())
     }
 
     @Test
-    fun `SUSPECTED BUG - The pairing of the missing nominator counts every nominator with a missing one`() {
+    fun `Should have no pairing for the missing nominator`() {
         planner.user("6", "Zed")
         planner.save(beatmap("1", mode(Gamemode.osu, "6", "0")))
 
-        assertEquals(listOf(ProfileStatisticsPairInfo("Zed", 1, 0, 0)), pairing("0"))
+        assertEquals(emptyList<ProfileStatisticsPairInfo>(), pairing("0"))
     }
 
     private fun gamemode(vararg nominators: String) = BeatmapGamemode(Gamemode.osu, nominators.map { BeatmapNominator(it, false) }, false)
@@ -67,13 +67,14 @@ class ProfileServiceTest {
         assertEquals(emptyList<ProfileStatisticsPairInfo>(), pairing())
     }
 
+    // A mode always has two nominators, others can't be part of a pair
     @Test
-    fun `SUSPECTED BUG - Pairing ignores a third nominator`() {
+    fun `Should only pair the first two nominators`() {
         planner.user("6", "Zed")
         planner.user("7", "Alice")
         planner.save(beatmap("1", gamemode("5", "6", "7")))
         planner.save(beatmap("2", gamemode("6", "7", "5")))
 
-        assertEquals(listOf(ProfileStatisticsPairInfo("Zed", 1, 0, 0)), pairing())
+        assertEquals(listOf(ProfileStatisticsPairInfo("6", "Zed", 1, 0, 0)), pairing())
     }
 }

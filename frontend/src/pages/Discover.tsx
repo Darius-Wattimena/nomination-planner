@@ -10,9 +10,7 @@ import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
 import type {Choice} from "../discover/choices";
 import {useChoices} from "../discover/choices";
 import {useSongPreview} from "../discover/useSongPreview";
-import type {Beatmap, Gamemode, Pairing, User} from "../models/Types";
-import Api from "../resources/Api";
-import {useQuery} from "../resources/client";
+import type {Beatmap, Gamemode, User} from "../models/Types";
 import {reloadPlanner, usePlanner} from "../resources/planner";
 import Cover from "../ui/Cover";
 import ModeIcon from "../ui/ModeIcon";
@@ -23,6 +21,7 @@ import StatusBadge from "../ui/StatusBadge";
 import {canEdit, useSession} from "../utils/session";
 import {canNominate} from "../utils/users";
 import {ageLabel, suggestions} from "../utils/workflow";
+import {usePairings} from "../resources/pairings";
 
 const SWIPE = 110
 
@@ -47,7 +46,7 @@ export default function Discover() {
 
 function Deck({user}: {user: User}) {
   const {maps, error} = usePlanner()
-  const pairings = useQuery<Pairing[]>(Api.fetchPairings(user.osuId))
+  const {rankedWith} = usePairings(user.osuId)
   const {choices, choose, forget, forgetPasses} = useChoices(user.osuId)
   const {selected: opened, open, close} = useOpenMap()
   const [mode, setMode] = useState<Gamemode>()
@@ -56,7 +55,6 @@ function Deck({user}: {user: User}) {
 
   const ownModes = GAMEMODES.filter(it => canNominate(user, it))
 
-  const rankedWith = (name: string) => pairings.data?.find(it => it.name === name)?.pairingRanked ?? 0
   const available = suggestions(maps ?? [], user, rankedWith, mode)
   const queue = available.filter(it => !choices[it.map.osuId])
   // Background refreshes may reorder the queue, but never the card in front of you

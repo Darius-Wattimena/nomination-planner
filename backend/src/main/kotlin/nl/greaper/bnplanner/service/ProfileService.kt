@@ -2,6 +2,7 @@ package nl.greaper.bnplanner.service
 
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.model.profile.ProfileStatisticsPairInfo
+import nl.greaper.bnplanner.service.UserService.Companion.MISSING_USER_ID
 import org.springframework.stereotype.Service
 
 @Service
@@ -9,80 +10,47 @@ class ProfileService(
     private val beatmapService: BeatmapService,
     private val userService: UserService,
 ) {
-    fun getUserPairing(userId: String): List<ProfileStatisticsPairInfo> {
-        val beatmaps = beatmapService.findBeatmapsByNominator(userId)
+    private class Count {
+        var pending = 0
+        var ranked = 0
+        var graved = 0
 
-        val otherNominatorCount = mutableMapOf<String, Count>()
-
-        beatmaps.forEach { beatmap ->
-            beatmap.gamemodes.forEach { beatmapGamemode ->
-                // Only count when the nominator id is equal to the userId we want to count for
-                if (beatmapGamemode.nominators.any { it.nominatorId == userId }) {
-                    val firstNominator = beatmapGamemode.nominators[0].nominatorId
-                    val secondNominator = beatmapGamemode.nominators[1].nominatorId
-
-                    countOtherNominator(beatmap.status, userId, firstNominator, secondNominator, otherNominatorCount)
-                }
+        fun add(status: BeatmapStatus) {
+            when (status) {
+                BeatmapStatus.Ranked -> ranked++
+                BeatmapStatus.Graved -> graved++
+                else -> pending++
             }
         }
-
-        return otherNominatorCount.toProfileStatisticsPairInfo().sortedBy { it.name }
     }
 
-    private data class Count(
-        var pending: Int,
-        var ranked: Int,
-        var graveyard: Int,
-    )
-
-    private fun Map<String, Count>.toProfileStatisticsPairInfo(): List<ProfileStatisticsPairInfo> =
-        this.mapNotNull { (userId, amount) ->
-            val user = userService.findUserById(userId)
-
-            if (user != null) {
-                ProfileStatisticsPairInfo(
-                    name = user.username,
-                    pairingPending = amount.pending,
-                    pairingRanked = amount.ranked,
-                    pairingGraved = amount.graveyard,
-                )
-            } else {
-                null
-            }
+    /** Who a nominator nominated with, by the two nominators of each mode */
+    fun getUserPairing(userId: String): List<ProfileStatisticsPairInfo> {
+        if (userId == MISSING_USER_ID) {
+            return emptyList()
         }
 
-    private fun countOtherNominator(
-        beatmapStatus: BeatmapStatus,
-        userId: String,
-        firstNominator: String,
-        secondNominator: String,
-        currentCounts: MutableMap<String, Count>,
-    ) {
-        val countingField =
-            when (beatmapStatus) {
-                BeatmapStatus.Ranked -> Count::ranked
-                BeatmapStatus.Graved -> Count::graveyard
-                else -> Count::pending
-            }
+        val counts = mutableMapOf<String, Count>()
+        beatmapService.findBeatmapsByNominator(userId).forEach { beatmap ->
+            beatmap.gamemodes.forEach { gamemode ->
+                // A mode has two nominators, only those two are a pair
+                val pair = gamemode.nominators.take(2).map { it.nominatorId }
+                val other =
+                    when (userId) {
+                        pair.first() -> pair.getOrNull(1)
+                        pair.getOrNull(1) -> pair.first()
+                        else -> null
+                    }
 
-        if (firstNominator == userId) {
-            if (secondNominator != "0") {
-                currentCounts.compute(secondNominator) { _, current ->
-                    val actualCurrent = current ?: Count(0, 0, 0)
-                    val newCount = countingField.get(actualCurrent).inc()
-                    countingField.set(actualCurrent, newCount)
-                    actualCurrent
-                }
-            }
-        } else if (secondNominator == userId) {
-            if (firstNominator != "0") {
-                currentCounts.compute(firstNominator) { _, current ->
-                    val actualCurrent = current ?: Count(0, 0, 0)
-                    val newCount = countingField.get(actualCurrent).inc()
-                    countingField.set(actualCurrent, newCount)
-                    actualCurrent
+                if (other != null && other != MISSING_USER_ID) {
+                    counts.getOrPut(other) { Count() }.add(beatmap.status)
                 }
             }
         }
+
+        return counts
+            .mapNotNull { (id, count) ->
+                userService.findUserById(id)?.let { ProfileStatisticsPairInfo(id, it.username, count.pending, count.ranked, count.graved) }
+            }.sortedBy { it.name }
     }
 }

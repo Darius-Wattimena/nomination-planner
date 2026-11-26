@@ -88,7 +88,7 @@ export function partOf(map: Beatmap, userId: string | undefined): Part | undefin
 }
 
 /** Open beatmaps this user could take, the ones that are closest to being done first */
-export function suggestions(maps: Beatmap[], user: User, rankedWith: (name: string) => number, only?: Gamemode) {
+export function suggestions(maps: Beatmap[], user: User, rankedWith: (user: User) => number, only?: Gamemode) {
   return maps
     .filter(map => !partOf(map, user.osuId))
     .flatMap(map => map.gamemodes
@@ -96,7 +96,7 @@ export function suggestions(maps: Beatmap[], user: User, rankedWith: (name: stri
       .slice(0, 1)
       .map(mode => {
         const partner = mode.nominators.map(it => it.nominator).find(it => !isMissing(it))
-        const together = partner ? rankedWith(partner.username) : 0
+        const together = partner ? rankedWith(partner) : 0
         const nominated = mode.nominators.some(it => it.hasNominated)
         const reason = partner
           ? `${partner.username} ${nominated ? "already nominated" : `is looking for a ${needsFullNominator(map, mode) ? "full" : "second"} nominator`}${together > 0 ? `, you ranked ${together} together` : ""}`
