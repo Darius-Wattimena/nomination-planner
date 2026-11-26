@@ -1,5 +1,5 @@
 import {useEffect, useRef} from "react";
-import {useNavigate, useSearchParams} from "react-router-dom";
+import {useNavigate, useSearchParams} from "react-router";
 import {login} from "../resources/client";
 import {Loading} from "../ui/States";
 import {getSession} from "../utils/session";

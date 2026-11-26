@@ -1,5 +1,5 @@
 import {useState} from "react";
-import {Link} from "react-router-dom";
+import {Link} from "react-router";
 import {FaDoorOpen, FaDumbbell, FaPeopleGroup, FaSeedling, FaShuffle} from "react-icons/fa6";
 import {Avatar} from "../ui/Person";
 import {useSession} from "../utils/session";

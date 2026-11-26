@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from "react";
-import {Link} from "react-router-dom";
+import {Link} from "react-router";
 import {FaCircleQuestion, FaMoon, FaRightFromBracket, FaSun} from "react-icons/fa6";
 import {User} from "../models/Types";
 import {logOut} from "../resources/planner";

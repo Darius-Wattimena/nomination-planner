@@ -1,5 +1,5 @@
 import {useMemo, useState} from "react";
-import {Link} from "react-router-dom";
+import {Link} from "react-router";
 import {Beatmap, Pairing, User} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import {useRanked} from "../resources/ranked";

@@ -1,5 +1,5 @@
 import {PointerEvent as ReactPointerEvent, useEffect, useRef, useState} from "react";
-import {Link} from "react-router-dom";
+import {Link} from "react-router";
 import {FaArrowUpRightFromSquare, FaHeart, FaPause, FaPlay, FaRotateLeft, FaVolumeHigh, FaVolumeXmark, FaXmark} from "react-icons/fa6";
 import {useNominators} from "../beatmaps/actions";
 import {useOpenMap} from "../beatmaps/useOpenMap";

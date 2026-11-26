@@ -1,5 +1,5 @@
 import {useMemo, useState} from "react";
-import {useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
 import {Gamemode} from "../models/Types";
 import ModeIcon from "../ui/ModeIcon";

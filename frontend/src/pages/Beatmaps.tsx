@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useState} from "react";
-import {useSearchParams} from "react-router-dom";
+import {useSearchParams} from "react-router";
 import {FaList, FaPlus, FaTableColumns, FaXmark} from "react-icons/fa6";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";

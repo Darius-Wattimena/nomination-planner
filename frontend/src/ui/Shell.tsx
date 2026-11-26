@@ -1,5 +1,5 @@
 import {ReactNode} from "react";
-import {Link, NavLink, Outlet} from "react-router-dom";
+import {Link, NavLink, Outlet} from "react-router";
 import {FaBoxArchive, FaChartColumn, FaHeadphones, FaHouse, FaMagnifyingGlass, FaMoon, FaPeopleGroup, FaShieldHalved, FaSun, FaTableColumns} from "react-icons/fa6";
 import logo from "../assets/greaper.png";
 import {usePlanner, usePlannerRefresh} from "../resources/planner";

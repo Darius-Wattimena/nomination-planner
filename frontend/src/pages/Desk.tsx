@@ -1,5 +1,5 @@
 import {ReactNode} from "react";
-import {Link, useLocation} from "react-router-dom";
+import {Link, useLocation} from "react-router";
 import logo from "../assets/greaper.png";
 import {useNominators} from "../beatmaps/actions";
 import {useOpenMap} from "../beatmaps/useOpenMap";

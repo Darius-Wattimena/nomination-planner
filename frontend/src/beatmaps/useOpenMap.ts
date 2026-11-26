@@ -1,5 +1,5 @@
 import {useRef} from "react";
-import {useLocation, useNavigate, useSearchParams} from "react-router-dom";
+import {useLocation, useNavigate, useSearchParams} from "react-router";
 
 /**
  * The opened beatmap is part of the URL. Opening it is a single step in the history, whatever number of beatmaps

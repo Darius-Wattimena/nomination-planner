@@ -1,5 +1,5 @@
 import {createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useState} from "react";
-import {useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
 import {Beatmap, Gamemode} from "../models/Types";
 import {addBeatmap, NOBODY, setNominator, usePlanner} from "../resources/planner";

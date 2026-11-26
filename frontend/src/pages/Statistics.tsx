@@ -1,5 +1,5 @@
 import {useMemo, useState} from "react";
-import {useSearchParams} from "react-router-dom";
+import {useSearchParams} from "react-router";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";

@@ -1,4 +1,4 @@
-import {Link} from "react-router-dom";
+import {Link} from "react-router";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
 import {Gamemode} from "../models/Types";
 import {usePlanner} from "../resources/planner";

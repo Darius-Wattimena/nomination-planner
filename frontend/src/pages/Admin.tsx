@@ -1,5 +1,5 @@
 import {FormEvent, useEffect, useState} from "react";
-import {Link} from "react-router-dom";
+import {Link} from "react-router";
 import {PENDING_STATUSES} from "../Constants";
 import {BeatmapStatus, SyncInfo} from "../models/Types";
 import Api from "../resources/Api";

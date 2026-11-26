@@ -1,6 +1,6 @@
 import {createContext, FormEvent, ReactNode, useContext, useState} from "react";
 import Modal from "react-modal";
-import {useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router";
 import {FaMagnifyingGlass, FaXmark} from "react-icons/fa6";
 import {User} from "../models/Types";
 import {usePlanner} from "../resources/planner";

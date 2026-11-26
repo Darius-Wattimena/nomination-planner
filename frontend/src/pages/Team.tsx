@@ -1,5 +1,5 @@
 import {useState} from "react";
-import {Link, useSearchParams} from "react-router-dom";
+import {Link, useSearchParams} from "react-router";
 import {FaArrowLeft, FaArrowUpRightFromSquare, FaMagnifyingGlass} from "react-icons/fa6";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";

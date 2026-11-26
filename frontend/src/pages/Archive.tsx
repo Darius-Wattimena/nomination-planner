@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from "react";
-import {NavLink, useSearchParams} from "react-router-dom";
+import {NavLink, useSearchParams} from "react-router";
 import {FaMagnifyingGlass, FaXmark} from "react-icons/fa6";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
