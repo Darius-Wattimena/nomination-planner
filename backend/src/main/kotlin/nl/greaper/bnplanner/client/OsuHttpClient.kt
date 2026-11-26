@@ -4,6 +4,9 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.model.osu.AuthToken
 import nl.greaper.bnplanner.model.osu.BeatmapSet
+import nl.greaper.bnplanner.model.osu.BeatmapsetEventType
+import nl.greaper.bnplanner.model.osu.BeatmapsetEvents
+import nl.greaper.bnplanner.model.osu.GroupHistory
 import nl.greaper.bnplanner.model.osu.Me
 import nl.greaper.bnplanner.util.shouldSkipUser
 import org.springframework.http.HttpHeaders
@@ -18,6 +21,8 @@ import org.springframework.web.client.RestClientException
 import org.springframework.web.client.toEntity
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.module.kotlin.readValue
+import java.net.URI
+import java.net.URLEncoder
 
 @Component
 class OsuHttpClient(
@@ -109,6 +114,46 @@ class OsuHttpClient(
         } catch (ex: Exception) {
             throw OsuRequestException("Unable to get a user from the osu api, using id $osuId", ex)
         }
+    }
+
+    /**
+     * A page of the events of all beatmap sets, newest first, as shown on https://osu.ppy.sh/beatmapsets/events
+     *
+     * @param page starts at 1
+     */
+    fun findBeatmapsetEvents(
+        osuApiToken: String,
+        page: Int,
+    ): BeatmapsetEvents {
+        val types = BeatmapsetEventType.entries.joinToString("&") { "types[]=${it.osuName}" }
+        val response = get("/beatmapsets/events?$types&page=$page", osuApiToken)
+
+        return objectMapper.readValue<BeatmapsetEvents>(response.body ?: "")
+    }
+
+    /**
+     * A page of who joined or left a group, newest first. Not part of the api, but the website answers with JSON when asked to.
+     *
+     * @param cursor of the page before, null for the newest
+     */
+    fun findGroupHistory(
+        groupId: String,
+        cursor: String?,
+    ): GroupHistory {
+        val after = cursor?.let { "&cursor_string=${URLEncoder.encode(it, Charsets.UTF_8)}" }.orEmpty()
+        val uri = URI.create("${config.baseUrl}/groups/history?group_id=${URLEncoder.encode(groupId, Charsets.UTF_8)}$after")
+
+        log.info { "GET ==> $uri" }
+
+        val body =
+            rest
+                .get()
+                .uri(uri)
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(String::class.java)
+
+        return objectMapper.readValue<GroupHistory>(body ?: "")
     }
 
     internal fun request(

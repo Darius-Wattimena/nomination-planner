@@ -26,6 +26,14 @@ osu.background-sync:
   enabled: false
   per-minute: 6
 
+osu.follow-events:
+  enabled: false
+  every-seconds: 60
+
+osu.follow-groups:
+  enabled: false
+  every-seconds: 600
+
 cors:
   uris: http://localhost:3000,http://localhost:8080
   methods: GET,POST,PUT,OPTIONS,DELETE,PATCH

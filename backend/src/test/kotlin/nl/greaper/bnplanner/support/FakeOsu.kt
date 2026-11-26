@@ -124,4 +124,24 @@ object FakeOsu {
         "beatmaps":[{"total_length":100,"user_id":$userId,"mode":"osu","version":"Hard","bpm":180.5}]}
         """.trimIndent(),
     )
+
+    /** A recorded answer of osu!, from src/test/resources/osu */
+    fun sample(name: String): String = FakeOsu::class.java.getResource("/osu/$name")!!.readText()
+
+    const val EVENT_TYPES =
+        "types%5B%5D=nominate&types%5B%5D=qualify&types%5B%5D=rank&types%5B%5D=nomination_reset" +
+            "&types%5B%5D=nomination_reset_received&types%5B%5D=disqualify"
+
+    fun beatmapsetEvents(
+        page: Int,
+        body: String,
+        status: Int = 200,
+    ) = respond("GET /api/v2/beatmapsets/events?$EVENT_TYPES&page=$page", body, status)
+
+    fun groupHistory(
+        groupId: String,
+        body: String,
+        cursor: String? = null,
+        status: Int = 200,
+    ) = respond("GET /groups/history?group_id=$groupId${cursor?.let { "&cursor_string=$it" }.orEmpty()}", body, status)
 }
