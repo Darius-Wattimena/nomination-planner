@@ -6,6 +6,7 @@ import nl.greaper.bnplanner.CHANGE_BEATMAP_NOTE_ICON
 import nl.greaper.bnplanner.CREATED_BEATMAP_ICON
 import nl.greaper.bnplanner.DELETED_BEATMAP_ICON
 import nl.greaper.bnplanner.REMOVED_NOMINATOR_ICON
+import nl.greaper.bnplanner.auth.OsuLogin
 import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
@@ -58,18 +59,15 @@ class BeatmapService(
         return dataSource.findAll(filter)
     }
 
-    fun findExposedBeatmap(
-        osuApiToken: String,
-        id: String,
-    ): ExposedBeatmap? = dataSource.findById(id)?.toExposedBeatmap()
+    fun findExposedBeatmap(id: String): ExposedBeatmap? = dataSource.findById(id)?.toExposedBeatmap()
 
     fun deleteBeatmap(
-        osuApiToken: String,
+        login: OsuLogin,
         osuId: String,
     ) {
         val databaseBeatmap = dataSource.findById(osuId) ?: return
         if (dataSource.deleteById(osuId)) {
-            logBeatmapDelete(osuApiToken, databaseBeatmap)
+            logBeatmapDelete(login, databaseBeatmap)
         }
     }
 
@@ -105,7 +103,6 @@ class BeatmapService(
     }
 
     fun findBeatmaps(
-        osuApiToken: String,
         search: String?,
         artist: String?,
         title: String?,
@@ -126,7 +123,7 @@ class BeatmapService(
             ).mapNotNull { it.toExposedBeatmap() }
 
     fun addBeatmap(
-        osuApiToken: String,
+        login: OsuLogin,
         input: NewBeatmap,
     ): ExposedBeatmap? {
         val addDate = Instant.now()
@@ -138,8 +135,7 @@ class BeatmapService(
             return databaseBeatmap.toExposedBeatmap()
         }
 
-        val parsedToken = osuApiToken.removePrefix("Bearer ")
-        val osuBeatmap = osuHttpClient.findBeatmapWithId(parsedToken, input.osuId) ?: return null
+        val osuBeatmap = osuHttpClient.findBeatmapWithId(login.accessToken, input.osuId) ?: return null
 
         val preparedBeatmapGamemodes =
             input.gamemodes.map {
@@ -159,7 +155,7 @@ class BeatmapService(
         if (databaseUser == null || databaseUser.restricted == true) {
             // Sleep the thread if we need to find the user as well to avoid the call being blocked
             sleeper.sleep(1_000)
-            val mapper = userService.forceFindUserById(parsedToken, osuBeatmap.user_id) ?: databaseUser
+            val mapper = userService.forceFindUserById(login.accessToken, osuBeatmap.user_id) ?: databaseUser
 
             if (mapper == null) {
                 // A beatmap without a known mapper would never be shown
@@ -187,7 +183,7 @@ class BeatmapService(
         // Asking osu! takes a while, someone else may have added it in the meantime
         dataSource.insertIfMissing(newBeatmap)?.let { return it.toExposedBeatmap() }
 
-        logBeatmapAdded(parsedToken, newBeatmap)
+        logBeatmapAdded(login, newBeatmap)
         return newBeatmap.toExposedBeatmap()
     }
 
@@ -200,8 +196,7 @@ class BeatmapService(
             return
         }
 
-        val parsedToken = osuApiToken.removePrefix("Bearer ")
-        val osuBeatmap = osuHttpClient.findBeatmapWithId(parsedToken, beatmap.osuId)
+        val osuBeatmap = osuHttpClient.findBeatmapWithId(osuApiToken, beatmap.osuId)
 
         if (osuBeatmap == null) {
             log.warn { "Could not find beatmap when requesting osu api (osuId: ${beatmap.osuId})" }
@@ -214,7 +209,7 @@ class BeatmapService(
                     val userId = currentNomination.userId.toString()
                     val user =
                         userService.findUserById(userId)
-                            ?: userService.forceFindUserById(parsedToken, userId)
+                            ?: userService.forceFindUserById(osuApiToken, userId)
 
                     if (user == null) {
                         // Leaving out a nominator would reset their nomination
@@ -398,7 +393,7 @@ class BeatmapService(
     }
 
     fun updateBeatmapNote(
-        osuApiToken: String,
+        login: OsuLogin,
         osuId: String,
         newNote: String,
     ): Boolean {
@@ -407,13 +402,13 @@ class BeatmapService(
                 current.copy(note = newNote, dateUpdated = Instant.now()).takeIf { current.note != newNote }
             }
 
-        updatedBeatmap?.let { logBeatmapNoteChange(osuApiToken, it) }
+        updatedBeatmap?.let { logBeatmapNoteChange(login, it) }
 
         return findBeatmap(osuId) != null
     }
 
     fun updateBeatmapStatus(
-        osuApiToken: String,
+        login: OsuLogin,
         osuId: String,
         newStatus: BeatmapStatus,
     ): Boolean {
@@ -427,13 +422,13 @@ class BeatmapService(
                     ).takeIf { current.status != newStatus }
             }
 
-        updatedBeatmap?.let { logBeatmapStatusChange(osuApiToken, it) }
+        updatedBeatmap?.let { logBeatmapStatusChange(login, it) }
 
         return findBeatmap(osuId) != null
     }
 
     fun updateBeatmapNominator(
-        osuApiToken: String,
+        login: OsuLogin,
         osuId: String,
         gamemode: Gamemode,
         oldNominator: String,
@@ -448,7 +443,7 @@ class BeatmapService(
                 replaceNominator(current, gamemode, oldNominator, newNominator)
             } ?: return null
 
-        logUpdatedNominators(osuApiToken, updatedBeatmap, oldNominator, newNominator, gamemode, gamemodesBeforeUpdate)
+        logUpdatedNominators(login, updatedBeatmap, oldNominator, newNominator, gamemode, gamemodesBeforeUpdate)
 
         return updatedBeatmap.toExposedBeatmap()
     }
@@ -534,10 +529,10 @@ class BeatmapService(
     }
 
     fun logBeatmapAdded(
-        osuApiToken: String,
+        login: OsuLogin,
         beatmap: Beatmap,
     ) {
-        val editor = userService.getEditor(osuApiToken)
+        val editor = userService.findUserById(login.osuId)
         log.info { "[CREATE] ${editor?.username} added (beatmap = ${beatmap.osuId})" }
         val gamemodes = beatmap.gamemodes.joinToString { it.gamemode.toReadableName() }
 
@@ -559,10 +554,10 @@ class BeatmapService(
     }
 
     fun logBeatmapDelete(
-        osuApiToken: String,
+        login: OsuLogin,
         beatmap: Beatmap,
     ) {
-        val editor = userService.getEditor(osuApiToken)
+        val editor = userService.findUserById(login.osuId)
         log.info { "[DELETE] ${editor?.username} deleted (beatmap = ${beatmap.osuId})" }
 
         val message =
@@ -582,10 +577,10 @@ class BeatmapService(
     }
 
     fun logBeatmapNoteChange(
-        osuApiToken: String,
+        login: OsuLogin,
         beatmap: Beatmap,
     ) {
-        val editor = userService.getEditor(osuApiToken)
+        val editor = userService.findUserById(login.osuId)
         log.info { "[UPDATE] ${editor?.username} changed note (beatmap = ${beatmap.osuId})" }
 
         val noteText =
@@ -612,10 +607,10 @@ class BeatmapService(
     }
 
     fun logBeatmapStatusChange(
-        osuApiToken: String,
+        login: OsuLogin,
         beatmap: Beatmap,
     ) {
-        val editor = userService.getEditor(osuApiToken)
+        val editor = userService.findUserById(login.osuId)
         log.info { "[UPDATE] ${editor?.username} changed status to ${beatmap.status.name} (beatmap = ${beatmap.osuId})" }
 
         val message =
@@ -676,14 +671,14 @@ class BeatmapService(
     }
 
     fun logUpdatedNominators(
-        osuApiToken: String,
+        login: OsuLogin,
         beatmap: Beatmap,
         oldNominatorId: String,
         newNominatorId: String,
         gamemode: Gamemode,
         gamemodesBeforeUpdate: List<Gamemode>,
     ) {
-        val editor = userService.getEditor(osuApiToken)
+        val editor = userService.findUserById(login.osuId)
         val oldNominator = userService.findUserById(oldNominatorId)
         val newNominator = userService.findUserById(newNominatorId)
 

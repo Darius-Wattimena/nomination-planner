@@ -144,18 +144,4 @@ class UserServiceTest {
         assertNull(service.findUserById("-2"))
         assertEquals(User("0", "None", emptyList()), service.findUserById("0"))
     }
-
-    @Test
-    fun `Should find the editor of a token`() {
-        val editor = planner.user("99")
-
-        assertEquals("99", service.getEditorId(TOKEN))
-        assertEquals("99", service.getEditorId("Bearer $TOKEN"))
-        assertEquals(editor, service.getEditor(TOKEN))
-        assertNull(service.getEditorId("unreadable"))
-        assertNull(service.getEditor("unreadable"))
-        assertNull(service.getEditor(createToken(subject = "98")))
-        // Expired tokens can't be read
-        assertNull(service.getEditorId(createToken(expires = 1)))
-    }
 }

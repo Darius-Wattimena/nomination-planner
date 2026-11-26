@@ -37,7 +37,6 @@ class BeatmapFilterTest {
         planner.user("10")
         val table =
             service.findBeatmaps(
-                "",
                 search,
                 artist,
                 title,
@@ -236,7 +235,7 @@ class BeatmapFilterTest {
             number: Int,
             limit: PageLimit,
         ) = service
-            .findBeatmaps("", null, null, null, null, emptySet(), emptySet(), BeatmapPage.PENDING, number, limit, emptySet(), emptySet())
+            .findBeatmaps(null, null, null, null, emptySet(), emptySet(), BeatmapPage.PENDING, number, limit, emptySet(), emptySet())
             .map { it.osuId.toInt() }
 
         assertEquals((21..25).toList(), table(3, PageLimit.TEN))
@@ -250,7 +249,6 @@ class BeatmapFilterTest {
         val found =
             service
                 .findBeatmaps(
-                    "",
                     null,
                     null,
                     null,

@@ -67,51 +67,12 @@ class LoginServiceTest {
 
     // Stays until the login moves to Spring Security sessions, which removes this endpoint and the workaround in the frontend
     @Test
-    fun `SUSPECTED BUG - Should log in, dropping the last character of the code`() {
-        osuKnowsUser()
-
-        assertContext(auth.login("code="))
-        assertEquals(listOf("POST /oauth/token", "GET /api/v2/users/5?key=id"), FakeOsu.calls())
-        assertTrue(FakeOsu.requests[0].body.contains(""""code":"code""""))
-        assertEquals("Bearer $token", FakeOsu.requests[1].header("Authorization"))
-        assertEquals(login("📗 **LOGIN:** BN logged in", EmbedColor.GREEN, user), planner.discord.single())
-        assertEquals(user, planner.users.findUser("5"))
-    }
-
-    // Stays until the login moves to Spring Security sessions, which removes this endpoint and the workaround in the frontend
-    @Test
     fun `SUSPECTED BUG - Should refresh a login, dropping the last character of the token`() {
         osuKnowsUser()
 
         assertContext(auth.refresh("refresh="))
         assertTrue(FakeOsu.requests[0].body.contains(""""refresh_token":"refresh""""))
         assertEquals(login("📗 **LOGIN:** BN refreshed login", EmbedColor.GREEN, user), planner.discord.single())
-    }
-
-    @Test
-    fun `Should not log in using a blank code`() {
-        assertNull(auth.login(" ="))
-        assertNull(auth.login(""))
-        assertEquals(emptyList<String>(), FakeOsu.calls())
-        assertEquals(
-            login("📕 **ERROR:** Unexpected error occurred while logging in\nProvided code is blank", EmbedColor.RED),
-            planner.discord.sent[0],
-        )
-    }
-
-    @Test
-    fun `Should not log in when osu refuses the code`() {
-        FakeOsu.respond("POST /oauth/token", """{"error":"invalid_grant"}""", status = 400)
-
-        assertNull(auth.login("code="))
-        assertEquals(emptyList<Sent>(), planner.discord.sent)
-    }
-
-    @Test
-    fun `Should not log in without a body`() {
-        FakeOsu.respond("POST /oauth/token", "", status = 204)
-
-        assertNull(auth.login("code="))
     }
 
     @Test
@@ -156,25 +117,12 @@ class LoginServiceTest {
     }
 
     @Test
-    fun `Should not set up a login for a token without a subject`() {
-        // {"exp":4102444800}
-        FakeOsu.token("${token.substringBefore('.')}.eyJleHAiOjQxMDI0NDQ4MDB9.signature")
-
-        assertNull(auth.login("code="))
-        assertEquals(listOf("POST /oauth/token"), FakeOsu.calls())
-    }
-
-    @Test
     fun `Should not set up a login without a readable token`() {
         FakeOsu.token("unreadable")
 
-        assertNull(auth.login("code="))
         assertNull(auth.refresh("refresh="))
         assertEquals(
-            listOf(
-                login("📕 **ERROR:** Could not set up context while logging in", EmbedColor.RED),
-                login("📕 **ERROR:** Could not set up context while refreshing user login", EmbedColor.RED),
-            ),
+            listOf(login("📕 **ERROR:** Could not set up context while refreshing user login", EmbedColor.RED)),
             planner.discord.sent,
         )
     }
@@ -183,11 +131,11 @@ class LoginServiceTest {
     fun `Should log in a restricted user as viewer`() {
         FakeOsu.token(token)
 
-        val context = auth.login("code=")!!
+        val context = auth.refresh("refresh=")!!
         assertEquals(User("5", "RESTRICTED", emptyList(), true), context.user)
         assertEquals(RolePermission(Role.Mapper, setOf("VIEWER")), context.permission)
         assertEquals(
-            "📗 **LOGIN:** RESTRICTED logged in",
+            "📗 **LOGIN:** RESTRICTED refreshed login",
             planner.discord.sent
                 .last()
                 .description,
@@ -196,13 +144,15 @@ class LoginServiceTest {
 
     @Test
     fun `Should report a login without a user or message`() {
-        auth.logLogin(UserContext(null, "", "", 0, RolePermission(Role.Mapper, emptySet())))
+        auth.logLogin(null)
         auth.logLogin(null, exception = RuntimeException())
+        auth.logLogin(user)
 
         assertEquals(
             listOf(
                 login("📕 **ERROR:** Could not find user while logging in", EmbedColor.RED),
-                login("📕 **ERROR:** Could not set up context while logging in", EmbedColor.RED),
+                login("📕 **ERROR:** Could not find user while logging in", EmbedColor.RED),
+                login("📗 **LOGIN:** BN logged in", EmbedColor.GREEN, user),
             ),
             planner.discord.sent,
         )
@@ -214,7 +164,7 @@ class LoginServiceTest {
         FakeOsu.token(token, "new-refresh", 86400)
         FakeOsu.respond("GET /api/v2/users/5?key=id", "{}", status = 503)
 
-        assertContext(auth.login("code="))
+        assertContext(auth.refresh("refresh="))
         assertEquals(listOf(user), planner.users.list())
     }
 
@@ -223,16 +173,8 @@ class LoginServiceTest {
         FakeOsu.token(token, "new-refresh", 86400)
         FakeOsu.respond("GET /api/v2/users/5?key=id", "{}", status = 503)
 
-        assertNull(auth.login("code="))
+        assertNull(auth.refresh("refresh="))
         assertEquals(emptyList<User>(), planner.users.list())
-    }
-
-    @Test
-    fun `Should log in without Discord`() {
-        val auth = Planner(withDiscord = false).authService
-        osuKnowsUser()
-
-        assertContext(auth.login("code="))
     }
 
     @Test
@@ -242,7 +184,24 @@ class LoginServiceTest {
 
         assertEquals(
             RolePermission(Role.NominationAssessment, setOf("DEVELOPER", "ADMIN", "VIEWER", "EDITOR")),
-            auth.login("code=")!!.permission,
+            auth.refresh("refresh=")!!.permission,
         )
+    }
+
+    @Test
+    fun `Should not set up a login for a token without a subject`() {
+        // {"exp":4102444800}
+        FakeOsu.token("${token.substringBefore('.')}.eyJleHAiOjQxMDI0NDQ4MDB9.signature")
+
+        assertNull(auth.refresh("refresh="))
+        assertEquals(listOf("POST /oauth/token"), FakeOsu.calls())
+    }
+
+    @Test
+    fun `Should refresh a login without Discord`() {
+        val auth = Planner(withDiscord = false).authService
+        osuKnowsUser()
+
+        assertContext(auth.refresh("refresh="))
     }
 }

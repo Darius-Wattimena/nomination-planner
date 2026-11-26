@@ -10,7 +10,7 @@ import nl.greaper.bnplanner.model.UserGamemode
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.support.Planner
 import nl.greaper.bnplanner.support.Planner.Companion.ADDED
-import nl.greaper.bnplanner.support.Planner.Companion.TOKEN
+import nl.greaper.bnplanner.support.Planner.Companion.LOGIN
 import nl.greaper.bnplanner.support.Planner.Companion.UPDATED
 import nl.greaper.bnplanner.support.Planner.Companion.beatmap
 import nl.greaper.bnplanner.support.Planner.Companion.mode
@@ -101,7 +101,7 @@ class PlannerServiceTest {
         assertEquals(first.token, nothing.token)
         assertEquals(emptyList<Any>(), nothing.beatmaps + nothing.users + nothing.removed)
 
-        planner.beatmapService.updateBeatmapNote(TOKEN, "1", "changed")
+        planner.beatmapService.updateBeatmapNote(LOGIN, "1", "changed")
         val changed = service.find(first.token)
         assertEquals(setOf("1"), changed.beatmapIds())
         assertEquals("changed", changed.beatmaps.single().note)
@@ -154,7 +154,7 @@ class PlannerServiceTest {
             ids.map { id ->
                 thread {
                     start.await()
-                    results[id] = planner.beatmapService.updateBeatmapNominator(TOKEN, "1", Gamemode.osu, "0", id) != null
+                    results[id] = planner.beatmapService.updateBeatmapNominator(LOGIN, "1", Gamemode.osu, "0", id) != null
                 }
             }
         planner.user("10")
@@ -172,9 +172,9 @@ class PlannerServiceTest {
 
         val threads =
             listOf(
-                thread { (1..50).forEach { planner.beatmapService.updateBeatmapNote(TOKEN, "1", "note $it") } },
-                thread { planner.beatmapService.updateBeatmapNominator(TOKEN, "1", Gamemode.osu, "0", "5") },
-                thread { planner.beatmapService.updateBeatmapStatus(TOKEN, "1", BeatmapStatus.Nominated) },
+                thread { (1..50).forEach { planner.beatmapService.updateBeatmapNote(LOGIN, "1", "note $it") } },
+                thread { planner.beatmapService.updateBeatmapNominator(LOGIN, "1", Gamemode.osu, "0", "5") },
+                thread { planner.beatmapService.updateBeatmapStatus(LOGIN, "1", BeatmapStatus.Nominated) },
             )
         threads.forEach { it.join() }
 

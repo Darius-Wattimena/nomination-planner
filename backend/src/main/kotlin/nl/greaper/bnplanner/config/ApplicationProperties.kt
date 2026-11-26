@@ -31,3 +31,11 @@ data class CorsProperties(
 data class DiscordProperties(
     val token: String,
 )
+
+@ConfigurationProperties("login")
+data class LoginProperties(
+    /** The website, to send someone back to once they logged in with osu! */
+    val websiteUrl: String,
+    /** Only send the login cookie over https */
+    val secureCookie: Boolean = false,
+)

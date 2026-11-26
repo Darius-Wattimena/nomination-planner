@@ -191,7 +191,7 @@ class BeatmapApiTest : ApiTest() {
                 .replace("2024-01-01T10:00:00Z", added.getString("dateAdded"))
                 .replace("2024-02-02T11:12:13.456Z", added.getString("dateAdded")),
         )
-        assertEquals(As.EDITOR.header, FakeOsu.requests.single().header("Authorization"))
+        assertEquals("Bearer ${As.EDITOR.accessToken}", FakeOsu.requests.single().header("Authorization"))
         assertEquals("Editor", discord.single().editor!!.username)
         assertEquals(listOf("1"), beatmaps.list().map { it.osuId })
     }
@@ -284,10 +284,8 @@ class BeatmapApiTest : ApiTest() {
     @Test
     fun `Should clear the note through an actual server`() {
         beatmaps.insertOne(beatmap("1", mapperId = "1", note = "old"))
-        FakeOsu.respond("GET /api/v2/me", """{"id":2,"username":"Editor"}""")
 
-        val headers = mapOf("Authorization" to As.EDITOR.header!!, "Content-Type" to "text/plain")
-        assertEquals("", http("PATCH", "/v2/beatmap/1/note", headers, "").body())
+        assertEquals("", http("PATCH", "/v2/beatmap/1/note", mapOf("Content-Type" to "text/plain"), "", As.EDITOR).body())
         assertEquals("", beatmaps.findById("1")!!.note)
     }
 

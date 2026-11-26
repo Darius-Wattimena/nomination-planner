@@ -14,7 +14,6 @@ import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
 import nl.greaper.bnplanner.model.osu.Me
 import nl.greaper.bnplanner.model.osu.MeGroup
-import nl.greaper.bnplanner.util.parseJwtToken
 import org.springframework.stereotype.Service
 
 @Service
@@ -72,7 +71,6 @@ class UserService(
         osuId: String,
         logEventToDiscord: Boolean = true,
     ): User? {
-        val editor = getEditor(osuApiToken)
         val osuUser =
             try {
                 osuHttpClient.findUserWithId(osuApiToken, osuId)
@@ -85,7 +83,7 @@ class UserService(
             // Should only end up here if the user is restricted or the provided id is invalid
             val restrictedUser = User(osuId, "RESTRICTED", emptyList(), restricted = true)
             dataSource.saveUser(restrictedUser)
-            log.info { "[CREATE] ${editor?.username} added restricted user (osuId = $osuId)" }
+            log.info { "[CREATE] Added restricted user (osuId = $osuId)" }
 
             discordClient?.send(
                 description = "Could not find user with id $osuId, created restricted user",
@@ -104,7 +102,7 @@ class UserService(
         dataSource.saveUser(newUser)
 
         if (logEventToDiscord) {
-            log.info { "[CREATE] ${editor?.username} added user ${newUser.username} (osuId = $osuId)" }
+            log.info { "[CREATE] Added user ${newUser.username} (osuId = $osuId)" }
             discordClient?.send(
                 description = "Created user $osuId, with username: ${newUser.username}",
                 color = EmbedColor.BLUE,
@@ -130,16 +128,5 @@ class UserService(
         }
 
         return dataSource.findUser(osuId)
-    }
-
-    fun getEditorId(osuApiToken: String): String? {
-        val claims = parseJwtToken(osuApiToken) ?: return null
-
-        return claims.subject
-    }
-
-    fun getEditor(osuApiToken: String): User? {
-        val editorId = getEditorId(osuApiToken) ?: return null
-        return findUserById(editorId)
     }
 }

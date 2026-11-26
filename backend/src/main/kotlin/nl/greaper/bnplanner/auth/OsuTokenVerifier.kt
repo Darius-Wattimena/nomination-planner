@@ -99,7 +99,3 @@ class OsuTokenVerifier(
     private fun hash(token: String): String =
         Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(token.toByteArray()))
 }
-
-class OsuUnavailableException(
-    cause: Throwable,
-) : RuntimeException("Could not verify the token with osu!", cause)

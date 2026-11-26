@@ -8,26 +8,12 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
+/** Keeps the website of before the osu! login session working until its token expires */
 @RestController
 @RequestMapping("/v2/auth")
 class AuthController(
     private val authService: AuthService,
 ) {
-    @PostMapping
-    fun login(
-        @RequestBody token: String,
-    ): ResponseEntity<UserContext> {
-        runCatching {
-            val result = authService.login(token)
-
-            if (result != null) {
-                return ResponseEntity.ok(result)
-            }
-        }
-
-        return ResponseEntity.badRequest().body(null)
-    }
-
     @PostMapping("/refresh")
     fun refreshLogin(
         @RequestBody refreshToken: String,

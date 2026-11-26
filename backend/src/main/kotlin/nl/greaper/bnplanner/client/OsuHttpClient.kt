@@ -6,7 +6,6 @@ import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.model.osu.AuthToken
 import nl.greaper.bnplanner.model.osu.BeatmapSet
 import nl.greaper.bnplanner.model.osu.Me
-import nl.greaper.bnplanner.model.osu.OsuOAuth
 import nl.greaper.bnplanner.model.osu.RefreshToken
 import nl.greaper.bnplanner.util.shouldSkipUser
 import org.springframework.http.HttpHeaders
@@ -57,27 +56,6 @@ class OsuHttpClient(
             .body(objectMapper.writeValueAsString(body))
             .retrieve()
             .toEntity<AuthToken>()
-
-    /**
-     * Get a token from the osu server
-     */
-    fun getToken(code: String): ResponseEntity<AuthToken>? {
-        val osuOAuth =
-            OsuOAuth(
-                client_id = config.clientId.toInt(),
-                client_secret = config.clientSecret,
-                code = code,
-                grant_type = "authorization_code",
-                redirect_uri = config.redirectUri,
-            )
-
-        return try {
-            postToken(osuOAuth)
-        } catch (error: Throwable) {
-            log.error(error) { "Could not get auth token" }
-            null
-        }
-    }
 
     /** A token of the planner itself, without any user, which can only read what is public */
     fun findClientToken(): AuthToken? {

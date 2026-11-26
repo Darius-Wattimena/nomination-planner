@@ -1,5 +1,6 @@
 package nl.greaper.bnplanner.support
 
+import nl.greaper.bnplanner.auth.OsuLogin
 import nl.greaper.bnplanner.auth.OsuTokenVerifierTest
 import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.client.OsuHttpClient
@@ -75,6 +76,9 @@ class Planner(
 
         /** Token of the user performing an action */
         val TOKEN = OsuTokenVerifierTest.createToken(subject = "99")
+
+        /** The user performing an action */
+        val LOGIN = OsuLogin("99") { TOKEN }
 
         // Configured the same way as Spring does
         fun osuClient() =

@@ -16,7 +16,15 @@ mongodb:
 osu:
   clientId: ""
   clientSecret: ""
+  # Where osu! sends someone back to after logging in, the same as set at osu! for the OAuth application.
+  # Empty for /login/oauth2/code/osu on the address the backend is reached on.
   redirectUri: ""
+
+login:
+  # Where someone ends up once they logged in
+  website-url: http://localhost:3000
+  # Turn on when the backend is reached through https
+  secure-cookie: false
 
 # Keep the collection of the previous version up to date, so it can be started again. Turn off once that is not needed anymore.
 beatmaps.keep-old: true
@@ -32,7 +40,7 @@ osu.background-sync:
 cors:
   uris: http://localhost:3000,http://localhost:8080
   methods: GET,POST,PUT,OPTIONS,DELETE,PATCH
-  headers: origin,content-type,accept,x-requested-with,authorization
+  headers: origin,content-type,accept,x-requested-with,authorization,x-csrf-token
 
 discord:
   enabled: true

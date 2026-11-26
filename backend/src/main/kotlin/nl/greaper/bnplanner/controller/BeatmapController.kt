@@ -1,6 +1,7 @@
 package nl.greaper.bnplanner.controller
 
 import jakarta.annotation.security.RolesAllowed
+import nl.greaper.bnplanner.auth.OsuLogin
 import nl.greaper.bnplanner.auth.RolePermission
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.PageLimit
@@ -10,7 +11,6 @@ import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmap
 import nl.greaper.bnplanner.model.beatmap.NewBeatmap
 import nl.greaper.bnplanner.service.BeatmapService
-import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -34,9 +33,8 @@ class BeatmapController(
     @GetMapping("/{id}")
     @RolesAllowed(RolePermission.VIEWER)
     fun findBeatmap(
-        @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
         @PathVariable("id") id: String,
-    ): ExposedBeatmap = service.findExposedBeatmap(osuApiToken, id) ?: throw notOnPlanner(id)
+    ): ExposedBeatmap = service.findExposedBeatmap(id) ?: throw notOnPlanner(id)
 
     @GetMapping("/count")
     @RolesAllowed(RolePermission.VIEWER)
@@ -66,7 +64,6 @@ class BeatmapController(
     @GetMapping("/find/table")
     @RolesAllowed(RolePermission.VIEWER)
     fun findBeatmapsTable(
-        @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
         @RequestParam page: BeatmapPage,
         @RequestParam pageNumber: Int,
         @RequestParam pageLimit: PageLimit,
@@ -80,7 +77,6 @@ class BeatmapController(
         @RequestParam(required = false) missingNominator: Set<Gamemode>?,
     ): List<ExposedBeatmap> =
         service.findBeatmaps(
-            osuApiToken = osuApiToken,
             search = search,
             artist = artist,
             title = title,
@@ -97,22 +93,22 @@ class BeatmapController(
     @PostMapping("/add")
     @RolesAllowed(RolePermission.EDITOR)
     fun addBeatmap(
-        @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
+        login: OsuLogin,
         @RequestBody newBeatmap: NewBeatmap,
     ): ExposedBeatmap =
-        service.addBeatmap(osuApiToken, newBeatmap)
+        service.addBeatmap(login, newBeatmap)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "osu! doesn't know beatmap ${newBeatmap.osuId}")
 
     @PatchMapping("/{id}/{mode}/nominator")
     @RolesAllowed(RolePermission.EDITOR)
     fun updateSingleNominator(
-        @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
+        login: OsuLogin,
         @RequestParam old: String,
         @RequestParam new: String,
         @PathVariable("id") id: String,
         @PathVariable("mode") mode: Gamemode,
     ): ExposedBeatmap =
-        service.updateBeatmapNominator(osuApiToken, id, mode, old, new)
+        service.updateBeatmapNominator(login, id, mode, old, new)
             ?: throw if (service.findBeatmap(id) == null) {
                 notOnPlanner(id)
             } else {
@@ -122,30 +118,30 @@ class BeatmapController(
     @PatchMapping("/{id}/status")
     @RolesAllowed(RolePermission.ADMIN)
     fun updateStatus(
-        @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
+        login: OsuLogin,
         @RequestParam new: BeatmapStatus,
         @PathVariable("id") id: String,
     ) {
-        if (!service.updateBeatmapStatus(osuApiToken, id, new)) throw notOnPlanner(id)
+        if (!service.updateBeatmapStatus(login, id, new)) throw notOnPlanner(id)
     }
 
     @PatchMapping("/{id}/note", consumes = ["text/plain"])
     @RolesAllowed(RolePermission.EDITOR)
     fun updateNote(
-        @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
+        login: OsuLogin,
         // There is no body when clearing the note
         @RequestBody(required = false) body: String?,
         @PathVariable("id") id: String,
     ) {
-        if (!service.updateBeatmapNote(osuApiToken, id, body ?: "")) throw notOnPlanner(id)
+        if (!service.updateBeatmapNote(login, id, body ?: "")) throw notOnPlanner(id)
     }
 
     @DeleteMapping("/{id}/delete")
     @RolesAllowed(RolePermission.EDITOR)
     fun deleteBeatmap(
-        @RequestHeader(HttpHeaders.AUTHORIZATION) osuApiToken: String,
+        login: OsuLogin,
         @PathVariable("id") id: String,
     ) {
-        service.deleteBeatmap(osuApiToken, id)
+        service.deleteBeatmap(login, id)
     }
 }

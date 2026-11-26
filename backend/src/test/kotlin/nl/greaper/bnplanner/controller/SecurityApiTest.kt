@@ -1,6 +1,7 @@
 package nl.greaper.bnplanner.controller
 
 import nl.greaper.bnplanner.DefaultExceptionHandler
+import nl.greaper.bnplanner.auth.LoginExpiredException
 import nl.greaper.bnplanner.auth.OsuTokenVerifierTest.Companion.createToken
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
@@ -16,6 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.http.HttpHeaders.AUTHORIZATION
+import org.springframework.mock.web.MockHttpServletRequest
 
 class SecurityApiTest : ApiTest() {
     @ParameterizedTest
@@ -159,7 +161,7 @@ class SecurityApiTest : ApiTest() {
         assertEquals(origin, response.getHeader("Access-Control-Allow-Origin"))
         assertEquals("GET,POST,PUT,OPTIONS,DELETE,PATCH", response.getHeader("Access-Control-Allow-Methods"))
         assertEquals("authorization, content-type", response.getHeader("Access-Control-Allow-Headers"))
-        assertNull(response.getHeader("Access-Control-Allow-Credentials"))
+        assertEquals("true", response.getHeader("Access-Control-Allow-Credentials"))
         assertNull(response.getHeader("Access-Control-Max-Age"))
 
         val actual = call(As.VIEWER, "GET", "/v2/profile/1/pairing", headers = mapOf("Origin" to origin))
@@ -200,6 +202,13 @@ class SecurityApiTest : ApiTest() {
             listOf(EmbedColor.RED, EmbedThumbnail(""), EmbedFooter(""), true, emptyList<Any>()),
             listOf(sent.color, sent.thumbnail, sent.footer, sent.confidential, sent.gamemodes),
         )
+    }
+
+    @Test
+    fun `Should ask to log in again without a session`() {
+        val response = context.getBean(DefaultExceptionHandler::class.java).loginExpired(LoginExpiredException(), MockHttpServletRequest())
+
+        assertEquals(401, response.statusCode.value())
     }
 
     // Using an actual server

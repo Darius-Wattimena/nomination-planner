@@ -73,7 +73,6 @@ class SyncService(
         users: Set<String>,
         force: Boolean = false,
     ): SyncInfo {
-        val token = osuToken.removePrefix("Bearer ")
         val totalUsers = users.count()
 
         log.info { "Checking $totalUsers users." }
@@ -83,7 +82,7 @@ class SyncService(
                 users.forEachIndexed { index, userId ->
                     val currentUser = userService.findUserById(userId)
                     if (force || currentUser == null || currentUser.restricted == true) {
-                        userService.forceFindUserById(token, userId)
+                        userService.forceFindUserById(osuToken, userId)
                         log.info { "[${index + 1}/$totalUsers] User $userId synced, sleeping." }
                         sleeper.sleep(1_000L + Random.nextInt(0, 1000))
                     } else {

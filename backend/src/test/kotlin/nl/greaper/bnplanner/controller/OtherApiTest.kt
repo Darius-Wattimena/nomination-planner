@@ -51,75 +51,48 @@ class OtherApiTest : ApiTest() {
     }
 
     private fun login(
-        path: String = "/v2/auth",
-        body: String = "code=",
+        body: String = "refresh=",
         contentType: String? = "text/plain",
-    ) = call(As.NOBODY, "POST", path, body, contentType)
-
-    @Test
-    fun `Should log in without any authorization`() {
-        osuKnowsEditor()
-
-        assertContext(login())
-        assertTrue(FakeOsu.requests[0].body.contains(""""code":"code""""))
-    }
+    ) = call(As.NOBODY, "POST", "/v2/auth/refresh", body, contentType)
 
     @Test
     fun `Should refresh a login without any authorization`() {
         osuKnowsEditor()
 
-        assertContext(login("/v2/auth/refresh", "refresh="))
+        assertContext(login())
         assertTrue(FakeOsu.requests[0].body.contains(""""refresh_token":"refresh""""))
     }
 
     @Test
-    fun `Should log in using a form, which is how the frontend sends it`() {
+    fun `Should refresh a login using a form, which is how the website of before sends it`() {
         osuKnowsEditor()
 
-        // The server turns a form without values into 'code=', of which the last character is dropped
-        listOf("/v2/auth", "/v2/auth/refresh").forEach {
-            FakeOsu.requests.clear()
-            val response = http("POST", it, mapOf("Content-Type" to "application/x-www-form-urlencoded"), "def502%2Bcode")
+        val response =
+            http("POST", "/v2/auth/refresh", mapOf("Content-Type" to "application/x-www-form-urlencoded"), "def502%2Brefresh")
 
-            assertEquals(200, response.statusCode())
-            assertEquals(token, JSONObject(response.body()).getString("accessToken"))
-            assertTrue(FakeOsu.requests[0].body.contains(""":"def502%2Bcode""""), FakeOsu.requests[0].body)
-        }
-    }
-
-    // Stays until the login moves to Spring Security sessions, which removes this endpoint and the workaround in the frontend
-    @Test
-    fun `SUSPECTED BUG - The last character of the code is dropped when it isn't sent as form`() {
-        osuKnowsEditor()
-
-        listOf("text/plain", "application/json").forEach {
-            FakeOsu.requests.clear()
-            assertEquals(200, http("POST", "/v2/auth", mapOf("Content-Type" to it), "code").statusCode())
-            assertTrue(FakeOsu.requests[0].body.contains(""""code":"cod""""))
-        }
+        assertEquals(200, response.statusCode())
+        assertEquals(token, JSONObject(response.body()).getString("accessToken"))
+        // The server turns a form without values into 'refresh=', of which the last character is dropped
+        assertTrue(FakeOsu.requests[0].body.contains(""""refresh_token":"def502%2Brefresh""""), FakeOsu.requests[0].body)
     }
 
     @Test
-    fun `Should fail to log in`() {
-        listOf("/v2/auth", "/v2/auth/refresh").forEach {
-            // osu refuses
-            FakeOsu.respond("POST /oauth/token", "{}", 401)
-            login(it).assertEmpty(400)
-            // osu fails
-            FakeOsu.respond("POST /oauth/token", "{}", 500)
-            login(it).assertEmpty(400)
-            // osu returns something unreadable
-            FakeOsu.token("unreadable")
-            login(it).assertEmpty(400)
-        }
-        login(body = "=").assertEmpty(400)
+    fun `Should fail to refresh a login`() {
+        // osu refuses
+        FakeOsu.respond("POST /oauth/token", "{}", 401)
+        login().assertEmpty(400)
+        // osu fails
+        FakeOsu.respond("POST /oauth/token", "{}", 500)
+        login().assertEmpty(400)
+        // osu returns something unreadable
+        FakeOsu.token("unreadable")
+        login().assertEmpty(400)
     }
 
     @Test
     fun `Should refuse to log in without a body`() {
         assertEquals(400, login(body = "").status)
-        assertEquals(400, login("/v2/auth/refresh", "").status)
-        assertEquals(405, call(As.VIEWER, "GET", "/v2/auth").status)
+        assertEquals(405, call(As.VIEWER, "GET", "/v2/auth/refresh").status)
     }
 
     // Users
@@ -184,9 +157,9 @@ class OtherApiTest : ApiTest() {
     // Live updates
 
     private fun waitForChanges(since: String): Pair<Long, JSONObject> {
-        FakeOsu.respond("GET /api/v2/me", """{"id":1,"username":"Viewer"}""")
+        session(As.VIEWER)
         val start = System.currentTimeMillis()
-        val response = http("GET", "/v2/planner/wait?since=$since", mapOf("Authorization" to As.VIEWER.header!!))
+        val response = http("GET", "/v2/planner/wait?since=$since", by = As.VIEWER)
         assertEquals(200, response.statusCode(), response.body())
         return (System.currentTimeMillis() - start) to JSONObject(response.body())
     }

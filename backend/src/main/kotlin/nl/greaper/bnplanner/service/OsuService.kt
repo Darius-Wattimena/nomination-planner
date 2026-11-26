@@ -17,15 +17,6 @@ class OsuService(
 ) {
     private val log = KotlinLogging.logger { }
 
-    fun getToken(code: String): AuthToken? {
-        val parsedToken = code.dropLast(1) // Somehow frontend always sends a trailing '='
-
-        require(parsedToken.isNotBlank()) { "Provided code is blank" }
-
-        val response = client.getToken(parsedToken)
-        return response?.body
-    }
-
     fun getAuthTokenByRefreshToken(refreshToken: String): AuthToken? {
         val response = client.refreshToken(refreshToken)
         val body = response?.body

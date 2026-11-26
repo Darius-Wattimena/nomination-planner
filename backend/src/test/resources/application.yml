@@ -11,9 +11,12 @@ mongodb:
   db: bnplanner
 
 osu:
-  clientId: ""
+  clientId: "1"
   clientSecret: ""
   redirectUri: ""
+
+login:
+  website-url: http://localhost:3000
 
 beatmaps.keep-old: true
 
@@ -26,7 +29,7 @@ osu.background-sync:
 cors:
   uris: http://localhost:3000,http://localhost:8080
   methods: GET,POST,PUT,OPTIONS,DELETE,PATCH
-  headers: origin,content-type,accept,x-requested-with,authorization
+  headers: origin,content-type,accept,x-requested-with,authorization,x-csrf-token
 
 discord:
   enabled: false

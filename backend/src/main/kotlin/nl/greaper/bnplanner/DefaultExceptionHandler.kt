@@ -1,6 +1,9 @@
 package nl.greaper.bnplanner
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import jakarta.servlet.http.HttpServletRequest
+import nl.greaper.bnplanner.auth.LoginExpiredException
+import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
@@ -25,6 +28,26 @@ class DefaultExceptionHandler(
         ResponseEntity
             .status(HttpStatus.FORBIDDEN)
             .body(ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "You are not allowed to do this"))
+
+    /** osu! no longer accepts their login, so they have to log in again */
+    @ExceptionHandler
+    fun loginExpired(
+        ex: LoginExpiredException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ProblemDetail> {
+        request.getSession(false)?.invalidate()
+        return ResponseEntity
+            .status(HttpStatus.UNAUTHORIZED)
+            .body(ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Please log in again"))
+    }
+
+    @ExceptionHandler
+    fun osuUnavailable(ex: OsuUnavailableException): ResponseEntity<ProblemDetail> {
+        log.warn(ex) { "osu! is unavailable" }
+        return ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .body(ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, "osu! can not be reached right now"))
+    }
 
     /** Something that went wrong in the planner itself, the developer hears about it */
     @ExceptionHandler

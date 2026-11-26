@@ -44,6 +44,7 @@ dependencies {
 
     // Spring
     implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-security-oauth2-client")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
@@ -53,6 +54,7 @@ dependencies {
 
     // Mongo
     implementation("org.mongodb:mongodb-driver-sync")
+    implementation("org.mongodb:mongodb-spring-session:4.0.0")
 
     // Logging
     implementation("io.github.oshai:kotlin-logging-jvm:8.0.7")
@@ -65,6 +67,7 @@ dependencies {
     testImplementation("org.mockito.kotlin:mockito-kotlin:6.4.0")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.security:spring-security-test")
     testImplementation("de.flapdoodle.embed:de.flapdoodle.embed.mongo:5.0.0")
     providedRuntime("org.springframework.boot:spring-boot-starter-tomcat")
 }

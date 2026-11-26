@@ -8,7 +8,7 @@ import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.datasource.DiscordEventListenerDataSource
 import nl.greaper.bnplanner.service.BeatmapService
 import nl.greaper.bnplanner.support.FakeJda
-import nl.greaper.bnplanner.support.Planner.Companion.TOKEN
+import nl.greaper.bnplanner.support.Planner.Companion.LOGIN
 import nl.greaper.bnplanner.support.Planner.Companion.beatmap
 import nl.greaper.bnplanner.support.TestMongo
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -60,7 +60,7 @@ class DiscordEnabledTest {
         assertTrue(context.getBean(DiscordClient::class.java) is DiscordBotClient)
         assertEquals(1, context.getBean(DiscordEventListenerDataSource::class.java).getListeners().size)
 
-        context.getBean(BeatmapService::class.java).logBeatmapDelete(TOKEN, beatmap())
+        context.getBean(BeatmapService::class.java).logBeatmapDelete(LOGIN, beatmap())
         assertEquals("secret", discord.messages.single().channel)
     }
 }

@@ -1,7 +1,9 @@
 package nl.greaper.bnplanner.support
 
+import jakarta.servlet.http.Cookie
 import nl.greaper.bnplanner.Application
 import nl.greaper.bnplanner.auth.OsuTokenVerifierTest.Companion.createToken
+import nl.greaper.bnplanner.config.SecurityConfig
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
 import nl.greaper.bnplanner.datasource.UserDataSource
 import nl.greaper.bnplanner.model.Gamemode
@@ -9,6 +11,7 @@ import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.UserGamemode
 import nl.greaper.bnplanner.util.Sleeper
+import org.json.JSONObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.skyscreamer.jsonassert.JSONAssert
@@ -28,8 +31,11 @@ import org.springframework.mock.web.MockHttpServletResponse
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request
+import org.springframework.web.util.UriComponentsBuilder
 import java.net.URI
+import java.net.URLDecoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
@@ -61,16 +67,31 @@ abstract class ApiTest {
     }
 
     enum class As(
-        val header: String?,
+        val osuId: String?,
     ) {
         NOBODY(null),
-        VIEWER("Bearer ${createToken(subject = "1")}"),
-        EDITOR("Bearer ${createToken(subject = "2")}"),
-        ADMIN("Bearer ${createToken(subject = "3")}"),
-        DEVELOPER("Bearer ${createToken(subject = "2369776")}"),
+        VIEWER("1"),
+        EDITOR("2"),
+        ADMIN("3"),
+        DEVELOPER("2369776"),
+        ;
+
+        /** An osu! token as the previous website sent it along */
+        val header: String? get() = osuId?.let { "Bearer ${createToken(subject = it)}" }
+
+        /** The osu! token the planner got for them when they logged in */
+        val accessToken: String get() = "access-$osuId"
     }
 
+    /** The cookie of a browser that logged in, with the token to send along with changes */
+    data class Session(
+        val cookie: Cookie,
+        val csrfToken: String,
+    )
+
     companion object {
+        const val SESSION_COOKIE = "PLANNER_SESSION"
+
         private val users =
             mapOf(
                 As.VIEWER to User("1", "Viewer", listOf(UserGamemode(Gamemode.osu, Role.Mapper))),
@@ -88,7 +109,6 @@ abstract class ApiTest {
             registry.add("osu.baseUrl") { FakeOsu.url }
             registry.add("osu.clientId") { "14229" }
             registry.add("osu.clientSecret") { "made-up-secret" }
-            registry.add("osu.redirectUri") { "http://localhost:3000/login" }
         }
     }
 
@@ -113,8 +133,11 @@ abstract class ApiTest {
     @LocalServerPort
     var serverPort: Int = 0
 
+    private val sessions = mutableMapOf<As, Session>()
+
     @BeforeEach
     fun clear() {
+        sessions.clear()
         TestMongo.clear()
         beatmaps.load()
         FakeOsu.reset()
@@ -123,6 +146,53 @@ abstract class ApiTest {
         users.forgetInMemoryUsers()
         Companion.users.values.forEach { users.addInMemoryUser(it) }
     }
+
+    /** Log in with osu! like a browser does, without leaving a trace in what osu! or Discord got */
+    fun logIn(
+        by: As,
+        returnTo: String? = "/",
+    ): Session {
+        val known = FakeOsu.requests.size to discord.sent.size
+        val start =
+            mvc
+                .perform(MockMvcRequestBuilders.get("/oauth2/authorization/osu").apply { returnTo?.let { param("returnTo", it) } })
+                .andReturn()
+                .response
+        val state =
+            UriComponentsBuilder
+                .fromUriString(start.redirectedUrl!!)
+                .build()
+                .queryParams
+                .getFirst("state")!!
+
+        val callback =
+            FakeOsu.temporarily(
+                "POST /oauth/token" to FakeOsu.tokenBody(by.accessToken, "refresh-${by.osuId}"),
+                "GET /api/v2/me" to """{"id":${by.osuId},"username":"Someone"}""",
+                // What the planner knows of them stays as it is
+                "GET /api/v2/users/${by.osuId}?key=id" to "unavailable",
+            ) {
+                mvc
+                    .perform(
+                        MockMvcRequestBuilders
+                            .get("/login/oauth2/code/osu")
+                            .param("code", "code")
+                            .param("state", URLDecoder.decode(state, Charsets.UTF_8))
+                            .cookie(start.getCookie(SESSION_COOKIE)!!),
+                    ).andReturn()
+                    .response
+            }
+        assertEquals(302, callback.status, callback.contentAsString)
+
+        val cookie = callback.getCookie(SESSION_COOKIE)!!
+        val session = mvc.perform(MockMvcRequestBuilders.get("/v2/session").cookie(cookie)).andReturn().response
+
+        while (FakeOsu.requests.size > known.first) FakeOsu.requests.removeLast()
+        while (discord.sent.size > known.second) discord.sent.removeLast()
+        return Session(cookie, JSONObject(session.contentAsString).getString("csrfToken"))
+    }
+
+    fun session(by: As) = sessions.getOrPut(by) { logIn(by) }
 
     /** Perform a request, the uri has to be encoded already */
     fun call(
@@ -133,14 +203,33 @@ abstract class ApiTest {
         contentType: String? = MediaType.APPLICATION_JSON_VALUE.takeIf { body != null },
         headers: Map<String, String> = emptyMap(),
     ): MockHttpServletResponse {
-        // Accept the token when it is verified
-        Companion.users[by]?.let { FakeOsu.respond("GET /api/v2/me", """{"id":${it.osuId},"username":"${it.username}"}""") }
-
         val request = request(HttpMethod.valueOf(method), URI.create(uri))
-        by.header?.let { request.header(AUTHORIZATION, it) }
+        if (by != As.NOBODY) {
+            val session = session(by)
+            request.cookie(session.cookie)
+            request.header(SecurityConfig.CSRF_HEADER, session.csrfToken)
+        }
         body?.let { request.content(it) }
         contentType?.let { request.contentType(it) }
         headers.forEach { (name, value) -> request.header(name, value) }
+
+        return mvc.perform(request).andReturn().response
+    }
+
+    /** Perform a request with an osu! token, like the previous website did */
+    fun callWithToken(
+        by: As,
+        method: String,
+        uri: String,
+        body: String? = null,
+        contentType: String? = MediaType.APPLICATION_JSON_VALUE.takeIf { body != null },
+    ): MockHttpServletResponse {
+        // Accept the token when it is verified
+        FakeOsu.respond("GET /api/v2/me", """{"id":${by.osuId},"username":"Someone"}""")
+
+        val request = request(HttpMethod.valueOf(method), URI.create(uri)).header(AUTHORIZATION, by.header!!)
+        body?.let { request.content(it) }
+        contentType?.let { request.contentType(it) }
 
         val response = mvc.perform(request).andReturn().response
         FakeOsu.requests.removeIf { it.uri == "/api/v2/me" }
@@ -158,9 +247,15 @@ abstract class ApiTest {
         uri: String,
         headers: Map<String, String> = emptyMap(),
         body: String? = null,
+        by: As = As.NOBODY,
     ): HttpResponse<String> {
         val publisher = body?.let { HttpRequest.BodyPublishers.ofString(it) } ?: HttpRequest.BodyPublishers.noBody()
         val request = HttpRequest.newBuilder(URI.create("http://localhost:$serverPort$uri")).method(method, publisher)
+        if (by != As.NOBODY) {
+            val session = session(by)
+            request.header("Cookie", "$SESSION_COOKIE=${session.cookie.value}")
+            request.header(SecurityConfig.CSRF_HEADER, session.csrfToken)
+        }
         headers.forEach { (name, value) -> request.header(name, value) }
         return HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString())
     }

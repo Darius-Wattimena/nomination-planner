@@ -50,6 +50,20 @@ object FakeOsu {
         responses[request] = Response(status, body)
     }
 
+    /** Responds like this only while performing the block, keeping what a test set up itself. "unavailable" answers 503. */
+    fun <T> temporarily(
+        vararg answers: Pair<String, String>,
+        block: () -> T,
+    ): T {
+        val before = answers.associate { (request, _) -> request to responses[request] }
+        answers.forEach { (request, body) -> if (body == "unavailable") respond(request, "{}", 503) else respond(request, body) }
+        try {
+            return block()
+        } finally {
+            before.forEach { (request, response) -> if (response == null) responses.remove(request) else responses[request] = response }
+        }
+    }
+
     fun calls(): List<String> = requests.map { "${it.method} ${it.uri}" }
 
     private fun handle(exchange: HttpExchange) {
@@ -79,14 +93,17 @@ object FakeOsu {
         groups: String = "[]",
     ) = respond("GET /api/v2/users/$id?key=id", """{"id":$id,"username":"$username","groups":$groups,"is_bot":false}""")
 
+    fun tokenBody(
+        accessToken: String,
+        refreshToken: String = "refresh",
+        expiresIn: Int = 86400,
+    ) = """{"token_type":"Bearer","expires_in":$expiresIn,"access_token":"$accessToken","refresh_token":"$refreshToken"}"""
+
     fun token(
         accessToken: String,
         refreshToken: String = "refresh",
         expiresIn: Int = 86400,
-    ) = respond(
-        "POST /oauth/token",
-        """{"token_type":"Bearer","expires_in":$expiresIn,"access_token":"$accessToken","refresh_token":"$refreshToken"}""",
-    )
+    ) = respond("POST /oauth/token", tokenBody(accessToken, refreshToken, expiresIn))
 
     fun beatmap(
         id: String,

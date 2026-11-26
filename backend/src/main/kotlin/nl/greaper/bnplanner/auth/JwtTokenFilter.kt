@@ -65,7 +65,7 @@ class JwtTokenFilter(
 
                 val authentication =
                     UsernamePasswordAuthenticationToken(
-                        permission,
+                        OsuLogin(osuId) { token },
                         token,
                         permission.roles.map { SimpleGrantedAuthority("ROLE_$it") },
                     )

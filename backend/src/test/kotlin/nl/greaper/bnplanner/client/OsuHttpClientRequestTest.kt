@@ -49,37 +49,6 @@ class OsuHttpClientRequestTest {
     }
 
     @Test
-    fun `Should get a token`() {
-        FakeOsu.token("made-up-access", "made-up-refresh")
-
-        assertEquals(tokenResponse, client.getToken("code")!!.body)
-        assertTokenRequest(
-            """
-            {"client_id":14229,"client_secret":"made-up-secret","code":"code","grant_type":"authorization_code",
-            "redirect_uri":"http://localhost:3000/login"}
-            """,
-        )
-    }
-
-    @Test
-    fun `Should ignore unknown details of a token`() {
-        FakeOsu.respond(
-            "POST /oauth/token",
-            """{"token_type":"Bearer","expires_in":86400,"access_token":"a","refresh_token":"r","scope":"public"}""",
-        )
-
-        assertEquals(AuthToken("Bearer", 86400, "a", "r"), client.getToken("code")!!.body)
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = [400, 401, 403, 429, 500])
-    fun `Should get no token when osu refuses`(status: Int) {
-        FakeOsu.respond("POST /oauth/token", """{"error":"invalid_grant"}""", status)
-
-        assertNull(client.getToken("code"))
-    }
-
-    @Test
     fun `Should refresh a token`() {
         FakeOsu.token("made-up-access", "made-up-refresh")
 
@@ -141,7 +110,7 @@ class OsuHttpClientRequestTest {
         FakeOsu.respond("GET /api/v2/me", "{}", status)
 
         val ex = assertThrows<OsuUnavailableException> { client.findTokenOwnerId("token") }
-        assertEquals("Could not verify the token with osu!", ex.message)
+        assertEquals("Could not reach osu!", ex.message)
     }
 
     @Test

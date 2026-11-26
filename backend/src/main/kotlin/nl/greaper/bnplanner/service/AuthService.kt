@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import nl.greaper.bnplanner.LOGIN_FAILED_ICON
 import nl.greaper.bnplanner.LOGIN_ICON
 import nl.greaper.bnplanner.client.DiscordClient
+import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.UserContext
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
@@ -17,19 +18,6 @@ class AuthService(
 ) {
     private val log = KotlinLogging.logger { }
 
-    fun login(token: String): UserContext? {
-        try {
-            val authToken = osuService.getToken(token) ?: return null
-            val context = osuService.getUserContextByToken(authToken)
-            return context.also { logLogin(it) }
-        } catch (exception: Throwable) {
-            log.error(exception) { "User login failed" }
-            logLogin(null, exception = exception)
-        }
-
-        return null
-    }
-
     fun refresh(refreshToken: String): UserContext? {
         try {
             val parsedToken = refreshToken.dropLast(1) // Somehow frontend always sends a trailing '='
@@ -37,30 +25,25 @@ class AuthService(
             if (authToken != null) {
                 return osuService
                     .getUserContextByToken(authToken)
-                    .also { logLogin(context = it, refresh = true) }
+                    .also { logLogin(it?.user, refresh = true, setUp = it != null) }
             }
 
             // Couldn't get auth token when refreshing
             return null
         } catch (exception: Throwable) {
             log.error(exception) { "User token refresh failed" }
-            logLogin(
-                context = null,
-                refresh = true,
-                exception = exception,
-            )
+            logLogin(null, refresh = true, exception = exception)
         }
 
         return null
     }
 
     fun logLogin(
-        context: UserContext?,
-        refresh: Boolean = false,
+        user: User?,
         exception: Throwable? = null,
+        refresh: Boolean = false,
+        setUp: Boolean = true,
     ) {
-        val user = context?.user
-
         val loginMessagePart =
             if (refresh) {
                 "refreshing user login"
@@ -77,7 +60,7 @@ class AuthService(
                     }
                 }
 
-                context == null -> {
+                !setUp -> {
                     "**ERROR:** Could not set up context while $loginMessagePart"
                 }
 
