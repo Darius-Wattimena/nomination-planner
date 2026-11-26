@@ -2,7 +2,6 @@ package nl.greaper.bnplanner.support
 
 import jakarta.servlet.http.Cookie
 import nl.greaper.bnplanner.Application
-import nl.greaper.bnplanner.auth.OsuTokenVerifierTest.Companion.createToken
 import nl.greaper.bnplanner.config.SecurityConfig
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
 import nl.greaper.bnplanner.datasource.UserDataSource
@@ -24,7 +23,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
-import org.springframework.http.HttpHeaders.AUTHORIZATION
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockHttpServletResponse
@@ -75,9 +73,6 @@ abstract class ApiTest {
         ADMIN("3"),
         DEVELOPER("2369776"),
         ;
-
-        /** An osu! token as the previous website sent it along */
-        val header: String? get() = osuId?.let { "Bearer ${createToken(subject = it)}" }
 
         /** The osu! token the planner got for them when they logged in */
         val accessToken: String get() = "access-$osuId"
@@ -214,26 +209,6 @@ abstract class ApiTest {
         headers.forEach { (name, value) -> request.header(name, value) }
 
         return mvc.perform(request).andReturn().response
-    }
-
-    /** Perform a request with an osu! token, like the previous website did */
-    fun callWithToken(
-        by: As,
-        method: String,
-        uri: String,
-        body: String? = null,
-        contentType: String? = MediaType.APPLICATION_JSON_VALUE.takeIf { body != null },
-    ): MockHttpServletResponse {
-        // Accept the token when it is verified
-        FakeOsu.respond("GET /api/v2/me", """{"id":${by.osuId},"username":"Someone"}""")
-
-        val request = request(HttpMethod.valueOf(method), URI.create(uri)).header(AUTHORIZATION, by.header!!)
-        body?.let { request.content(it) }
-        contentType?.let { request.contentType(it) }
-
-        val response = mvc.perform(request).andReturn().response
-        FakeOsu.requests.removeIf { it.uri == "/api/v2/me" }
-        return response
     }
 
     fun get(

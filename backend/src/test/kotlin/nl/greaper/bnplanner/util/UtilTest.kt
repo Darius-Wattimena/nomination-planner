@@ -1,7 +1,6 @@
 package nl.greaper.bnplanner.util
 
 import nl.greaper.bnplanner.ServletInitializer
-import nl.greaper.bnplanner.auth.OsuTokenVerifierTest.Companion.createToken
 import nl.greaper.bnplanner.auth.RolePermission
 import nl.greaper.bnplanner.config.DatabaseConfig
 import nl.greaper.bnplanner.config.MongoProperties
@@ -144,22 +143,6 @@ class UtilTest {
             getHighestRoleForUser(User("2369776", "", emptyList())),
         )
         assertEquals("Nominator", nominator.name)
-    }
-
-    @Test
-    fun `Should read the claims of a token without verifying it`() {
-        val token = createToken(subject = "5")
-
-        assertEquals("5", parseJwtToken(token)!!.subject)
-        assertEquals("5", parseJwtToken("Bearer $token")!!.subject)
-        assertEquals("5", parseJwtToken(createToken(subject = "5", algorithm = "none"))!!.subject)
-        assertNull(parseJwtToken(createToken(expires = 1)))
-        assertNull(parseJwtToken("bearer $token"))
-        listOf("", "unreadable", "a.b.c", "Bearer ", "WzFd.${token.split('.')[1]}.x").forEach { assertNull(parseJwtToken(it)) }
-
-        val withoutExpiry = "${token.split('.')[0]}.eyJzdWIiOjV9.x"
-        assertEquals("5", parseJwtToken(withoutExpiry)!!.subject)
-        assertNull(parseJwtToken(withoutExpiry)!!["exp"])
     }
 
     @Test

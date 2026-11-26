@@ -20,10 +20,6 @@ class OsuLoginResolver(
         binderFactory: WebDataBinderFactory?,
     ): OsuLogin {
         val login = SecurityContextHolder.getContext().authentication!!
-
-        // Logged in with an osu! token of the previous website, which comes with the request itself
-        (login.principal as? OsuLogin)?.let { return it }
-
         return OsuLogin(login.name) { tokens.find(login.name) }
     }
 }

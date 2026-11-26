@@ -3,7 +3,6 @@ package nl.greaper.bnplanner.config
 import jakarta.servlet.DispatcherType
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import nl.greaper.bnplanner.auth.JwtTokenFilter
 import nl.greaper.bnplanner.auth.LoginFlow
 import nl.greaper.bnplanner.auth.OsuLoginResolver
 import nl.greaper.bnplanner.auth.OsuTokens
@@ -12,13 +11,11 @@ import nl.greaper.bnplanner.auth.SessionRolesFilter
 import nl.greaper.bnplanner.service.UserService
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.http.HttpHeaders.AUTHORIZATION
 import org.springframework.http.HttpStatus
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.core.AuthenticationException
 import org.springframework.security.web.SecurityFilterChain
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler
 import org.springframework.security.web.context.SecurityContextHolderFilter
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler
@@ -32,7 +29,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 @Configuration
 @EnableWebSecurity
 class SecurityConfig(
-    private val tokenFilter: JwtTokenFilter,
     private val userService: UserService,
     private val loginFlow: LoginFlow,
     private val osuUserService: OsuUserService,
@@ -50,11 +46,8 @@ class SecurityConfig(
                 configurer
                     .csrfTokenRepository(HttpSessionCsrfTokenRepository().apply { setHeaderName(CSRF_HEADER) })
                     .csrfTokenRequestHandler(CsrfTokenRequestAttributeHandler())
-                    // Only the session cookie is sent along by the browser on its own, an osu! token of the previous website isn't.
-                    // Without a session there is nothing to protect, which leaves answering 401 to the login check.
-                    .ignoringRequestMatchers({ request: HttpServletRequest ->
-                        request.getHeader(AUTHORIZATION) != null || request.getSession(false) == null
-                    })
+                    // Without a session there is nothing to protect, which leaves answering 401 to the login check
+                    .ignoringRequestMatchers({ request: HttpServletRequest -> request.getSession(false) == null })
             }.exceptionHandling { configurer ->
                 configurer.authenticationEntryPoint { _: HttpServletRequest?, response: HttpServletResponse, ex: AuthenticationException ->
                     response.sendError(
@@ -77,12 +70,11 @@ class SecurityConfig(
                     // Answering a request that waited, which was checked when it came in
                     .dispatcherTypeMatchers(DispatcherType.ASYNC)
                     .permitAll()
-                    .requestMatchers("/v2/session", "/v2/auth/refresh", "/actuator/health")
+                    .requestMatchers("/v2/session", "/actuator/health")
                     .permitAll()
                     .anyRequest()
                     .authenticated()
             }.addFilterAfter(SessionRolesFilter(userService), SecurityContextHolderFilter::class.java)
-            .addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter::class.java)
             .build()
 
     @Bean

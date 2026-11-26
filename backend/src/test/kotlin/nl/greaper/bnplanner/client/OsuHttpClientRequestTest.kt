@@ -1,6 +1,5 @@
 package nl.greaper.bnplanner.client
 
-import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.osu.AuthToken
@@ -46,78 +45,6 @@ class OsuHttpClientRequestTest {
     @Test
     fun `Should use osu by default`() {
         assertEquals("https://osu.ppy.sh", OsuProperties("14229", "", "").baseUrl)
-    }
-
-    @Test
-    fun `Should refresh a token`() {
-        FakeOsu.token("made-up-access", "made-up-refresh")
-
-        assertEquals(tokenResponse, client.refreshToken("old")!!.body)
-        assertTokenRequest(
-            """{"grant_type":"refresh_token","client_id":14229,"client_secret":"made-up-secret","refresh_token":"old"}""",
-        )
-    }
-
-    @Test
-    fun `Should refresh no token when osu does not accept it`() {
-        FakeOsu.respond("POST /oauth/token", """{"error":"invalid_request"}""", 401)
-
-        assertNull(client.refreshToken("old"))
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = [400, 403, 429])
-    fun `Should fail to refresh a token on another error`(status: Int) {
-        FakeOsu.respond("POST /oauth/token", """{"error":"invalid_request"}""", status)
-
-        assertThrows<HttpClientErrorException> { client.refreshToken("old") }
-    }
-
-    @Test
-    fun `Should fail to refresh a token when osu fails`() {
-        FakeOsu.respond("POST /oauth/token", "{}", 500)
-
-        assertThrows<RestClientException> { client.refreshToken("old") }
-    }
-
-    @Test
-    fun `Should find the owner of a token`() {
-        FakeOsu.respond("GET /api/v2/me", """{"id":123,"username":"Someone","groups":[],"statistics":{"pp":1.5}}""")
-
-        assertEquals("123", client.findTokenOwnerId("token"))
-        assertEquals("Bearer token", FakeOsu.requests.single().header("Authorization"))
-        assertEquals("", FakeOsu.requests.single().body)
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = [401, 403])
-    fun `Should find no owner when osu refuses the token`(status: Int) {
-        FakeOsu.respond("GET /api/v2/me", "{}", status)
-
-        assertNull(client.findTokenOwnerId("token"))
-    }
-
-    @Test
-    fun `Should find no owner without a body`() {
-        FakeOsu.respond("GET /api/v2/me", "", 204)
-
-        assertNull(client.findTokenOwnerId("token"))
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = [404, 429, 500, 503])
-    fun `Should be unavailable when osu gives no clear answer`(status: Int) {
-        FakeOsu.respond("GET /api/v2/me", "{}", status)
-
-        val ex = assertThrows<OsuUnavailableException> { client.findTokenOwnerId("token") }
-        assertEquals("Could not reach osu!", ex.message)
-    }
-
-    @Test
-    fun `Should be unavailable when nothing is listening`() {
-        val client = OsuHttpClient(OsuProperties("14229", "", "", "http://127.0.0.1:1"), client.objectMapper)
-
-        assertThrows<OsuUnavailableException> { client.findTokenOwnerId("token") }
     }
 
     @Test

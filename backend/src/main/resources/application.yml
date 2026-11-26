@@ -40,7 +40,7 @@ osu.background-sync:
 cors:
   uris: http://localhost:3000,http://localhost:8080
   methods: GET,POST,PUT,OPTIONS,DELETE,PATCH
-  headers: origin,content-type,accept,x-requested-with,authorization,x-csrf-token
+  headers: origin,content-type,accept,x-requested-with,x-csrf-token
 
 discord:
   enabled: true

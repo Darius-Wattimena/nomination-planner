@@ -1,7 +1,6 @@
 package nl.greaper.bnplanner.support
 
 import nl.greaper.bnplanner.auth.OsuLogin
-import nl.greaper.bnplanner.auth.OsuTokenVerifierTest
 import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.config.OsuProperties
@@ -54,8 +53,8 @@ class Planner(
     val osuClient = osuClient()
     val userService = UserService(users, osuClient, discordClient)
     val beatmapService = BeatmapService(beatmaps, userService, osuClient, discordClient, sleeper)
-    val osuService = OsuService(osuClient, userService)
-    val authService = AuthService(osuService, discordClient)
+    val osuService = OsuService(osuClient)
+    val authService = AuthService(discordClient)
     val osuJobs = OsuJobs(beatmapService, sleeper)
     val syncService = SyncService(userService, beatmapService, osuJobs, sleeper)
     val profileService = ProfileService(beatmapService, userService)
@@ -75,7 +74,7 @@ class Planner(
         val UPDATED: Instant = Instant.parse("2024-02-02T11:12:13.456Z")
 
         /** Token of the user performing an action */
-        val TOKEN = OsuTokenVerifierTest.createToken(subject = "99")
+        const val TOKEN = "made-up-token"
 
         /** The user performing an action */
         val LOGIN = OsuLogin("99") { TOKEN }

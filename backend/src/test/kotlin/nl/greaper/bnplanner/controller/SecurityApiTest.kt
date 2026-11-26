@@ -2,7 +2,6 @@ package nl.greaper.bnplanner.controller
 
 import nl.greaper.bnplanner.DefaultExceptionHandler
 import nl.greaper.bnplanner.auth.LoginExpiredException
-import nl.greaper.bnplanner.auth.OsuTokenVerifierTest.Companion.createToken
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
@@ -16,7 +15,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
-import org.springframework.http.HttpHeaders.AUTHORIZATION
 import org.springframework.mock.web.MockHttpServletRequest
 
 class SecurityApiTest : ApiTest() {
@@ -81,61 +79,12 @@ class SecurityApiTest : ApiTest() {
         }
     }
 
-    private fun search(authorization: String?) =
-        call(As.NOBODY, "GET", "/v2/profile/1/pairing", headers = authorization?.let { mapOf(AUTHORIZATION to it) } ?: emptyMap()).status
-
     @ParameterizedTest
-    @ValueSource(
-        strings = [
-            "",
-            " ",
-            "Bearer",
-            "Bearer ",
-            "Bearer  token",
-            "Bearer unreadable",
-            "Basic abc",
-            "Aiess x",
-        ],
-    )
-    fun `Should refuse an invalid authorization`(authorization: String) {
-        FakeOsu.respond("GET /api/v2/me", """{"id":1,"username":"Viewer"}""")
-
-        assertEquals(401, search(authorization))
-        assertEquals(401, call(As.NOBODY, "POST", "/v2/beatmap/add", headers = mapOf(AUTHORIZATION to authorization)).status)
+    @ValueSource(strings = ["Bearer made-up", "Basic abc"])
+    fun `Should refuse an authorization header, only the session counts`(authorization: String) {
+        assertEquals(401, call(As.NOBODY, "GET", "/v2/profile/1/pairing", headers = mapOf("Authorization" to authorization)).status)
+        assertEquals(401, call(As.NOBODY, "POST", "/v2/beatmap/add", headers = mapOf("Authorization" to authorization)).status)
         assertEquals(emptyList<String>(), FakeOsu.calls())
-    }
-
-    @Test
-    fun `Should accept a verified token once and remember it`() {
-        val token = createToken(subject = "1", expires = 4102444810)
-        FakeOsu.respond("GET /api/v2/me", """{"id":1,"username":"Viewer"}""")
-
-        assertEquals(200, search("Bearer $token"))
-        assertEquals(200, search("Bearer $token"))
-        assertEquals(200, search("Bearer $token and more"))
-    }
-
-    @Test
-    fun `Should refuse a token that osu does not accept or is of another user`() {
-        FakeOsu.respond("GET /api/v2/me", "{}", 401)
-        assertEquals(401, search("Bearer ${createToken(subject = "1", expires = 4102444811)}"))
-
-        FakeOsu.respond("GET /api/v2/me", """{"id":2,"username":"Editor"}""")
-        assertEquals(401, search("Bearer ${createToken(subject = "1", expires = 4102444812)}"))
-    }
-
-    @Test
-    fun `Should refuse a verified user the planner does not know`() {
-        FakeOsu.respond("GET /api/v2/me", """{"id":555,"username":"Unknown"}""")
-
-        assertEquals(401, search("Bearer ${createToken(subject = "555")}"))
-    }
-
-    @Test
-    fun `Should be unavailable when osu can not verify a token`() {
-        FakeOsu.respond("GET /api/v2/me", "{}", 500)
-
-        assertEquals(503, search("Bearer ${createToken(subject = "1", expires = 4102444813)}"))
     }
 
     // CORS
@@ -143,7 +92,7 @@ class SecurityApiTest : ApiTest() {
     private fun preflight(
         origin: String,
         method: String = "PATCH",
-        headers: String = "authorization,content-type",
+        headers: String = "x-csrf-token,content-type",
     ) = call(
         As.NOBODY,
         "OPTIONS",
@@ -160,7 +109,7 @@ class SecurityApiTest : ApiTest() {
         assertEquals(200, response.status)
         assertEquals(origin, response.getHeader("Access-Control-Allow-Origin"))
         assertEquals("GET,POST,PUT,OPTIONS,DELETE,PATCH", response.getHeader("Access-Control-Allow-Methods"))
-        assertEquals("authorization, content-type", response.getHeader("Access-Control-Allow-Headers"))
+        assertEquals("x-csrf-token, content-type", response.getHeader("Access-Control-Allow-Headers"))
         assertEquals("true", response.getHeader("Access-Control-Allow-Credentials"))
         assertNull(response.getHeader("Access-Control-Max-Age"))
 
@@ -179,6 +128,7 @@ class SecurityApiTest : ApiTest() {
             preflight("http://localhost:3001"),
             preflight("http://localhost:3000", method = "TRACE"),
             preflight("http://localhost:3000", headers = "x-other"),
+            preflight("http://localhost:3000", headers = "authorization"),
             call(As.VIEWER, "GET", "/v2/profile/1/pairing", headers = mapOf("Origin" to "http://localhost:3001")),
         ).forEach {
             assertEquals(403, it.status)
@@ -215,8 +165,7 @@ class SecurityApiTest : ApiTest() {
 
     @Test
     fun `Should answer through an actual server`() {
-        FakeOsu.respond("GET /api/v2/me", """{"id":1,"username":"Viewer"}""")
-        val response = http("GET", "/v2/profile/2/pairing", mapOf(AUTHORIZATION to As.VIEWER.header!!))
+        val response = http("GET", "/v2/profile/2/pairing", by = As.VIEWER)
 
         assertEquals(200, response.statusCode())
         assertEquals("application/json", response.headers().firstValue("Content-Type").get())
@@ -231,9 +180,9 @@ class SecurityApiTest : ApiTest() {
         assertEquals(401, response.statusCode())
         assertEquals("", response.body())
 
-        FakeOsu.respond("GET /api/v2/me", "{}", 503)
-        val token = createToken(subject = "1", expires = 4102444814)
-        assertEquals(503, http("GET", "/v2/profile/1/pairing", mapOf(AUTHORIZATION to "Bearer $token")).statusCode())
+        // Only the session cookie the backend handed out counts
+        val forged = http("GET", "/v2/profile/1/pairing", mapOf("Cookie" to "PLANNER_SESSION=made-up"))
+        assertEquals(401, forged.statusCode())
     }
 
     @Test
@@ -243,6 +192,6 @@ class SecurityApiTest : ApiTest() {
         assertEquals(200, response.statusCode())
         assertEquals("""{"status":"UP"}""", response.body())
         assertEquals(401, http("GET", "/actuator/env").statusCode())
-        assertEquals(401, http("GET", "/v2/auth/other").statusCode())
+        assertEquals(401, http("GET", "/v2/auth/refresh").statusCode())
     }
 }

@@ -398,16 +398,4 @@ class LoginApiTest : ApiTest() {
         assertEquals(1, TestMongo.documents("osuLogins").size)
         assertEquals(200, call(As.EDITOR, "GET", "/v2/planner").status)
     }
-
-    // The website of before
-
-    @Test
-    fun `Should still accept an osu token sent along without the token of a session`() {
-        FakeOsu.beatmap("1", userId = "1")
-        val response = callWithToken(As.EDITOR, "POST", "/v2/beatmap/add", """{"osuId":"1","gamemodes":["osu"]}""")
-
-        assertEquals(200, response.status)
-        assertEquals(As.EDITOR.header, FakeOsu.requests.single().header("Authorization"))
-        assertNull(response.getCookie(SESSION_COOKIE))
-    }
 }

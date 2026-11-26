@@ -1,6 +1,5 @@
 package nl.greaper.bnplanner.controller
 
-import nl.greaper.bnplanner.auth.OsuTokenVerifierTest.Companion.createToken
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
@@ -27,73 +26,6 @@ import java.time.Instant
 class OtherApiTest : ApiTest() {
     @Autowired
     lateinit var jobs: OsuJobs
-
-    // Login
-
-    private val token = createToken(subject = "2")
-
-    private fun assertContext(response: MockHttpServletResponse) {
-        val validUntil = JSONObject(response.contentAsString).getLong("validUntilEpochMilli")
-        val expected = Instant.now().plusSeconds(86400 - 300).toEpochMilli()
-        assertTrue(validUntil in expected - 60_000..expected)
-        response.assertJson(
-            """
-            {"user":{"osuId":"2","username":"Editor","gamemodes":[{"gamemode":"osu","role":"Nominator"}]},
-            "accessToken":"$token","refreshToken":"refresh","validUntilEpochMilli":$validUntil,
-            "permission":{"osuRole":"Nominator","roles":["VIEWER","EDITOR"]}}
-            """,
-        )
-    }
-
-    private fun osuKnowsEditor() {
-        FakeOsu.token(token)
-        FakeOsu.user("2", "Editor", """[{"id":28,"playmodes":["osu"]}]""")
-    }
-
-    private fun login(
-        body: String = "refresh=",
-        contentType: String? = "text/plain",
-    ) = call(As.NOBODY, "POST", "/v2/auth/refresh", body, contentType)
-
-    @Test
-    fun `Should refresh a login without any authorization`() {
-        osuKnowsEditor()
-
-        assertContext(login())
-        assertTrue(FakeOsu.requests[0].body.contains(""""refresh_token":"refresh""""))
-    }
-
-    @Test
-    fun `Should refresh a login using a form, which is how the website of before sends it`() {
-        osuKnowsEditor()
-
-        val response =
-            http("POST", "/v2/auth/refresh", mapOf("Content-Type" to "application/x-www-form-urlencoded"), "def502%2Brefresh")
-
-        assertEquals(200, response.statusCode())
-        assertEquals(token, JSONObject(response.body()).getString("accessToken"))
-        // The server turns a form without values into 'refresh=', of which the last character is dropped
-        assertTrue(FakeOsu.requests[0].body.contains(""""refresh_token":"def502%2Brefresh""""), FakeOsu.requests[0].body)
-    }
-
-    @Test
-    fun `Should fail to refresh a login`() {
-        // osu refuses
-        FakeOsu.respond("POST /oauth/token", "{}", 401)
-        login().assertEmpty(400)
-        // osu fails
-        FakeOsu.respond("POST /oauth/token", "{}", 500)
-        login().assertEmpty(400)
-        // osu returns something unreadable
-        FakeOsu.token("unreadable")
-        login().assertEmpty(400)
-    }
-
-    @Test
-    fun `Should refuse to log in without a body`() {
-        assertEquals(400, login(body = "").status)
-        assertEquals(405, call(As.VIEWER, "GET", "/v2/auth/refresh").status)
-    }
 
     // Users
 
