@@ -29,6 +29,17 @@ osu.background-sync:
   enabled: false
   per-minute: 6
 
+# Follows the nominations, qualifications, ranks, resets and disqualifications on osu! of the beatmaps on the planner.
+# Needs a client id and secret. Starts at the newest event the first time, and continues where it stopped after a restart.
+osu.follow-events:
+  enabled: false
+  every-seconds: 60
+
+# Follows who joins or leaves the BN, probationary BN and NAT on osu!, and their gamemodes. Starts at the newest change the first time.
+osu.follow-groups:
+  enabled: false
+  every-seconds: 600
+
 cors:
   uris: http://localhost:3000,http://localhost:8080
   methods: GET,POST,PUT,OPTIONS,DELETE,PATCH
