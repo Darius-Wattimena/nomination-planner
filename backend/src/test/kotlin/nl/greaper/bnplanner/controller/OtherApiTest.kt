@@ -46,6 +46,21 @@ class OtherApiTest : ApiTest() {
         get("/v2/profile/99/pairing").assertJson("[]")
     }
 
+    @Test
+    fun `Should save the modes a user is interested in`() {
+        call(As.VIEWER, "PUT", "/v2/profile/me/interests", """["mania","osu"]""").assertJson(
+            """{"osuId":"1","username":"Viewer","gamemodes":[{"gamemode":"osu","role":"Mapper"}],"interests":["osu","mania"]}""",
+        )
+        assertEquals(listOf(Gamemode.osu, Gamemode.mania), users.findUser("1")!!.interests)
+        // They don't give any permission
+        assertEquals(403, call(As.VIEWER, "PATCH", "/v2/beatmap/1/note", "note", "text/plain").status)
+
+        call(As.VIEWER, "PUT", "/v2/profile/me/interests", "[]").assertJson(
+            """{"osuId":"1","username":"Viewer","gamemodes":[{"gamemode":"osu","role":"Mapper"}]}""",
+        )
+        assertEquals(400, call(As.VIEWER, "PUT", "/v2/profile/me/interests", """["other"]""").status)
+    }
+
     // Admin
 
     private fun assertSynced(

@@ -31,6 +31,7 @@ class SecurityApiTest : ApiTest() {
             "ADMIN  | GET    | /v2/admin/sync/waiting                                       | ",
             "ADMIN  | POST   | /v2/admin/sync/beatmaps/pending?background=true              | ",
             "VIEWER | GET    | /v2/profile/1/pairing                                        | ",
+            "VIEWER | PUT    | /v2/profile/me/interests                                     | []",
             "EDITOR | POST   | /v2/beatmap/add              | {\"osuId\":\"1\",\"gamemodes\":[]}",
             "EDITOR | PATCH  | /v2/beatmap/1/osu/nominator?old=0&new=1                      | ",
             "EDITOR | PATCH  | /v2/beatmap/1/note                                           | note",

@@ -134,6 +134,35 @@ class UserServiceTest {
     }
 
     @Test
+    fun `Should save the modes a user is interested in`() {
+        planner.user("99", "Mapper")
+
+        val expected = User("99", "Mapper", emptyList(), interests = listOf(Gamemode.osu, Gamemode.mania))
+        assertEquals(expected, service.saveInterests("99", setOf(Gamemode.mania, Gamemode.osu)))
+        assertEquals(listOf(expected), planner.users.list())
+        // Nothing chosen is the same as never having chosen
+        assertEquals(User("99", "Mapper", emptyList()), service.saveInterests("99", emptySet()))
+        assertEquals(listOf(User("99", "Mapper", emptyList())), planner.users.list())
+    }
+
+    @Test
+    fun `Should not save interests of an unknown user`() {
+        assertNull(service.saveInterests("99", setOf(Gamemode.osu)))
+        assertEquals(emptyList<User>(), planner.users.list())
+    }
+
+    @Test
+    fun `Should keep the interests of a user when finding them at osu again`() {
+        planner.users.saveUser(User("5", "Old", emptyList(), interests = listOf(Gamemode.taiko)))
+        planner.users.saveUser(User("6", "Old", emptyList(), interests = listOf(Gamemode.fruits)))
+        FakeOsu.user("5", "BN", """[{"id":28,"playmodes":["osu"]}]""")
+
+        assertEquals(User("5", "BN", listOf(nominator(Gamemode.osu)), interests = listOf(Gamemode.taiko)), force(log = false))
+        assertEquals(listOf(Gamemode.fruits), force("6", log = false)!!.interests)
+        assertEquals(listOf(Gamemode.taiko), service.findUserById("5")!!.interests)
+    }
+
+    @Test
     fun `Should find a user by id`() {
         val user = planner.user("5")
 

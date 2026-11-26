@@ -44,7 +44,7 @@ export function Figures({summary, before, than}: FiguresProps) {
 export function Highlights({maps, all, year, mode}: {maps: Beatmap[], all: Beatmap[], year: number, mode?: Gamemode}) {
   const months = perMonth(maps, year * 12, year * 12 + 11)
   const busiest = months.reduce((best, it) => it.value > best.value ? it : best, months[0])
-  const {links, people} = useMemo(() => network(maps, mode, 1000), [maps, mode])
+  const {links, people} = useMemo(() => network(maps, mode), [maps, mode])
   const pair = links[0]
   const userOf = (id: string) => people.find(it => it.user.osuId === id)!.user
 

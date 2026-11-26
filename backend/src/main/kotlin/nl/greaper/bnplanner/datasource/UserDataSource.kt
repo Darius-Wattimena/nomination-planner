@@ -24,11 +24,16 @@ class UserDataSource(
         list().forEach { addInMemoryUser(it) }
     }
 
-    override fun toDocument(value: User): Document =
-        Document("_id", value.osuId)
-            .append("username", value.username)
-            .append("gamemodes", value.gamemodes.map { Document("gamemode", it.gamemode.name).append("role", it.role.name) })
-            .append("restricted", value.restricted)
+    override fun toDocument(value: User): Document {
+        val document =
+            Document("_id", value.osuId)
+                .append("username", value.username)
+                .append("gamemodes", value.gamemodes.map { Document("gamemode", it.gamemode.name).append("role", it.role.name) })
+                .append("restricted", value.restricted)
+        // Only for the few who chose modes themselves
+        value.interests?.let { interests -> document.append("interests", interests.map { it.name }) }
+        return document
+    }
 
     override fun fromDocument(document: Document): User =
         User(
@@ -39,6 +44,7 @@ class UserDataSource(
                     UserGamemode(Gamemode.valueOf(it.getString("gamemode")), Role.valueOf(it.getString("role")))
                 },
             restricted = document.getBoolean("restricted"),
+            interests = document.getList("interests", String::class.java)?.map { Gamemode.valueOf(it) },
         )
 
     /** Everybody who is known, as it is at this moment */

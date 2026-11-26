@@ -2,7 +2,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import type {User} from "../models/Types";
 import {BeatmapStatus, Gamemode} from "../models/Types";
 import {beatmap, bn, mode, probation} from "../test/builders";
-import {ageInDays, ageLabel, partOf, isStale, nextStep, stageOf, suggestions, toDate} from "./workflow";
+import {ageInDays, ageLabel, hiddenAsOld, isOld, lookingForNominator, OLD_DAYS, partOf, isStale, nextStep, stageOf, suggestions, toDate} from "./workflow";
 
 const {Osu, Taiko} = Gamemode
 const NOW = new Date("2026-06-01T12:00:00Z")
@@ -195,5 +195,47 @@ describe("dates", () => {
     expect(isStale(beatmap({dateUpdated: daysAgo(20)}))).toBe(false)
     expect(isStale(beatmap({dateUpdated: daysAgo(21)}))).toBe(true)
     expect(isStale(beatmap({status: BeatmapStatus.Qualified, dateUpdated: daysAgo(40)}))).toBe(false)
+  })
+})
+
+describe("old beatmaps", () => {
+  const old = (changes: Parameters<typeof beatmap>[0] = {}) => beatmap({dateUpdated: daysAgo(OLD_DAYS), ...changes})
+
+  it("are those nobody changed for months", () => {
+    expect(isOld(old())).toBe(true)
+    expect(isOld(beatmap({dateUpdated: daysAgo(OLD_DAYS - 1)}))).toBe(false)
+    // Qualified ones get ranked by themselves
+    expect(isOld(old({status: BeatmapStatus.Qualified}))).toBe(false)
+    // Without a date nothing is known
+    expect(isOld(beatmap({dateUpdated: undefined}))).toBe(false)
+  })
+
+  it("stay for the people who map or nominate them", () => {
+    const map = old({gamemodes: [mode(Osu, bn("1"))]})
+    expect(hiddenAsOld(map, undefined)).toBe(true)
+    expect(hiddenAsOld(map, "2")).toBe(true)
+    expect(hiddenAsOld(map, "1")).toBe(false)
+    expect(hiddenAsOld(map, map.mapper.osuId)).toBe(false)
+    expect(hiddenAsOld(beatmap({dateUpdated: daysAgo(1)}), "2")).toBe(false)
+  })
+})
+
+describe("lookingForNominator", () => {
+  const nominated = beatmap({osuId: "1", gamemodes: [mode(Taiko, [bn("1", Taiko), true])]})
+  const partnered = beatmap({osuId: "2", gamemodes: [mode(Osu, bn("2"))]})
+  const empty = beatmap({osuId: "3", dateUpdated: daysAgo(40), gamemodes: [mode(Osu)]})
+  const newer = beatmap({osuId: "4", dateUpdated: daysAgo(2), gamemodes: [mode(Osu), mode(Taiko)]})
+  const full = beatmap({osuId: "5", gamemodes: [mode(Osu, bn("2"), bn("3"))]})
+  const qualified = beatmap({osuId: "6", status: BeatmapStatus.Qualified, gamemodes: [mode(Osu)]})
+  const maps = [newer, full, empty, partnered, qualified, nominated]
+
+  it("lists every mode with those closest to done first", () => {
+    expect(lookingForNominator(maps).map(it => [it.map.osuId, it.mode])).toEqual([["1", Taiko], ["2", Osu], ["3", Osu], ["4", Osu]])
+    expect(lookingForNominator(maps)[0]).toMatchObject({partner: {osuId: "1"}, nominated: true, full: false})
+  })
+
+  it("lists one mode", () => {
+    expect(lookingForNominator(maps, Taiko).map(it => [it.map.osuId, it.mode])).toEqual([["1", Taiko], ["4", Taiko]])
+    expect(lookingForNominator(maps, Gamemode.Mania)).toEqual([])
   })
 })

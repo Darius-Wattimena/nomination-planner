@@ -74,6 +74,8 @@ class UserService(
         osuId: String,
         logEventToDiscord: Boolean = true,
     ): User? {
+        // osu! knows nothing about the modes someone chose themselves
+        val interests = dataSource.findUser(osuId)?.interests
         val osuUser =
             try {
                 osuHttpClient.findUserWithId(osuApiToken, osuId)
@@ -84,7 +86,7 @@ class UserService(
 
         if (osuUser == null) {
             // Should only end up here if the user is restricted or the provided id is invalid
-            val restrictedUser = User(osuId, "RESTRICTED", emptyList(), restricted = true)
+            val restrictedUser = User(osuId, "RESTRICTED", emptyList(), restricted = true, interests = interests)
             dataSource.saveUser(restrictedUser)
             log.info { "[CREATE] Added restricted user (osuId = $osuId)" }
 
@@ -100,7 +102,7 @@ class UserService(
             return restrictedUser
         }
 
-        val newUser = convertOsuUserToUser(osuUser)
+        val newUser = convertOsuUserToUser(osuUser).copy(interests = interests)
 
         dataSource.saveUser(newUser)
 
@@ -204,6 +206,20 @@ class UserService(
             confidential = true,
             gamemodes = listOf(),
         )
+    }
+
+    /**
+     * Save the modes a user is interested in, null when the user is not known
+     *
+     * These only decide what the website shows them, their roles decide what they may do.
+     */
+    fun saveInterests(
+        osuId: String,
+        interests: Set<Gamemode>,
+    ): User? {
+        val user = findUserById(osuId) ?: return null
+        val chosen = Gamemode.entries.filter { it in interests }.takeIf { it.isNotEmpty() }
+        return user.copy(interests = chosen).also { dataSource.saveUser(it) }
     }
 
     fun findUserById(osuId: String): User? {

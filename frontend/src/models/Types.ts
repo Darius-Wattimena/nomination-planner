@@ -21,6 +21,8 @@ export interface User {
   gamemodes: UserGamemode[]
   /** Restricted on osu!, left out when not */
   restricted?: boolean
+  /** Modes chosen by someone without a role in a mode, left out when there are none */
+  interests?: Gamemode[]
 }
 
 export interface UserGamemode {

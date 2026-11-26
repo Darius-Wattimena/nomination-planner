@@ -1,24 +1,15 @@
-import {useMemo, useState} from "react";
-import {useNavigate} from "react-router";
+import type {PointerEvent as ReactPointerEvent} from "react";
+import {useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {Link as RouterLink} from "react-router";
+import {FaExpand, FaMagnifyingGlass, FaMinus, FaPlus, FaXmark} from "react-icons/fa6";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
 import {Gamemode} from "../models/Types";
 import ModeIcon from "../ui/ModeIcon";
+import {Avatar} from "../ui/Person";
 import {Table} from "./Columns";
-import type {Link, network} from "./stats";
-
-type Network = ReturnType<typeof network>
-type Person = Network["people"][number]
-
-const WIDTH = 1000
-const HEIGHT = 600
-
-/** Every mode has its own part of the sky */
-const HOME: Record<Gamemode, Point> = {
-  [Gamemode.Osu]: {x: -230, y: -120},
-  [Gamemode.Taiko]: {x: 230, y: -120},
-  [Gamemode.Catch]: {x: -230, y: 120},
-  [Gamemode.Mania]: {x: 230, y: 120}
-}
+import type {Camera, Network, Point, Size, Star} from "./sky";
+import {findStars, fit, isVisible, layout, pan, partnersOf, placeNames, radius, shares, starScale, strongestLinks, toScreen, zoomAt} from "./sky";
+import type {Link} from "./stats";
 
 const CLASSES: Record<Gamemode, string> = {
   [Gamemode.Osu]: "in-osu",
@@ -27,120 +18,193 @@ const CLASSES: Record<Gamemode, string> = {
   [Gamemode.Mania]: "in-mania"
 }
 
-interface Point {
-  x: number
-  y: number
-}
+/** Moving less than this is still a tap */
+const DRAG = 6
+/** Names of partners that are always shown */
+const NAMED_PARTNERS = 8
 
-const radius = (count: number, most: number) => 6 + 13 * Math.sqrt(count / most)
+type Selection = {person: string} | {pair: [string, string]}
 
-/** The modes of a person, as parts of one */
-function shares({modes}: Person): {mode: Gamemode, part: number}[] {
-  const total = GAMEMODES.reduce((sum, mode) => sum + (modes[mode] ?? 0), 0)
-  return GAMEMODES.filter(mode => modes[mode]).map(mode => ({mode, part: modes[mode]! / total}))
-}
-
-/** People are drawn to their modes, so who nominates several ends up in between. Always gives the same result. */
-function layout({people, links}: Network): Map<string, Point> {
-  const most = Math.max(1, ...people.map(it => it.count))
-  const strongest = Math.max(1, ...links.map(it => it.count))
-  const index = new Map(people.map((it, position) => [it.user.osuId, position]))
-  const homes = people.map(it => shares(it).reduce((sum, {mode, part}) =>
-    ({x: sum.x + HOME[mode].x * part, y: sum.y + HOME[mode].y * part}), {x: 0, y: 0}))
-  // Start around home on a sunflower, with the most active closest to it
-  const points = people.map((_, position) => {
-    const distance = 14 * Math.sqrt(position + .5), angle = position * 2.39996
-    return {x: homes[position].x + distance * Math.cos(angle), y: homes[position].y + distance * Math.sin(angle)}
-  })
-
-  for (let round = 0; round < 320; round++) {
-    const heat = 14 * (1 - round / 320) + .2
-    const forces = points.map((point, position) => ({x: (homes[position].x - point.x) * .06, y: (homes[position].y - point.y) * .06}))
-    for (let a = 0; a < points.length; a++) {
-      for (let b = a + 1; b < points.length; b++) {
-        const dx = points[a].x - points[b].x, dy = points[a].y - points[b].y
-        const distance = Math.max(1, Math.hypot(dx, dy))
-        const room = radius(people[a].count, most) + radius(people[b].count, most) + 34
-        const push = 1500 / (distance * distance) + (distance < room ? (room - distance) * .4 : 0)
-        forces[a].x += dx / distance * push
-        forces[a].y += dy / distance * push
-        forces[b].x -= dx / distance * push
-        forces[b].y -= dy / distance * push
-      }
-    }
-    links.forEach(link => {
-      const a = index.get(link.a)!, b = index.get(link.b)!
-      const dx = points[b].x - points[a].x, dy = points[b].y - points[a].y
-      const distance = Math.max(1, Math.hypot(dx, dy))
-      const pull = (distance - 80) * .02 * Math.sqrt(link.count / strongest)
-      forces[a].x += dx / distance * pull
-      forces[a].y += dy / distance * pull
-      forces[b].x -= dx / distance * pull
-      forces[b].y -= dy / distance * pull
-    })
-    points.forEach((point, position) => {
-      const force = Math.max(.01, Math.hypot(forces[position].x, forces[position].y))
-      const step = Math.min(force, heat)
-      point.x += forces[position].x / force * step
-      point.y += forces[position].y / force * step
-    })
-  }
-
-  // Use all of the available space, with room for the names
-  const xs = points.map(it => it.x), ys = points.map(it => it.y)
-  const left = Math.min(...xs), right = Math.max(...xs), top = Math.min(...ys), bottom = Math.max(...ys)
-  const fit = Math.min((WIDTH - 180) / Math.max(1, right - left), (HEIGHT - 110) / Math.max(1, bottom - top), 2.2)
-  return new Map(people.map((it, position) => [it.user.osuId, {
-    x: WIDTH / 2 + (points[position].x - (left + right) / 2) * fit,
-    y: HEIGHT / 2 - 8 + (points[position].y - (top + bottom) / 2) * fit
-  }]))
-}
-
-/** The most active ones, without names on top of each other */
-function readableNames({people}: Network, points: Map<string, Point>) {
-  const most = Math.max(1, ...people.map(it => it.count))
-  const boxes: {left: number, right: number, top: number, bottom: number}[] = []
-  const named = new Set<string>()
-  const perMode = new Map<Gamemode, number>()
-  people.forEach(person => {
-    const {user, count} = person
-    const mode = [...shares(person)].sort((a, b) => b.part - a.part)[0].mode
-    const point = points.get(user.osuId)!
-    const half = user.username.length * 4.6 + 4, top = point.y + radius(count, most) + 4
-    const box = {left: point.x - half, right: point.x + half, top, bottom: top + 18}
-    const crossed = boxes.some(it => box.left < it.right && it.left < box.right && box.top < it.bottom && it.top < box.bottom)
-      // Nor on top of somebody else
-      || people.some(other => {
-        const it = points.get(other.user.osuId)!, size = radius(other.count, most)
-        return other.user.osuId !== user.osuId && it.x + size > box.left && it.x - size < box.right && it.y + size > box.top && it.y - size < box.bottom
-      })
-    if (crossed || (perMode.get(mode) ?? 0) >= 8) return
-    perMode.set(mode, (perMode.get(mode) ?? 0) + 1)
-    boxes.push(box)
-    named.add(user.osuId)
-  })
-  return named
-}
+const modeNames = (modes: Partial<Record<Gamemode, number>>) => GAMEMODES.filter(mode => modes[mode]).map(mode => GAMEMODE_NAMES[mode]).join(", ")
 
 /** Everybody is a star in the colors of their modes, the lines are the beatmaps they ranked together */
 export default function Constellation({data}: {data: Network}) {
-  const navigate = useNavigate()
-  const [active, setActive] = useState<string>()
+  const frame = useRef<HTMLDivElement>(null)
+  const svg = useRef<SVGSVGElement>(null)
+  const [size, setSize] = useState<Size>()
+  const [camera, setCamera] = useState<Camera>()
+  const [hovered, setHovered] = useState<string>()
+  const [selection, setSelection] = useState<Selection>()
   const [picked, setPicked] = useState<Gamemode>()
+  const [search, setSearch] = useState("")
+
   const points = useMemo(() => layout(data), [data])
+  const byId = useMemo(() => new Map(data.people.map(it => [it.user.osuId, it])), [data])
   const most = Math.max(1, ...data.people.map(it => it.count))
   const strongest = Math.max(1, ...data.links.map(it => it.count))
-  // Nearly everyone worked together once, so only the strongest lines are drawn until somebody is selected
-  const drawn = new Set(data.links.slice(0, Math.max(40, data.people.length * 2)))
-  const nameOf = (id: string) => data.people.find(it => it.user.osuId === id)?.user.username ?? ""
+  const nameOf = (id: string) => byId.get(id)?.user.username ?? ""
+
+  // The sky takes the room it gets, which differs between a phone and a desktop
+  useLayoutEffect(() => {
+    const element = frame.current
+    if (!element) return
+    const measure = () => setSize(it => {
+      const next = {width: element.clientWidth, height: element.clientHeight}
+      return it && it.width === next.width && it.height === next.height ? it : next
+    })
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  // Start with everyone in view
+  if (size && size.width > 0 && !camera && points.size > 0) setCamera(fit(Array.from(points.values()), size))
+
+  function focusOn(ids: string[]) {
+    if (!size) return
+    const known = ids.map(it => points.get(it)).filter((it): it is Point => !!it)
+    if (known.length === 0) return
+    const target = fit(known, size)
+    setCamera(known.length === 1 ? {...target, zoom: Math.max(camera?.zoom ?? 1, 1)} : target)
+  }
+
+  function choose(id: string) {
+    setSelection({person: id})
+    setSearch("")
+    focusOn([id, ...partnersOf(data.links, id).slice(0, 5).map(it => it.id)])
+  }
+
+  function choosePair(a: string, b: string) {
+    setSelection({pair: [a, b]})
+    focusOn([a, b])
+  }
+
+  // Zooming with the mouse wheel, which needs a listener that may stop the page from scrolling
+  useEffect(() => {
+    const element = svg.current
+    if (!element || !size) return
+    const wheel = (event: WheelEvent) => {
+      event.preventDefault()
+      const bounds = element.getBoundingClientRect()
+      const delta = event.deltaY * (event.deltaMode === 1 ? 16 : 1)
+      setCamera(it => it && zoomAt(it, size, Math.exp(-delta * .0015), {x: event.clientX - bounds.left, y: event.clientY - bounds.top}))
+    }
+    element.addEventListener("wheel", wheel, {passive: false})
+    return () => element.removeEventListener("wheel", wheel)
+  }, [size])
+
+  // Dragging with a mouse or a finger, pinching with two fingers
+  const pointers = useRef(new Map<number, Point>())
+  const gesture = useRef({start: {x: 0, y: 0}, moved: false})
+
+  function position(event: ReactPointerEvent): Point {
+    const bounds = svg.current!.getBoundingClientRect()
+    return {x: event.clientX - bounds.left, y: event.clientY - bounds.top}
+  }
+
+  function down(event: ReactPointerEvent) {
+    if (event.button !== 0) return
+    const at = position(event)
+    pointers.current.set(event.pointerId, at)
+    if (pointers.current.size === 1) gesture.current = {start: at, moved: false}
+  }
+
+  function move(event: ReactPointerEvent) {
+    const before = pointers.current.get(event.pointerId)
+    if (!before || !size) return
+    const at = position(event)
+    pointers.current.set(event.pointerId, at)
+    const other = Array.from(pointers.current.entries()).find(([id]) => id !== event.pointerId)?.[1]
+
+    if (other) {
+      const distanceBefore = Math.max(1, Math.hypot(before.x - other.x, before.y - other.y))
+      const distance = Math.max(1, Math.hypot(at.x - other.x, at.y - other.y))
+      const middleBefore = {x: (before.x + other.x) / 2, y: (before.y + other.y) / 2}
+      const middle = {x: (at.x + other.x) / 2, y: (at.y + other.y) / 2}
+      gesture.current.moved = true
+      setCamera(it => it && pan(zoomAt(it, size, distance / distanceBefore, middle), middle.x - middleBefore.x, middle.y - middleBefore.y))
+      return
+    }
+    const {start} = gesture.current
+    if (!gesture.current.moved && Math.hypot(at.x - start.x, at.y - start.y) < DRAG) return
+    if (!gesture.current.moved) {
+      gesture.current.moved = true
+      svg.current!.setPointerCapture(event.pointerId)
+    }
+    setCamera(it => it && pan(it, at.x - before.x, at.y - before.y))
+  }
+
+  function up(event: ReactPointerEvent) {
+    pointers.current.delete(event.pointerId)
+  }
+
+  // Who is looked at: the person pointed at, otherwise who was selected
+  const selected = selection && "person" in selection ? selection.person : undefined
+  const pair = selection && "pair" in selection ? selection.pair : undefined
+  const focus = hovered ?? selected
+  const partners = useMemo(() => focus ? partnersOf(data.links, focus) : [], [data, focus])
+  const close = new Set(focus ? [focus, ...partners.map(it => it.id)] : pair ?? [])
+  const lit = (id: string) => close.size > 0 ? close.has(id) : !picked || !!byId.get(id)?.modes[picked]
+  const pairLink = pair && data.links.find(it => (it.a === pair[0] && it.b === pair[1]) || (it.a === pair[1] && it.b === pair[0]))
+
+  const scale = camera ? starScale(camera.zoom) : 1
+  const screen = new Map(camera && size ? data.people.map(it => [it.user.osuId, toScreen(camera, size, points.get(it.user.osuId)!)]) : [])
+  const sizes = new Map(data.people.map(it => [it.user.osuId, radius(it.count, most) * scale]))
+  const visible = size ? data.people.filter(it => screen.has(it.user.osuId) && isVisible(screen.get(it.user.osuId)!, size)) : []
+
+  const drawn = new Set([...strongestLinks(data.links, data.people.length), ...partners.map(it => it.link), ...(pairLink ? [pairLink] : [])])
+  const lineLit = (link: Link) => focus ? link.a === focus || link.b === focus : pair ? link === pairLink : !picked || !!link.modes[picked]
+  const lines = size ? Array.from(drawn).filter(link => {
+    const a = screen.get(link.a), b = screen.get(link.b)
+    return !!a && !!b && Math.max(a.x, b.x) > 0 && Math.min(a.x, b.x) < size.width && Math.max(a.y, b.y) > 0 && Math.min(a.y, b.y) < size.height
+  }).sort((a, b) => Number(lineLit(a)) - Number(lineLit(b))) : []
+
+  // Names that fit, those that matter now first
+  const always = new Set([...(focus ? [focus, ...partners.slice(0, NAMED_PARTNERS).map(it => it.id)] : []), ...(pair ?? [])])
+  const order = picked ? [...visible.filter(it => it.modes[picked]), ...visible.filter(it => !it.modes[picked])] : visible
+  const named = size ? placeNames(order, screen, sizes, size, always) : new Set<string>()
 
   const present = GAMEMODES.filter(mode => data.people.some(it => it.modes[mode]))
   const bridges = data.people.filter(it => shares(it).length > 1).length
-  const own: Link[] = active ? data.links.filter(it => it.a === active || it.b === active) : []
-  const close = new Set(own.flatMap(it => [it.a, it.b]))
-  const person = data.people.find(it => it.user.osuId === active)
-  // Names of everyone would be unreadable, the rest follows on hover
-  const named = useMemo(() => readableNames(data, points), [data, points])
+  const found = findStars(data.people, search)
+  const person = selected ? byId.get(selected) : undefined
+  const selectedPartners = selected ? partnersOf(data.links, selected) : []
+  const mostTogether = Math.max(1, ...selectedPartners.map(it => it.link.count))
+  const searching = search.trim() !== ""
+
+  const star = (it: Star) => {
+    const {user, count} = it
+    const point = screen.get(user.osuId)!
+    const r = sizes.get(user.osuId)!
+    const parts = shares(it)
+    let start = 0
+    return (
+      <a key={user.osuId} className="star" href={`/team?user=${user.osuId}`} data-faded={!lit(user.osuId) || undefined}
+         data-active={focus === user.osuId || pair?.includes(user.osuId) || undefined}
+         aria-label={`${user.username}, ${count} ranked in ${parts.map(part => GAMEMODE_NAMES[part.mode]).join(" and ")}`}
+         onPointerEnter={event => event.pointerType === "mouse" && setHovered(user.osuId)}
+         onPointerLeave={() => setHovered(undefined)}
+         onClick={event => {
+           // Opening the profile in another tab still works
+           if (event.ctrlKey || event.metaKey) return
+           event.preventDefault()
+           if (!gesture.current.moved) choose(user.osuId)
+         }}>
+        <circle className="star-hit" cx={point.x} cy={point.y} r={Math.max(r + 6, 14)}/>
+        <circle className="star-ring" cx={point.x} cy={point.y} r={r + 2}/>
+        {parts.map(({mode, part}) => {
+          const offset = start
+          start += part
+          return <circle key={mode} className={`star-part ${CLASSES[mode]}`} cx={point.x} cy={point.y} r={r / 2} strokeWidth={r} pathLength={100}
+                         strokeDasharray={parts.length === 1 ? undefined : `${part * 100} 100`} strokeDashoffset={-offset * 100}/>
+        })}
+        {named.has(user.osuId) && <text x={point.x} y={point.y + r + 15} textAnchor="middle">{user.username}</text>}
+      </a>
+    )
+  }
+
+  const zoomButton = (factor: number) => size && setCamera(it => it && zoomAt(it, size, factor, {x: size.width / 2, y: size.height / 2}))
 
   return (
     <figure className="chart constellation">
@@ -152,61 +216,108 @@ export default function Constellation({data}: {data: Network}) {
           </button>
         ))}
       </div>
-      <div className="constellation-scroll">
-        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label="Nominators grouped by mode and connected by the beatmaps they ranked together" onPointerLeave={() => setActive(undefined)}>
-          {data.links.filter(it => drawn.has(it) || own.includes(it)).map(link => {
-            const a = points.get(link.a)!, b = points.get(link.b)!
-            const highlighted = active ? link.a === active || link.b === active : !picked || !!link.modes[picked]
-            return <line key={`${link.a}-${link.b}`} className={`star-link ${CLASSES[link.mode]}`} data-faded={!highlighted || undefined} data-active={(active || picked) && highlighted || undefined}
-                         x1={a.x} y1={a.y} x2={b.x} y2={b.y} strokeWidth={1 + 5 * link.count / strongest}/>
-          })}
-          {data.people.map(it => {
-            const {user, count} = it
-            const point = points.get(user.osuId)!
-            const size = radius(count, most)
-            const parts = shares(it)
-            const faded = active ? active !== user.osuId && !close.has(user.osuId) : picked && !it.modes[picked]
-            let start = 0
-            return (
-              <a key={user.osuId} className="star" href={`/team?user=${user.osuId}`} data-faded={faded || undefined} data-active={active === user.osuId || undefined}
-                 aria-label={`${user.username}, ${count} ranked in ${parts.map(part => GAMEMODE_NAMES[part.mode]).join(" and ")}`}
-                 onPointerEnter={() => setActive(user.osuId)} onFocus={() => setActive(user.osuId)} onBlur={() => setActive(undefined)}
-                 onClick={event => {
-                   if (event.ctrlKey || event.metaKey) return
-                   event.preventDefault()
-                   navigate(`/team?user=${user.osuId}`)
-                 }}>
-                <circle className="star-hit" cx={point.x} cy={point.y} r={Math.max(size + 6, 16)}/>
-                <circle className="star-ring" cx={point.x} cy={point.y} r={size + 2}/>
-                {parts.map(({mode, part}) => {
-                  const offset = start
-                  start += part
-                  return <circle key={mode} className={`star-part ${CLASSES[mode]}`} cx={point.x} cy={point.y} r={size / 2} strokeWidth={size} pathLength={100}
-                                 strokeDasharray={parts.length === 1 ? undefined : `${part * 100} 100`} strokeDashoffset={-offset * 100}/>
-                })}
-                {(named.has(user.osuId) || close.has(user.osuId) || active === user.osuId || (picked && it.modes[picked])) &&
-                  <text x={point.x} y={point.y + size + 18} textAnchor="middle">{user.username}</text>
-                }
-              </a>
-            )
-          })}
-        </svg>
+      <div className="sky">
+        <div className="sky-frame" ref={frame}>
+          <svg ref={svg} width={size?.width} height={size?.height} role="group" aria-label="Nominators grouped by mode and connected by the beatmaps they ranked together"
+               onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+            <rect className="sky-background" width="100%" height="100%" onClick={() => !gesture.current.moved && setSelection(undefined)}/>
+            {lines.map(link => {
+              const a = screen.get(link.a)!, b = screen.get(link.b)!
+              const highlighted = lineLit(link)
+              return <line key={`${link.a}-${link.b}`} className={`star-link ${CLASSES[link.mode]}`} data-faded={!highlighted || undefined}
+                           data-active={(focus || pair || picked) && highlighted || undefined}
+                           x1={a.x} y1={a.y} x2={b.x} y2={b.y} strokeWidth={(1 + 5 * link.count / strongest) * scale}/>
+            })}
+            {visible.filter(it => !lit(it.user.osuId)).map(star)}
+            {visible.filter(it => lit(it.user.osuId) && !always.has(it.user.osuId)).map(star)}
+            {visible.filter(it => always.has(it.user.osuId)).map(star)}
+          </svg>
+          <div className="sky-controls" role="group" aria-label="Zoom">
+            <button className="icon-button" aria-label="Zoom in" title="Zoom in" onClick={() => zoomButton(1.5)}><FaPlus/></button>
+            <button className="icon-button" aria-label="Zoom out" title="Zoom out" onClick={() => zoomButton(1 / 1.5)}><FaMinus/></button>
+            <button className="icon-button" aria-label="Show everyone" title="Show everyone" onClick={() => size && setCamera(fit(Array.from(points.values()), size))}><FaExpand/></button>
+          </div>
+        </div>
+
+        <aside className="sky-panel">
+          <label className="search">
+            <FaMagnifyingGlass aria-hidden/>
+            <input id="constellation-search" type="search" aria-label="Find a nominator" placeholder="Find a nominator" value={search} onChange={event => setSearch(event.target.value)}/>
+          </label>
+
+          {searching &&
+            <ul className="sky-list" aria-label="Found">
+              {found.length === 0 && <li className="muted">Nobody with that name ranked something here.</li>}
+              {found.map(it => (
+                <li key={it.user.osuId}>
+                  <button onClick={() => choose(it.user.osuId)}><span>{it.user.username}</span><span className="load-text">{it.count} ranked</span></button>
+                </li>
+              ))}
+            </ul>
+          }
+
+          {!searching && person &&
+            <section aria-label={person.user.username}>
+              <header className="sky-person">
+                <Avatar user={person.user}/>
+                <div>
+                  <RouterLink to={`/team?user=${person.user.osuId}`}>{person.user.username}</RouterLink>
+                  <span className="muted">{person.count} ranked, {shares(person).map(it => `${person.modes[it.mode]} ${GAMEMODE_NAMES[it.mode]}`).join(", ")}</span>
+                </div>
+                <button className="icon-button" aria-label="Show everyone again" title="Show everyone again" onClick={() => setSelection(undefined)}><FaXmark/></button>
+              </header>
+              <h3>Ranked together with {selectedPartners.length}</h3>
+              {selectedPartners.length === 0 && <p className="muted">Nobody else in this selection.</p>}
+              <ul className="sky-list">
+                {selectedPartners.map(({id, link}) => (
+                  <li key={id}>
+                    <button onClick={() => choose(id)}>
+                      <span>{nameOf(id)}</span><span className="load-text">{link.count}</span>
+                      <span className="load" aria-hidden><span className="load-check" style={{width: `${link.count / mostTogether * 100}%`}}/></span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          }
+
+          {!searching && pair &&
+            <section aria-label="Pair">
+              <header className="sky-person">
+                <div>
+                  <strong>{nameOf(pair[0])} and {nameOf(pair[1])}</strong>
+                  {pairLink && <span className="muted">{pairLink.count} ranked together, {modeNames(pairLink.modes)}</span>}
+                </div>
+                <button className="icon-button" aria-label="Show everyone again" title="Show everyone again" onClick={() => setSelection(undefined)}><FaXmark/></button>
+              </header>
+              <ul className="sky-list">
+                {pair.map(id => <li key={id}><button onClick={() => choose(id)}><span>Everyone {nameOf(id)} ranked with</span></button></li>)}
+              </ul>
+            </section>
+          }
+
+          {!searching && !selection &&
+            <section aria-label="Strongest pairs">
+              <h3>Strongest pairs</h3>
+              {data.links.length === 0 && <p className="muted">Nobody ranked together here.</p>}
+              <ol className="sky-list">
+                {data.links.slice(0, 10).map(it => (
+                  <li key={`${it.a}-${it.b}`}>
+                    <button onClick={() => choosePair(it.a, it.b)}><span>{nameOf(it.a)} and {nameOf(it.b)}</span><span className="load-text">{it.count}</span></button>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          }
+        </aside>
       </div>
-      <p className="constellation-info" aria-live="polite">
-        {person
-          ? <>
-              <strong>{person.user.username}</strong> {person.count} ranked ({shares(person).map(it => `${person.modes[it.mode]} ${GAMEMODE_NAMES[it.mode]}`).join(", ")})
-              {own.length > 0 && <>, most with {own.slice(0, 3).map(it => `${nameOf(it.a === active ? it.b : it.a)} (${it.count})`).join(", ")}</>}
-            </>
-          : <span className="muted">
-              Bigger is more ranked beatmaps, thicker is more together.
-              {bridges > 0 && ` ${bridges} ${bridges === 1 ? "person connects" : "people connect"} several modes and ${bridges === 1 ? "sits" : "sit"} in between them.`}
-              {" "}Point at someone to see who they nominate with, select them for their profile.{data.hidden > 0 && ` ${data.hidden} less active nominators are left out.`}
-            </span>
-        }
+      <p className="constellation-info muted">
+        Scroll or pinch to zoom, drag to look around. Bigger is more ranked beatmaps, thicker is more together.
+        {bridges > 0 && ` ${bridges} ${bridges === 1 ? "person connects" : "people connect"} several modes and ${bridges === 1 ? "sits" : "sit"} in between them.`}
+        {" "}Select someone to see who they ranked with.
       </p>
       <Table head={["Pair", "Modes", "Ranked together"]} rows={data.links.slice(0, 40).map(it =>
-        [`${nameOf(it.a)} and ${nameOf(it.b)}`, GAMEMODES.filter(mode => it.modes[mode]).map(mode => GAMEMODE_NAMES[mode]).join(", "), it.count])}/>
+        [`${nameOf(it.a)} and ${nameOf(it.b)}`, modeNames(it.modes), it.count])}/>
     </figure>
   )
 }
