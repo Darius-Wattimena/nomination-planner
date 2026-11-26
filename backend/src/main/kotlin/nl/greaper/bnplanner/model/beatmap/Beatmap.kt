@@ -1,10 +1,10 @@
 package nl.greaper.bnplanner.model.beatmap
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.util.BeatmapStatusDeserializer
 import nl.greaper.bnplanner.util.BeatmapStatusSerializer
+import tools.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.databind.annotation.JsonSerialize
 import java.time.Instant
 
 data class Beatmap(

@@ -1,4 +1,6 @@
 spring.jackson.default-property-inclusion: non_null
+spring.jackson.deserialization.fail-on-null-for-primitives: false
+management.endpoint.health.probes.enabled: false
 
 mongodb:
   host: localhost

@@ -1,9 +1,5 @@
 package nl.greaper.bnplanner.support
 
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import nl.greaper.bnplanner.auth.OsuTokenVerifierTest
 import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.client.OsuHttpClient
@@ -30,6 +26,7 @@ import nl.greaper.bnplanner.service.ProfileService
 import nl.greaper.bnplanner.service.UserService
 import nl.greaper.bnplanner.util.Sleeper
 import org.junit.jupiter.api.Assertions.assertTrue
+import tools.jackson.module.kotlin.jacksonMapperBuilder
 import java.time.Instant
 
 /** The whole application without Spring, using a real (emptied) MongoDB and a fake osu! */
@@ -82,10 +79,7 @@ class Planner(
         fun osuClient() =
             OsuHttpClient(
                 OsuProperties("14229", "made-up-secret", "http://localhost:3000/login", FakeOsu.url),
-                ObjectMapper()
-                    .registerKotlinModule()
-                    .registerModule(JavaTimeModule())
-                    .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES),
+                jacksonMapperBuilder().build(),
             )
 
         fun mode(

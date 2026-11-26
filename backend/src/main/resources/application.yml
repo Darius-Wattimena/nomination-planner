@@ -1,4 +1,9 @@
 spring.jackson.default-property-inclusion: non_null
+# Jackson 3 refuses a missing boolean, the planner always read it as false
+spring.jackson.deserialization.fail-on-null-for-primitives: false
+
+# Not running on Kubernetes, the health check only needs the status
+management.endpoint.health.probes.enabled: false
 
 server.compression.enabled: true
 

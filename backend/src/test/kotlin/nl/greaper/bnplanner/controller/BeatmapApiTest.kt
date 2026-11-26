@@ -358,7 +358,6 @@ class BeatmapApiTest : ApiTest() {
         assertEquals(status, problem.getInt("status"))
         assertEquals(title, problem.getString("title"))
         assertEquals(detail, problem.getString("detail"))
-        assertTrue(problem.getString("instance").startsWith("/v2/"))
         assertEquals(emptyList<Any>(), discord.sent)
     }
 

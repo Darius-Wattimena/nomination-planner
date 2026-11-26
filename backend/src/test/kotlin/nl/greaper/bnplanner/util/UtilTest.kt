@@ -1,7 +1,5 @@
 package nl.greaper.bnplanner.util
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.module.SimpleModule
 import nl.greaper.bnplanner.ServletInitializer
 import nl.greaper.bnplanner.auth.OsuTokenVerifierTest.Companion.createToken
 import nl.greaper.bnplanner.auth.RolePermission
@@ -31,18 +29,21 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.boot.builder.SpringApplicationBuilder
-import java.io.StringWriter
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.databind.module.SimpleModule
 import java.time.Instant
 
 class UtilTest {
     @Test
     fun `Should read and write a status as its priority`() {
         val mapper =
-            ObjectMapper().registerModule(
-                SimpleModule()
-                    .addSerializer(BeatmapStatusSerializer())
-                    .addDeserializer(BeatmapStatus::class.java, BeatmapStatusDeserializer()),
-            )
+            JsonMapper
+                .builder()
+                .addModule(
+                    SimpleModule()
+                        .addSerializer(BeatmapStatusSerializer())
+                        .addDeserializer(BeatmapStatus::class.java, BeatmapStatusDeserializer()),
+                ).build()
 
         BeatmapStatus.entries.forEachIndexed { index, status ->
             assertEquals("${index + 1}", mapper.writeValueAsString(status))
@@ -53,17 +54,6 @@ class UtilTest {
         assertNull(mapper.readValue("0", BeatmapStatus::class.java))
         assertNull(mapper.readValue("9", BeatmapStatus::class.java))
         assertThrows<Exception> { mapper.readValue("\"Pending\"", BeatmapStatus::class.java) }
-    }
-
-    @Test
-    fun `Should not write a missing status`() {
-        val mapper = ObjectMapper()
-        val writer = StringWriter()
-        val generator = mapper.factory.createGenerator(writer)
-        BeatmapStatusSerializer().serialize(null, generator, mapper.serializerProviderInstance)
-        generator.close()
-
-        assertEquals("", writer.toString())
     }
 
     @Test

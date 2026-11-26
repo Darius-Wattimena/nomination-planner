@@ -1,6 +1,5 @@
 package nl.greaper.bnplanner.client
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.config.OsuProperties
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -14,6 +13,7 @@ import org.springframework.test.web.client.match.MockRestRequestMatchers.header
 import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
 import org.springframework.test.web.client.response.MockRestResponseCreators.withStatus
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
+import tools.jackson.databind.ObjectMapper
 
 class OsuHttpClientTest {
     private val client = OsuHttpClient(OsuProperties("14229", "", ""), ObjectMapper())

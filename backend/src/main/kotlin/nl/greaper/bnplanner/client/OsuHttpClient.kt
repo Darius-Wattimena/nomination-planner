@@ -1,7 +1,5 @@
 package nl.greaper.bnplanner.client
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
 import io.github.oshai.kotlinlogging.KotlinLogging
 import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.config.OsuProperties
@@ -23,6 +21,8 @@ import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestTemplate
 import org.springframework.web.client.postForEntity
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.readValue
 
 @Component
 class OsuHttpClient(

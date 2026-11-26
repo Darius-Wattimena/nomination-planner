@@ -1,23 +1,21 @@
 package nl.greaper.bnplanner.util
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.deser.std.StdDeserializer
-import com.fasterxml.jackson.databind.ser.std.StdSerializer
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus.Companion.toPriorityStatus
+import tools.jackson.core.JsonGenerator
+import tools.jackson.core.JsonParser
+import tools.jackson.databind.DeserializationContext
+import tools.jackson.databind.SerializationContext
+import tools.jackson.databind.deser.std.StdDeserializer
+import tools.jackson.databind.ser.std.StdSerializer
 
 class BeatmapStatusSerializer : StdSerializer<BeatmapStatus>(BeatmapStatus::class.java) {
     override fun serialize(
-        status: BeatmapStatus?,
+        status: BeatmapStatus,
         gen: JsonGenerator,
-        provider: SerializerProvider,
+        context: SerializationContext,
     ) {
-        val parsedStatus = status?.toPriorityStatus() ?: return
-
-        gen.writeNumber(parsedStatus)
+        gen.writeNumber(status.toPriorityStatus())
     }
 }
 

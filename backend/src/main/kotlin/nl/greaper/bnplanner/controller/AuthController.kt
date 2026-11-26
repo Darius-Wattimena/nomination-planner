@@ -16,7 +16,7 @@ class AuthController(
     @PostMapping
     fun login(
         @RequestBody token: String,
-    ): ResponseEntity<UserContext?> {
+    ): ResponseEntity<UserContext> {
         runCatching {
             val result = authService.login(token)
 
@@ -31,7 +31,7 @@ class AuthController(
     @PostMapping("/refresh")
     fun refreshLogin(
         @RequestBody refreshToken: String,
-    ): ResponseEntity<UserContext?> {
+    ): ResponseEntity<UserContext> {
         runCatching {
             val result = authService.refresh(refreshToken)
 

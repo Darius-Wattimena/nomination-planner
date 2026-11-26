@@ -1,6 +1,5 @@
 package nl.greaper.bnplanner.service
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import nl.greaper.bnplanner.CREATED_BEATMAP_ICON
 import nl.greaper.bnplanner.DISQUALIFY_STATUS_ICON
@@ -34,6 +33,7 @@ import nl.greaper.bnplanner.model.toReadableName
 import nl.greaper.bnplanner.service.UserService.Companion.MISSING_USER_ID
 import nl.greaper.bnplanner.util.toReadableName
 import org.springframework.stereotype.Service
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.lang.StringBuilder
 import java.time.Instant
 

@@ -1,6 +1,5 @@
 package nl.greaper.bnplanner.auth
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.config.OsuProperties
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -16,6 +15,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
