@@ -95,8 +95,8 @@ class BeatmapApiTest : ApiTest() {
     }
 
     @Test
-    fun `SUSPECTED BUG - An unknown beatmap is an empty response instead of not found`() {
-        get("/v2/beatmap/1").assertEmpty()
+    fun `Should not find a beatmap that is not on the planner`() {
+        assertProblem(get("/v2/beatmap/1"), 404, "Not Found", "Beatmap 1 is not on the planner")
     }
 
     @Test
@@ -214,8 +214,8 @@ class BeatmapApiTest : ApiTest() {
     }
 
     @Test
-    fun `SUSPECTED BUG - Adding a beatmap unknown to osu is an empty response`() {
-        add("""{"osuId":"1","gamemodes":["osu"]}""").assertEmpty()
+    fun `Should not add a beatmap osu does not know`() {
+        assertProblem(add("""{"osuId":"1","gamemodes":["osu"]}"""), 404, "Not Found", "osu! doesn't know beatmap 1")
     }
 
     // Nominators
@@ -246,9 +246,9 @@ class BeatmapApiTest : ApiTest() {
         assertEquals(listOf("osu [2, 3]"), nominators(patch("1/osu/nominator?old=0&new=3")))
         assertEquals(listOf("osu [2, 3]", "mania [3, 0]"), nominators(patch("1/mania/nominator?old=0&new=3")))
         assertEquals(listOf("osu [2, 3]"), nominators(patch("1/mania/nominator?old=3&new=0")))
-        patch("2/osu/nominator?old=0&new=2").assertEmpty()
+        assertProblem(patch("2/osu/nominator?old=0&new=2"), 404, "Not Found", "Beatmap 2 is not on the planner")
         // Already replaced by someone else
-        patch("1/osu/nominator?old=0&new=1").assertEmpty()
+        assertProblem(patch("1/osu/nominator?old=0&new=1"), 409, "Conflict", "Someone else changed the nominators first")
     }
 
     // Status
@@ -257,9 +257,9 @@ class BeatmapApiTest : ApiTest() {
     fun `Should update the status`() {
         save("1")
 
-        patch("1/status?new=Graved", As.ADMIN).assertJson("true")
+        patch("1/status?new=Graved", As.ADMIN).assertEmpty()
         assertEquals(BeatmapStatus.Graved, beatmaps.findById("1")!!.status)
-        patch("2/status?new=Graved", As.ADMIN).assertJson("false")
+        assertProblem(patch("2/status?new=Graved", As.ADMIN), 404, "Not Found", "Beatmap 2 is not on the planner")
     }
 
     // Note
@@ -268,16 +268,16 @@ class BeatmapApiTest : ApiTest() {
     fun `Should update the note`() {
         save("1")
 
-        patch("1/note", body = "New \"note\" é", contentType = "text/plain;charset=UTF-8").assertJson("true")
+        patch("1/note", body = "New \"note\" é", contentType = "text/plain;charset=UTF-8").assertEmpty()
         assertEquals("New \"note\" é", beatmaps.findById("1")!!.note)
-        patch("2/note", body = "note", contentType = "text/plain").assertJson("false")
+        assertProblem(patch("2/note", body = "note", contentType = "text/plain"), 404, "Not Found", "Beatmap 2 is not on the planner")
     }
 
     @Test
     fun `Should clear the note`() {
         beatmaps.insertOne(beatmap("1", mapperId = "1", note = "old"))
 
-        patch("1/note", body = "", contentType = "text/plain").assertJson("true")
+        patch("1/note", body = "", contentType = "text/plain").assertEmpty()
         assertEquals("", beatmaps.findById("1")!!.note)
     }
 
@@ -287,7 +287,7 @@ class BeatmapApiTest : ApiTest() {
         FakeOsu.respond("GET /api/v2/me", """{"id":2,"username":"Editor"}""")
 
         val headers = mapOf("Authorization" to As.EDITOR.header!!, "Content-Type" to "text/plain")
-        assertEquals("true", http("PATCH", "/v2/beatmap/1/note", headers, "").body())
+        assertEquals("", http("PATCH", "/v2/beatmap/1/note", headers, "").body())
         assertEquals("", beatmaps.findById("1")!!.note)
     }
 
@@ -324,7 +324,8 @@ class BeatmapApiTest : ApiTest() {
         assertEquals(status, problem.getInt("status"))
         assertEquals(title, problem.getString("title"))
         assertEquals(detail, problem.getString("detail"))
-        assertEquals(emptyList<Any>(), discord.sent)
+        // Not something that went wrong in the planner
+        assertTrue(discord.sent.none { it.description.startsWith("**ERROR:**") })
     }
 
     private fun assertBadRequest(

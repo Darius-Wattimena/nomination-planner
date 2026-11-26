@@ -1,11 +1,13 @@
 package nl.greaper.bnplanner.controller
 
+import nl.greaper.bnplanner.DefaultExceptionHandler
 import nl.greaper.bnplanner.auth.OsuTokenVerifierTest.Companion.createToken
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
 import nl.greaper.bnplanner.support.ApiTest
 import nl.greaper.bnplanner.support.FakeOsu
+import org.json.JSONObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -14,7 +16,6 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.http.HttpHeaders.AUTHORIZATION
-import org.springframework.security.authorization.AuthorizationDeniedException
 
 class SecurityApiTest : ApiTest() {
     @ParameterizedTest
@@ -64,14 +65,15 @@ class SecurityApiTest : ApiTest() {
                     assertEquals("Full authentication is required to access this resource", response.errorMessage)
                 }
 
+                // Beatmap 1 is not on the planner, which is all right as long as it is allowed
                 in allowed -> {
-                    assertEquals(200, response.status, "$it $uri ${response.contentAsString}")
+                    assertTrue(response.status in setOf(200, 404), "$it $uri ${response.status} ${response.contentAsString}")
                 }
 
-                // SUSPECTED BUG - Access denied should have been 403, it is even reported to Discord as an error
                 else -> {
-                    response.assertUnableToHandle()
-                    assertTrue(discord.single().description.contains("AuthorizationDeniedException: Access Denied"))
+                    assertEquals(403, response.status, "$it $uri")
+                    assertEquals("You are not allowed to do this", JSONObject(response.contentAsString).getString("detail"))
+                    assertEquals(emptyList<Any>(), discord.sent)
                 }
             }
         }
@@ -186,10 +188,12 @@ class SecurityApiTest : ApiTest() {
     // Errors
 
     @Test
-    fun `SUSPECTED BUG - Any exception becomes a 400`() {
-        call(As.VIEWER, "DELETE", "/v2/beatmap/1/delete").assertUnableToHandle()
+    fun `Should report an unexpected error to the developer`() {
+        val response = context.getBean(DefaultExceptionHandler::class.java).exception(IllegalStateException("made up"))
+        assertEquals(500, response.statusCode.value())
+        assertEquals("Unable to handle request", response.body)
         val sent = discord.single()
-        assertTrue(sent.description.startsWith("**ERROR:**\n```\n${AuthorizationDeniedException::class.java.name}: "))
+        assertTrue(sent.description.startsWith("**ERROR:**\n```\n${IllegalStateException::class.java.name}: made up"))
         assertTrue(sent.description.endsWith("\n```"))
         assertTrue(sent.description.length <= "**ERROR:**\n```\n\n```".length + 1600)
         assertEquals(

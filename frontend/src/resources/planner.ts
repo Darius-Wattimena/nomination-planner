@@ -5,7 +5,7 @@ import {BeatmapStatus} from "../models/Types";
 import {setSession, useSession} from "../utils/session";
 import {highestRole} from "../utils/users";
 import Api from "./Api";
-import {request, useQuery} from "./client";
+import {find, request, statusOf, useQuery} from "./client";
 import {forgetRanked} from "./ranked";
 import type {Feed, FeedUpdate} from "./feed";
 import {applyUpdate, forgetFeed, NOBODY, readFeed, storeFeed, toBeatmap} from "./feed";
@@ -171,9 +171,9 @@ export function usePlanner() {
 export function useBeatmap(id: string) {
   const {maps, others} = usePlanner()
   const known = maps?.find(it => it.osuId === id) ?? others[id]
-  const {data, loading: fetching, error} = useQuery<Beatmap | "">(known || !maps ? undefined : Api.fetchBeatmap(id))
+  const {data, loading: fetching, error} = useQuery<Beatmap>(known || !maps ? undefined : Api.fetchBeatmap(id), find)
   return {
-    beatmap: known ?? (data || undefined),
+    beatmap: known ?? data,
     loading: !known && (!maps || fetching),
     error
   }
@@ -190,9 +190,9 @@ export function putBeatmap(beatmap: Beatmap) {
 }
 
 export async function refreshBeatmap(id: string) {
-  const beatmap = await request<Beatmap | "">(Api.fetchBeatmap(id))
+  const beatmap = await find<Beatmap>(Api.fetchBeatmap(id))
   if (beatmap) putBeatmap(beatmap)
-  return beatmap || undefined
+  return beatmap
 }
 
 export async function deleteBeatmap(id: string) {
@@ -292,13 +292,14 @@ window.addEventListener("beforeunload", event => {
 export class ConflictError extends Error {}
 
 export async function setNominator(id: string, gamemode: Gamemode, oldId: string, newId: string) {
-  // Refused when somebody else was first
-  const updated = await request<Beatmap | "">(Api.updateNominator(id, gamemode, oldId, newId))
-  if (!updated) {
+  try {
+    putBeatmap(await request<Beatmap>(Api.updateNominator(id, gamemode, oldId, newId)))
+  } catch (error) {
+    // Refused when somebody else was first, or removed the beatmap
+    if (statusOf(error) !== 409 && statusOf(error) !== 404) throw error
     await refreshBeatmap(id)
     throw new ConflictError()
   }
-  putBeatmap(updated)
 }
 
 export async function saveNote(beatmap: Beatmap, note: string) {
@@ -307,7 +308,8 @@ export async function saveNote(beatmap: Beatmap, note: string) {
 }
 
 export async function addBeatmap(id: string, gamemodes: Gamemode[]) {
-  const added = await request<Beatmap | "">(Api.addBeatmap(id, gamemodes))
+  // osu! may not know it
+  const added = await find<Beatmap>(Api.addBeatmap(id, gamemodes))
   if (added) putBeatmap(added)
-  return added || undefined
+  return added
 }

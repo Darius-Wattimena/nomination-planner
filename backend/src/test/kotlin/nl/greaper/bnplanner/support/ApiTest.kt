@@ -18,6 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.http.HttpHeaders.AUTHORIZATION
@@ -93,6 +94,9 @@ abstract class ApiTest {
 
     @Autowired
     lateinit var mvc: MockMvc
+
+    @Autowired
+    lateinit var context: ApplicationContext
 
     @Autowired
     lateinit var users: UserDataSource
@@ -182,7 +186,7 @@ abstract class ApiTest {
 
     /** What every exception that isn't expected turns into */
     fun MockHttpServletResponse.assertUnableToHandle() {
-        assertEquals(400, status)
+        assertEquals(500, status)
         assertEquals("Unable to handle request", contentAsString)
     }
 }

@@ -47,7 +47,7 @@ export async function request<T>(config: AxiosRequestConfig, signal?: AbortSigna
   try {
     return (await call()).data
   } catch (error) {
-    if ((error as AxiosError).response?.status !== 401) throw error
+    if (statusOf(error) !== 401) throw error
     await refreshSession()
     return (await call()).data
   }
@@ -58,14 +58,31 @@ export async function login(code: string) {
   setSession(result.data)
 }
 
+export function statusOf(error: unknown) {
+  return (error as AxiosError).response?.status
+}
+
+/** Like request, where something that doesn't exist is undefined instead of an error */
+export async function find<T>(config: AxiosRequestConfig, signal?: AbortSignal): Promise<T | undefined> {
+  try {
+    return await request<T>(config, signal)
+  } catch (error) {
+    if (statusOf(error) === 404) return undefined
+    throw error
+  }
+}
+
 interface QueryState<T> {
   data?: T
   loading: boolean
   error: boolean
 }
 
-/** Load data, and load it again whenever the config changes. Keeps the previous data in the meantime. */
-export function useQuery<T>(config: AxiosRequestConfig | undefined) {
+/**
+ * Load data, and load it again whenever the config changes. Keeps the previous data in the meantime.
+ * With load set to find, something that doesn't exist is no data instead of an error.
+ */
+export function useQuery<T>(config: AxiosRequestConfig | undefined, load: (config: AxiosRequestConfig, signal: AbortSignal) => Promise<T | undefined> = request) {
   const [state, setState] = useState<QueryState<T>>({loading: !!config, error: false})
   const [version, setVersion] = useState(0)
   const key = config && JSON.stringify(config)
@@ -82,7 +99,7 @@ export function useQuery<T>(config: AxiosRequestConfig | undefined) {
     if (!key) return
     const controller = new AbortController()
 
-    request<T>(JSON.parse(key), controller.signal)
+    load(JSON.parse(key), controller.signal)
       .then(data => {
         if (!controller.signal.aborted) setState({data, loading: false, error: false})
       })
@@ -91,7 +108,7 @@ export function useQuery<T>(config: AxiosRequestConfig | undefined) {
       })
 
     return () => controller.abort()
-  }, [key, version])
+  }, [key, version, load])
 
   const reload = useCallback(() => setVersion(it => it + 1), [])
   return {...state, reload}
