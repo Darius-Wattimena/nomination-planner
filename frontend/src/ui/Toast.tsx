@@ -13,16 +13,20 @@ export function ToastProvider({children}: {children: ReactNode}) {
 
   const show = useCallback<ShowToast>((message, options = {}) => {
     const id = nextId.current++
-    setToasts(all => [...all.slice(-2), {id, message, ...options}])
+    setToasts(all => {
+      // Older messages make room, but never one that can still be undone
+      let extra = all.length - 2
+      return [...all.filter(it => it.undo || extra-- <= 0), {id, message, ...options}]
+    })
     window.setTimeout(() => dismiss(id), options.undo ? UNDO_TIME : options.kind === "error" ? 8000 : 4000)
   }, [dismiss])
 
   return (
     <ToastContext.Provider value={show}>
       {children}
-      <div className="toasts" role="status" aria-live="polite">
+      <div className="toasts">
         {toasts.map(({id, message, kind, undo}) => (
-          <div key={id} className={`toast toast-${kind ?? "success"}`}>
+          <div key={id} className={`toast toast-${kind ?? "success"}`} role={kind === "error" ? "alert" : "status"}>
             <span>{message}</span>
             {undo &&
               <button className="link" onClick={() => {

@@ -1,5 +1,5 @@
 import type {FormEvent, ReactNode} from "react";
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useState} from "react";
 import {useNavigate} from "react-router";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
 import type {Beatmap, Gamemode} from "../models/Types";
@@ -15,45 +15,20 @@ import {nextStep} from "../utils/workflow";
 import type {OpenAdd} from "./useAddBeatmap";
 import {AddContext} from "./useAddBeatmap";
 
-function isTyping(target: EventTarget | null) {
-  return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
-}
-
 function parse(text: string) {
   const id = text.trim()
   return /^[0-9]{2,}$/.test(id) ? {id, mode: undefined} : parseOsuLink(id)
 }
 
-/** The window to add a beatmap. A copied link can be pasted anywhere, it opens the beatmap when it is on the planner already. */
+/** The window to add a beatmap */
 export function AddBeatmapProvider({children}: {children: ReactNode}) {
   const session = useSession()
   const editor = canEdit(session)
-  const loggedIn = !!session?.user
   const {maps = []} = usePlanner()
   const navigate = useNavigate()
-  const toast = useToast()
   const [link, setLink] = useState<string>()
   const open = useCallback<OpenAdd>((initial = "") => setLink(initial), [])
   const close = () => setLink(undefined)
-
-  useEffect(() => {
-    if (!loggedIn) return
-    const onPaste = (event: ClipboardEvent) => {
-      const pasted = event.clipboardData?.getData("text").trim() ?? ""
-      const found = parseOsuLink(pasted)
-      if (isTyping(event.target) || !found) return
-      if (maps.some(it => it.osuId === found.id)) {
-        setLink(undefined)
-        navigate(`/beatmaps?q=&map=${found.id}`)
-      } else if (editor) {
-        setLink(pasted)
-      } else {
-        toast("This beatmap is not on the planner", {kind: "error"})
-      }
-    }
-    window.addEventListener("paste", onPaste)
-    return () => window.removeEventListener("paste", onPaste)
-  }, [loggedIn, editor, maps, navigate, toast])
 
   return (
     <AddContext.Provider value={open}>
