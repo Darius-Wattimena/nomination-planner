@@ -104,7 +104,7 @@ function SyncBeatmaps({onStarted}: {onStarted: () => void}) {
           )
         })}
       </div>
-      <p className="alert alert-warning">Every beatmap takes at least 2 seconds. Users that are unknown to the planner are looked up too.</p>
+      <p className="alert alert-warning">They are synced one after the other, a few each second as osu! allows. Users that are unknown to the planner are looked up too.</p>
       <SyncResult {...sync} unit="beatmap"/>
       <div className="button-row">
         <button className="button button-primary" disabled={sync.syncing} onClick={() => setConfirming(true)}>
