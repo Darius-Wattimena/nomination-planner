@@ -9,6 +9,8 @@ import type {Gamemode, User, UserRole} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import {useRanked} from "../resources/ranked";
 import NominatorYear, {NewPairings, NominatorBadges} from "../stats/NominatorYear";
+import ActivityHeatmap from "../stats/Heatmap";
+import Insights, {Compare} from "../stats/ProfileInsights";
 import Cover from "../ui/Cover";
 import ModeIcon, {ModeSwitch} from "../ui/ModeIcon";
 import PageHeader from "../ui/PageHeader";
@@ -257,7 +259,10 @@ function Profile({id}: {id: string}) {
               : <ul className="map-list">{own.map(it => <MapRow key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={open}/>)}</ul>
             }
           </section>
+          <ActivityHeatmap id={id} self={isSelf}/>
           <NominatorYear id={id} self={isSelf}/>
+          <Insights id={id} self={isSelf} name={name}/>
+          <Compare id={id} name={name} partners={pairings.data ?? []}/>
         </div>
         <aside>
           <NominatorBadges id={id}/>
