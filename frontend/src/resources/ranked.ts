@@ -25,6 +25,8 @@ interface RankedBeatmap {
   mapper: string
   ranked?: string | number
   modes: {mode: Gamemode, by: string[]}[]
+  /** When it was added to the planner */
+  added?: string | number
 }
 
 interface Ranked {
@@ -39,6 +41,8 @@ interface State {
 }
 
 const KEY = "ranked"
+/** Raised when the backend sends more about every beatmap, so what is stored without it loads again in full once */
+const SCHEMA = 2
 const REFRESH_AFTER = 5 * 60_000
 
 let owner: string | undefined
@@ -68,18 +72,19 @@ function toBeatmaps({names, beatmaps}: Ranked): Beatmap[] {
         ? {nominator: user(by[index]), hasNominated: true}
         : {nominator: NOBODY, hasNominated: false})
     })),
+    dateAdded: it.added,
     dateRanked: it.ranked
   }))
 }
 
 function read(userId: string): Ranked | undefined {
-  const stored = readStored<{owner: string, ranked?: Ranked}>(KEY)
-  return stored?.owner === userId && stored.ranked?.token ? stored.ranked : undefined
+  const stored = readStored<{owner: string, schema?: number, ranked?: Ranked}>(KEY)
+  return stored?.owner === userId && stored.schema === SCHEMA && stored.ranked?.token ? stored.ranked : undefined
 }
 
 function remember(userId: string, value: Ranked) {
   // Too large for this browser, only opening the statistics again is slower
-  if (!store(KEY, {owner: userId, ranked: value})) forget(KEY)
+  if (!store(KEY, {owner: userId, schema: SCHEMA, ranked: value})) forget(KEY)
 }
 
 function load(userId: string) {

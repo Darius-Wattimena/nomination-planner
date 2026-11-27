@@ -4,29 +4,15 @@ import type {Gamemode} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import ModeIcon from "../ui/ModeIcon";
 import {MODE_WORDS} from "../utils/query";
-import {spots} from "../utils/nominations";
-import {canNominate, isMissing} from "../utils/users";
-import {ageInDays, stageOf, STAGES, toDate} from "../utils/workflow";
-import {inProgress} from "../utils/involvement";
-import {median} from "./stats";
+import {plannedLoad, stages as stagesOf, supply} from "./pipeline";
 
 
 /** Where the process needs help, about the work and not about people */
 export default function Health() {
   const {maps = []} = usePlanner()
-  const stages = STAGES.map(stage => {
-    const own = maps.filter(it => stageOf(it) === stage.id)
-    return {...stage, count: own.length, days: median(own.filter(it => toDate(it.dateUpdated)).map(ageInDays))}
-  })
+  const stages = stagesOf(maps)
   const most = Math.max(1, ...stages.map(it => it.count))
-
-  const slots = maps.filter(it => stageOf(it) !== "qualified")
-    .flatMap(map => map.gamemodes.flatMap(it => spots(map, it))).filter(it => !isMissing(it.nominator) && !it.hasNominated)
-  const perPerson = new Map<string, number>()
-  slots.forEach(it => perPerson.set(it.nominator.osuId, (perPerson.get(it.nominator.osuId) ?? 0) + 1))
-  const counts = Array.from(perPerson.values()).sort((a, b) => b - a)
-  let carried = 0, people = 0
-  while (people < counts.length && carried < slots.length / 2) carried += counts[people++]
+  const {slots, people, nominators} = plannedLoad(maps)
 
   return (
     <div className="health">
@@ -52,8 +38,8 @@ export default function Health() {
             </li>
           ))}
         </ul>
-        {slots.length > 0 &&
-          <p>{people} of {counts.length} {people === 1 ? "nominator is" : "nominators are"} on half of the {slots.length} nominations that are planned.</p>
+        {slots > 0 &&
+          <p>{people} of {nominators} {people === 1 ? "nominator is" : "nominators are"} on half of the {slots} nominations that are planned.</p>
         }
       </section>
     </div>
@@ -62,18 +48,16 @@ export default function Health() {
 
 function ModeHealth({mode}: {mode: Gamemode}) {
   const {maps = [], nominators} = usePlanner()
-  const open = maps.flatMap(map => map.gamemodes.filter(it => it.gamemode === mode).flatMap(it => spots(map, it))).filter(it => isMissing(it.nominator) && !it.optional).length
-  const team = nominators?.filter(it => canNominate(it, mode))
-  const free = team?.filter(it => inProgress(maps, it.osuId) === 0).length
+  const {open, team, free} = supply(maps, nominators, mode)
   const unknown = "…"
 
   return (
     <tr>
       <th scope="row"><Link to={`/beatmaps?q=mode%3A${MODE_WORDS[mode]}%20is%3Aopen`}><ModeIcon mode={mode}/>{GAMEMODE_NAMES[mode]}</Link></th>
       <td>{open}</td>
-      <td>{team ? team.length : unknown}</td>
+      <td>{team ?? unknown}</td>
       <td>{free !== undefined ? free : unknown}</td>
-      <td>{team && team.length > 0 ? (open / team.length).toFixed(1) : team ? "–" : unknown}</td>
+      <td>{team ? (open / team).toFixed(1) : team === 0 ? "–" : unknown}</td>
     </tr>
   )
 }

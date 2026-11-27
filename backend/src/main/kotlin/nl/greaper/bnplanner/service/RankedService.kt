@@ -60,5 +60,6 @@ class RankedService(
                 beatmap.gamemodes.map { mode ->
                     RankedMode(mode.gamemode, mode.nominators.map { it.nominatorId }.filter { it != MISSING_USER_ID })
                 },
+            added = beatmap.dateAdded,
         )
 }

@@ -7,6 +7,7 @@ import {useRanked} from "../resources/ranked";
 import Columns, {Table} from "../stats/Columns";
 import {combinations, debuts, inLastYear, inYear, network, nominatorsOf, overTime, perMonth, rankedDate, summarize, yearBefore} from "../stats/stats";
 import {Figures, Highlights, YearTable} from "../stats/Years";
+import Multiples from "../stats/Multiples";
 import {modeParam} from "../utils/query";
 import {boards, scores} from "../stats/boards";
 import Cover from "../ui/Cover";
@@ -19,8 +20,18 @@ import {displayName} from "../utils/users";
 // Only loaded for the tab that shows them
 const Constellation = lazy(() => import("../stats/Constellation"))
 const Leaderboards = lazy(() => import("../stats/Leaderboards"))
+const Pipeline = lazy(() => import("../stats/PipelineTab"))
+const Speed = lazy(() => import("../stats/SpeedTab"))
+const Community = lazy(() => import("../stats/CommunityTab"))
 
-const TABS = [{id: "overview", label: "Overview"}, {id: "constellation", label: "Constellation"}, {id: "leaderboards", label: "Leaderboards"}]
+const TABS = [
+  {id: "overview", label: "Overview"},
+  {id: "pipeline", label: "Pipeline"},
+  {id: "speed", label: "Speed"},
+  {id: "community", label: "Community"},
+  {id: "constellation", label: "Constellation"},
+  {id: "leaderboards", label: "Leaderboards"}
+]
 
 export default function Statistics() {
   const {maps, error, retry} = useRanked()
@@ -34,6 +45,7 @@ export default function Statistics() {
   const year = /^[0-9]{4}$/.test(period) ? Number(period) : undefined
   const lastYear = !year && period !== "all"
   const thisYear = new Date().getFullYear()
+  const timeframe = useMemo(() => ({year, lastYear}), [year, lastYear])
 
   function update(changes: {view?: string, period?: string, mode?: string}) {
     const next = new URLSearchParams(params)
@@ -54,6 +66,7 @@ export default function Statistics() {
   const newMappers = useMemo(() => everyDebut.filter(it => scope.includes(it)), [everyDebut, scope])
 
   const firsts = useMemo(() => new Set(everyDebut.map(it => it.osuId)), [everyDebut])
+  const live = tab === "pipeline"
   const ranking = useMemo(() => tab === "leaderboards" ? boards(scores(scope, firsts, mode)) : undefined, [tab, scope, firsts, mode])
 
   const summary = summarize(scope, firsts, mode)
@@ -81,10 +94,12 @@ export default function Statistics() {
         {TABS.map(it => <button key={it.id} aria-current={tab === it.id ? "page" : undefined} onClick={() => update({view: it.id})}>{it.label}</button>)}
       </nav>
 
-      {error && <p className="alert alert-error" role="alert">Could not load the statistics. <button className="link" onClick={retry}>Try again</button></p>}
-      {!maps && !error && <Loading/>}
-      {maps && scope.length === 0 && <EmptyState title="Nothing ranked here yet"><p className="muted">Try another mode or period.</p></EmptyState>}
-      {scope.length > 0 &&
+      {live && <Suspense fallback={<Loading/>}><Pipeline mode={mode} onOpen={open}/></Suspense>}
+
+      {!live && error && <p className="alert alert-error" role="alert">Could not load the statistics. <button className="link" onClick={retry}>Try again</button></p>}
+      {!live && !maps && !error && <Loading/>}
+      {!live && maps && scope.length === 0 && <EmptyState title="Nothing ranked here yet"><p className="muted">Try another mode or period.</p></EmptyState>}
+      {!live && scope.length > 0 &&
         <>
           {tab === "overview" && <>
           <Figures summary={summary} before={before} than={year === thisYear ? `${year - 1} until the same day` : String(year && year - 1)}/>
@@ -94,6 +109,7 @@ export default function Statistics() {
             <p className="muted">{mode ? what : "All modes, a hybrid counts once"}{undated > 0 && period === "all" && `. ${undated} without a known date are left out`}</p>
             <Columns columns={time.columns} unit="ranked" label={`Ranked beatmaps per ${time.unit}, ${what}`} unfinished={!year || year === thisYear}/>
           </section>
+          {!mode && <Multiples maps={ofMode} period={timeframe} unfinished={!year || year === thisYear}/>}
           {year && <Highlights maps={scope} all={ofMode} year={year} mode={mode}/>}
           {period === "all" && years.length > 1 && <YearTable maps={ofMode} firsts={firsts} years={years} mode={mode} onPick={it => {
             update({period: String(it)})
@@ -101,6 +117,14 @@ export default function Statistics() {
           }}/>}
 
           </>}
+          {tab === "speed" && <Suspense fallback={<Loading/>}>
+            <Speed scope={scope} all={ofMode} period={timeframe} mode={mode} onOpen={open}/>
+          </Suspense>}
+
+          {tab === "community" && <Suspense fallback={<Loading/>}>
+            <Community scope={scope} all={ofMode} debuts={firsts} period={timeframe} mode={mode}/>
+          </Suspense>}
+
           {tab === "constellation" && <section className="stat">
             <h2>Constellation</h2>
             <p className="muted">Who ranked beatmaps together, grouped by mode</p>

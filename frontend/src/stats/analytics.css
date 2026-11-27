@@ -1,0 +1,62 @@
+/* The analytics tabs of the statistics, on top of the chart styles in app.css */
+
+.an-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 12px; padding: 0; list-style: none; color: var(--muted); font-size: .86rem; }
+.an-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.an-legend + .chart-table, .bars + .an-legend { margin-top: 12px; }
+
+/* Bars made of parts */
+.an-stack { display: flex; min-width: 2px; }
+.bars-track.an-stack > span { min-width: 0; border-radius: 0; background: var(--m, var(--series)); }
+.bars-track.an-stack > span:last-child { border-radius: 0 4px 4px 0; }
+.an-small { font-size: .9375rem; }
+
+/* Older is darker, so the order shows without the colour */
+.an-age { --m: color-mix(in srgb, var(--series) 35%, transparent); }
+.an-age[data-age="1"] { --m: color-mix(in srgb, var(--series) 60%, transparent); }
+.an-age[data-age="2"] { --m: var(--series); }
+.an-age[data-age="3"] { --m: color-mix(in srgb, var(--series) 65%, var(--text)); }
+.legend-dot.an-age, .bars-track.an-stack > .an-age { background: var(--m); }
+
+/* Supply and demand */
+.an-supply { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.an-supply > li { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; align-items: center; gap: 16px; }
+.an-pair { display: grid; gap: 4px; }
+.an-pair .bars-track { height: 12px; }
+.bars-value.an-pair { font-size: .86rem; line-height: 12px; }
+.legend-dot.an-open { background: var(--series); }
+.an-free > span, .legend-dot.an-free { background: var(--series-2); }
+
+/* Columns made of two parts */
+.column-bar.an-split { display: flex; flex-direction: column; overflow: hidden; background: none; }
+.an-split > span { min-height: 0; }
+.an-first { background: var(--series); }
+.an-second { background: var(--series-2); }
+.legend-dot.an-first { background: var(--series); }
+.legend-dot.an-second { background: var(--series-2); }
+
+/* Lists of beatmaps with a value */
+.an-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.an-list > li { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 8px; margin-inline: -8px; border-bottom: 1px solid var(--line); }
+.an-list > li:hover { background: var(--hover); }
+.an-list .map-name { display: grid; gap: 2px; min-width: 0; }
+.an-list .muted { font-size: .86rem; }
+.an-days { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* A Lorenz curve */
+.an-concentration { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px 32px; }
+.an-concentration .figures { flex-direction: column; margin: 0; }
+.an-lorenz { flex: 1 1 200px; max-width: 280px; }
+.an-lorenz svg { display: block; width: 100%; max-width: 180px; height: auto; overflow: visible; }
+.an-lorenz figcaption { margin-top: 8px; font-size: .86rem; }
+.an-lorenz-frame { fill: none; stroke: var(--grid); }
+.an-lorenz-equal { stroke: var(--muted); stroke-dasharray: 4 4; }
+.an-lorenz-area { fill: color-mix(in srgb, var(--series) 18%, transparent); }
+.an-lorenz-line { fill: none; stroke: var(--series); stroke-width: 2.5; stroke-linejoin: round; }
+
+/* Small multiples, one per mode in its colour */
+.an-multiples { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 24px 32px; }
+.an-multiple { --series: var(--m); min-width: 0; }
+.an-multiple h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 1rem; }
+.an-multiple .columns-labels span:not(:first-child, :last-child) { visibility: hidden; }
+.an-multiple .columns-labels span { overflow: visible; }
+.an-multiple .column-value { font-size: .78rem; }

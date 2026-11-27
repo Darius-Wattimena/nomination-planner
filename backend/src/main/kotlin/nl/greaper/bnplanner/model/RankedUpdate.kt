@@ -19,6 +19,8 @@ data class RankedBeatmap(
     val mapper: String,
     val ranked: Instant?,
     val modes: List<RankedMode>,
+    /** When it was added to the planner, to know how long it took to get ranked */
+    val added: Instant?,
 )
 
 data class RankedMode(

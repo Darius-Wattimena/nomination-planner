@@ -5,6 +5,7 @@ import nl.greaper.bnplanner.model.RankedBeatmap
 import nl.greaper.bnplanner.model.RankedMode
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.support.Planner
+import nl.greaper.bnplanner.support.Planner.Companion.ADDED
 import nl.greaper.bnplanner.support.Planner.Companion.UPDATED
 import nl.greaper.bnplanner.support.Planner.Companion.beatmap
 import nl.greaper.bnplanner.support.Planner.Companion.mode
@@ -43,6 +44,7 @@ class RankedServiceTest {
                 "10",
                 UPDATED,
                 listOf(RankedMode(Gamemode.osu, listOf("5", "6")), RankedMode(Gamemode.mania, listOf("5"))),
+                ADDED,
             ),
             update.beatmaps.single { it.id == "1" },
         )
