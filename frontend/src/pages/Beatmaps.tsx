@@ -1,10 +1,12 @@
-import {useEffect, useMemo, useState} from "react";
+import {useMemo, useState} from "react";
 import {useSearchParams} from "react-router";
 import {FaList, FaPlus, FaTableColumns, FaXmark} from "react-icons/fa6";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapCard, MapRow} from "../beatmaps/MapRow";
 import Filters from "../beatmaps/Filters";
+import type {SavedView} from "../beatmaps/savedViews";
+import {deleteView, saveView, useSavedViews} from "../beatmaps/savedViews";
 import type {Beatmap} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import {useAddBeatmap} from "../beatmaps/useAddBeatmap";
@@ -17,25 +19,10 @@ import {filterMaps, MODE_WORDS} from "../utils/query";
 import {canEdit, useSession} from "../utils/session";
 import {modesOf} from "../utils/users";
 import {ageInDays, hiddenAsOld, LABELS, OLD_DAYS, stageOf, STAGES} from "../utils/workflow";
-import {readStored, store, storeFirst} from "../utils/storage";
+import {readStored, store} from "../utils/storage";
 import {useToast} from "../ui/useToast";
 
 const STEP = 60
-
-interface SavedView {
-  name: string
-  query: string
-}
-
-/** Stored by an older version or changed by hand, what isn't a view is left out */
-function readViews(): SavedView[] {
-  const stored = readStored<unknown>("savedViews")
-  if (!Array.isArray(stored)) return []
-  return stored.filter((it: unknown): it is SavedView => {
-    const view = it as Partial<SavedView> | null
-    return typeof view?.name === "string" && view.name.trim() !== "" && typeof view.query === "string"
-  })
-}
 
 export default function Beatmaps() {
   const session = useSession()
@@ -47,7 +34,7 @@ export default function Beatmaps() {
   const [chosen, setLayout] = useState<"board" | "list">(() => readStored<"board" | "list">("boardLayout") ?? "board")
   // Columns need room next to each other
   const layout = phone ? "list" : chosen
-  const [saved, setSaved] = useState<SavedView[]>(readViews)
+  const saved = useSavedViews()
   const toast = useToast()
   const [naming, setNaming] = useState<string>()
   // The list grows as a whole, every column by itself
@@ -78,14 +65,9 @@ export default function Beatmaps() {
     setParams(next, {replace: true})
   }
 
-  useEffect(() => {
-    storeFirst("savedViews", saved)
-  }, [saved])
-
-  function deleteView(view: SavedView) {
-    const index = saved.indexOf(view)
-    setSaved(saved.filter(it => it !== view))
-    toast(`Deleted the view ${view.name}`, {undo: () => setSaved(now => now.some(it => it.name === view.name) ? now : [...now.slice(0, index), view, ...now.slice(index)])})
+  function remove(view: SavedView) {
+    // Undoing goes through the store, the page may be gone by then
+    toast(`Deleted the view ${view.name}`, {undo: deleteView(view)})
   }
 
   const matching = useMemo(() => filterMaps(maps ?? [], query, user), [maps, query, user])
@@ -129,7 +111,7 @@ export default function Beatmaps() {
           {saved.map(view => (
             <span key={`saved:${view.name}`} className="view view-saved" data-active={view.query === query || undefined}>
               <button aria-pressed={view.query === query} onClick={() => update({q: view.query})}>{view.name}</button>
-              <button aria-label={`Delete view ${view.name}`} onClick={() => deleteView(view)}><FaXmark/></button>
+              <button aria-label={`Delete view ${view.name}`} onClick={() => remove(view)}><FaXmark/></button>
             </span>
           ))}
           {!isSaved && (naming === undefined
@@ -137,7 +119,7 @@ export default function Beatmaps() {
             : <form onSubmit={event => {
                 event.preventDefault()
                 const name = naming.trim()
-                if (name) setSaved([...saved.filter(it => it.name !== name), {name, query}])
+                if (name) saveView({name, query})
                 setNaming(undefined)
               }}>
                 <input id="view-name" autoFocus={focusesByItself()} aria-label="Name of the view" placeholder="Name, then Enter" value={naming} onChange={event => setNaming(event.target.value)} onBlur={() => setNaming(undefined)}/>

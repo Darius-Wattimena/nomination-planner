@@ -1,7 +1,7 @@
 import {GAMEMODE_NAMES} from "../Constants";
 import type {Beatmap, BeatmapGamemode} from "../models/Types";
 import {roleOf, spots} from "../utils/nominations";
-import {isMissing, sortedModes} from "../utils/users";
+import {displayName, isMissing, sortedModes} from "../utils/users";
 import ModeIcon from "./ModeIcon";
 
 /** The approach circle of a mode, which closes once everyone nominated. Two halves for the main mode, as that one needs two. */
@@ -9,7 +9,7 @@ export function Ring({beatmap, mode, large}: {beatmap: Beatmap, mode: BeatmapGam
   const shown = spots(beatmap, mode).filter(it => !it.optional)
   const states = shown.map(it => it.hasNominated ? "done" : isMissing(it.nominator) ? "open" : "assigned")
   const label = shown.map(it =>
-    isMissing(it.nominator) ? "open spot" : `${it.nominator.username}${it.hasNominated ? " nominated" : ""}`).join(", ")
+    isMissing(it.nominator) ? "open spot" : `${displayName(it.nominator)}${it.hasNominated ? " nominated" : ""}`).join(", ")
   const text = `${GAMEMODE_NAMES[mode.gamemode]}${beatmap.gamemodes.length > 1 && roleOf(beatmap, mode) === "main" ? ", main mode" : ""}: ${label}`
 
   return (

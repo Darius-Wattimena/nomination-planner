@@ -2,7 +2,7 @@ import {GAMEMODE_NAMES} from "../Constants";
 import type {Beatmap, Gamemode, User} from "../models/Types";
 import {BeatmapStatus} from "../models/Types";
 import {canJoin, lacksFullNominator, modesMissing, needsFullNominator, openSpot, openSpots, othersAreDone, roleOf, spots} from "./nominations";
-import {isMissing} from "./users";
+import {displayName, isMissing} from "./users";
 
 /** The words for the same things, so every page says them the same way */
 export const LABELS = {
@@ -72,7 +72,7 @@ export function nextStep(map: Beatmap, userId: string | undefined): {text: strin
   }
 
   const waiting = map.gamemodes.flatMap(it => spots(map, it)).filter(it => !it.hasNominated && !isMissing(it.nominator)).map(it => it.nominator)
-  const names = Array.from(new Set(waiting.map(it => it.osuId === userId ? "you" : it.username)))
+  const names = Array.from(new Set(waiting.map(it => it.osuId === userId ? "you" : displayName(it))))
   const text = names.length === 0 ? "Everyone nominated" : names.length > 2
     ? `Waiting for ${names.length} nominators`
     : `Waiting for ${names.join(" and ")}`
@@ -114,7 +114,7 @@ export function suggestions(maps: Beatmap[], user: User, rankedWith: (user: User
         const together = partner ? rankedWith(partner) : 0
         const nominated = mode.nominators.some(it => it.hasNominated)
         const reason = partner
-          ? `${partner.username} ${nominated ? "already nominated" : `is looking for a ${needsFullNominator(map, mode) ? "full" : "second"} nominator`}${together > 0 ? `, you ranked ${together} together` : ""}`
+          ? `${displayName(partner)} ${nominated ? "already nominated" : `is looking for a ${needsFullNominator(map, mode) ? "full" : "second"} nominator`}${together > 0 ? `, you ranked ${together} together` : ""}`
           : "No nominators yet"
         return {map, mode: mode.gamemode, reason, score: (nominated ? 100 : 0) + (partner ? 40 : 0) + Math.min(together, 20) - Math.min(ageInDays(map), 30) / 2}
       }))
@@ -140,15 +140,16 @@ export function toDate(value: string | number | undefined) {
   return Number.isNaN(date.getTime()) || date.getTime() <= 0 ? undefined : date
 }
 
-export function ageInDays(map: Beatmap) {
+/** @param now can be a time that only changes once a day, so what shows the age doesn't have to render every moment */
+export function ageInDays(map: Beatmap, now = Date.now()) {
   const date = toDate(map.dateUpdated)
-  return date ? Math.max(0, Math.floor((Date.now() - date.getTime()) / 86_400_000)) : 0
+  return date ? Math.max(0, Math.floor((now - date.getTime()) / 86_400_000)) : 0
 }
 
 export const STALE_DAYS = 21
 
-export function isStale(map: Beatmap) {
-  return stageOf(map) !== "qualified" && ageInDays(map) >= STALE_DAYS
+export function isStale(map: Beatmap, now = Date.now()) {
+  return stageOf(map) !== "qualified" && ageInDays(map, now) >= STALE_DAYS
 }
 
 /** Months without any change, most likely forgotten instead of still in progress */
@@ -163,9 +164,9 @@ export function hiddenAsOld(map: Beatmap, userId: string | undefined) {
   return isOld(map) && map.mapper.osuId !== userId && !partOf(map, userId)
 }
 
-export function ageLabel(map: Beatmap) {
+export function ageLabel(map: Beatmap, now = Date.now()) {
   if (!toDate(map.dateUpdated)) return ""
-  const days = ageInDays(map)
+  const days = ageInDays(map, now)
   if (days === 0) return "today"
   if (days < 14) return `${days}d`
   if (days < 60) return `${Math.floor(days / 7)}w`

@@ -11,7 +11,7 @@ import type {Token} from "../utils/query";
 import {filterMaps, formatQuery, MODE_WORDS, parseQuery} from "../utils/query";
 import {useSession} from "../utils/session";
 import {LABELS, STAGES} from "../utils/workflow";
-import {isMissing} from "../utils/users";
+import {displayName, isMissing} from "../utils/users";
 import {focusesByItself} from "../utils/phone";
 
 interface Option {
@@ -56,7 +56,7 @@ function peopleOptions(key: string, users: User[], self: User | undefined): Opti
     .sort((a, b) => Number(b.osuId === self?.osuId) - Number(a.osuId === self?.osuId) || a.username.localeCompare(b.username))
     .map(it => it.osuId === self?.osuId
       ? {key, value: "me", label: "Me", icon: <Avatar user={it}/>, also: it.osuId}
-      : {key, value: it.osuId, label: it.username, icon: <Avatar user={it}/>, also: it.username})
+      : {key, value: it.osuId, label: displayName(it), icon: <Avatar user={it}/>, also: it.username})
 }
 
 interface FiltersProps {

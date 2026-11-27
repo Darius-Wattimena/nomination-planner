@@ -3,6 +3,7 @@ import {useState} from "react";
 import {startLogin} from "../utils/login";
 import {reloadPlanner, usePlanner} from "../resources/planner";
 import {loadSession} from "../resources/client";
+import {useTitle} from "./useTitle";
 
 export function Loading() {
   return <div className="state" role="status"><span className="spinner"/>Loading…</div>
@@ -32,6 +33,7 @@ export function PlannerStatus({rows = 4}: {rows?: number}) {
 /** Who is logged in is unknown while the backend can't be reached, so asking to log in would be wrong */
 export function Unreachable() {
   const [retrying, setRetrying] = useState(false)
+  useTitle("Can't reach the planner")
   return (
     <EmptyState title="Can't reach the planner">
       <p className="muted">Check your connection. The planner may also be down for a moment.</p>

@@ -4,6 +4,7 @@ import {Avatar} from "../ui/Person";
 import {useSession} from "../utils/session";
 import {BoardIcon} from "./Badges";
 import type {Board, Entry} from "./boards";
+import {displayName} from "../utils/users";
 
 const SHOWN = 8
 
@@ -33,7 +34,7 @@ export default function Leaderboards({boards}: {boards: Board[]}) {
           {rest.map(it => <Row key={it.user.osuId} entry={it} board={board} self={self}/>)}
           {own >= SHOWN && <Row entry={board.entries[own]} board={board} self={self}/>}
         </ol>
-        {ahead && <p className="muted">{ahead.value - board.entries[own].value} more to catch up with {ahead.user.username}.</p>}
+        {ahead && <p className="muted">{ahead.value - board.entries[own].value} more to catch up with {displayName(ahead.user)}.</p>}
       </div>
     </div>
   )
@@ -45,7 +46,7 @@ function Row({entry, board, self, large}: {entry: Entry, board: Board, self?: st
       <Link className="board-row" to={`/team?user=${entry.user.osuId}`} data-self={entry.user.osuId === self || undefined}>
         <span className="place" data-place={large ? entry.place : undefined}>{entry.place}</span>
         <Avatar user={entry.user} size={large ? "large" : "small"}/>
-        <strong>{entry.user.username}</strong>
+        <strong>{displayName(entry.user)}</strong>
         <span className="board-value">{board.unit(entry.value)}</span>
       </Link>
     </li>

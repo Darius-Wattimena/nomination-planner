@@ -18,7 +18,7 @@ import {Ring} from "../ui/Ring";
 import {EmptyState, PlannerStatus} from "../ui/States";
 import StatusBadge from "../ui/StatusBadge";
 import {canEdit, useSession} from "../utils/session";
-import {canNominate} from "../utils/users";
+import {canNominate, displayName} from "../utils/users";
 import {ageLabel, partOf, suggestions} from "../utils/workflow";
 import {usePairings} from "../resources/pairings";
 import JoinButton from "../beatmaps/JoinButton";
@@ -39,7 +39,7 @@ export default function Discover() {
       <>
         <PageHeader title="Discover"/>
         <EmptyState title="Discover is for nominators">
-          <p className="muted">Only Beatmap Nominators and probationary Beatmap Nominators can use it, to find beatmaps that need a nominator.</p>
+          <p className="muted">Only Beatmap Nominators, including probationary ones, can use it, to find beatmaps that need a nominator.</p>
           <Link className="button" to="/">Back to home</Link>
         </EmptyState>
       </>
@@ -233,7 +233,7 @@ function Card({map, mode, reason, song, onDecide, onOpen}: CardProps) {
         <h2>{map.title}</h2>
         <p>{map.artist}</p>
         <p className="panel-meta">
-          <span>mapped by {map.mapper.username}</span>
+          <span>mapped by {displayName(map.mapper)}</span>
           <StatusBadge status={map.status}/>
           {ageLabel(map) && <span>updated {ageLabel(map)}{ageLabel(map) !== "today" && " ago"}</span>}
         </p>

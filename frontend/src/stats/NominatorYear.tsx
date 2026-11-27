@@ -5,7 +5,7 @@ import {usePlanner} from "../resources/planner";
 import {useRanked} from "../resources/ranked";
 import {Avatar, RoleBadges} from "../ui/Person";
 import {Loading} from "../ui/States";
-import {canNominate, isMissing} from "../utils/users";
+import {canNominate, displayName, isMissing} from "../utils/users";
 import {badges, scores} from "./boards";
 import Columns from "./Columns";
 import {Badges} from "./Badges";
@@ -57,11 +57,11 @@ export default function NominatorYear({id, self}: NominatorYearProps) {
       <dl className="figures">
         <div><dt>ranked</dt><dd>{inYear.length}</dd></div>
         <div><dt>most active month</dt><dd>{busiest.label.split(" ")[0]}</dd></div>
-        {partners[0] && <div><dt>most with</dt><dd>{partners[0].item.username}</dd></div>}
+        {partners[0] && <div><dt>most with</dt><dd>{displayName(partners[0].item)}</dd></div>}
         <div><dt>{helped.length === 1 ? "first ranked map helped" : "first ranked maps helped"}</dt><dd>{helped.length}</dd></div>
       </dl>
       <Columns columns={months} unit="ranked" label={`Ranked beatmaps per month in ${year}`} unfinished={year === now.getFullYear()} height={150}/>
-      {helped.length > 0 && <p className="muted">First ranked beatmaps of {helped.map((it: Beatmap) => it.mapper.username).slice(0, 6).join(", ")}{helped.length > 6 && ` and ${helped.length - 6} more`}.</p>}
+      {helped.length > 0 && <p className="muted">First ranked beatmaps of {helped.map((it: Beatmap) => displayName(it.mapper)).slice(0, 6).join(", ")}{helped.length > 6 && ` and ${helped.length - 6} more`}.</p>}
     </section>
   )
 }
@@ -95,7 +95,7 @@ export function NewPairings({user, pairings}: {user: User, pairings: Pairing[]})
     <section className="map-group">
       <header><h2>Not nominated together yet</h2><span className="muted">They nominate your modes too</span></header>
       <ul className="fresh">
-        {fresh.map(it => <li key={it.osuId}><Link to={`/team?user=${it.osuId}`}><Avatar user={it}/><span><strong>{it.username}</strong><RoleBadges user={it}/></span></Link></li>)}
+        {fresh.map(it => <li key={it.osuId}><Link to={`/team?user=${it.osuId}`}><Avatar user={it}/><span><strong>{displayName(it)}</strong><RoleBadges user={it}/></span></Link></li>)}
       </ul>
     </section>
   )

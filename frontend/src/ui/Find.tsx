@@ -10,6 +10,7 @@ import Cover from "./Cover";
 import {Avatar} from "./Person";
 import {FindContext} from "./useFind";
 import {focusesByItself} from "../utils/phone";
+import {displayName} from "../utils/users";
 
 /** Find a beatmap or nominator, whatever page you are on */
 export function FindProvider({children}: {children: ReactNode}) {
@@ -63,7 +64,7 @@ function Find({onClose}: {onClose: () => void}) {
             <li key={it.osuId}>
               <button onClick={() => go(`/beatmaps?q=&map=${it.osuId}`)}>
                 <span className="map-thumb"><Cover id={it.osuId} size="card"/></span>
-                <span className="find-text"><strong>{it.title}</strong><span className="muted">{it.artist} · {it.mapper.username}</span></span>
+                <span className="find-text"><strong>{it.title}</strong><span className="muted">{it.artist} · {displayName(it.mapper)}</span></span>
                 <span className="muted find-step">{nextStep(it, self?.osuId).text}</span>
               </button>
             </li>
@@ -72,7 +73,7 @@ function Find({onClose}: {onClose: () => void}) {
             <li key={it.osuId}>
               <button onClick={() => go(`/team?user=${it.osuId}`)}>
                 <span className="find-person"><Avatar user={it} size="large"/></span>
-                <span className="find-text"><strong>{it.username}</strong><span className="muted">Nominator</span></span>
+                <span className="find-text"><strong>{displayName(it)}</strong><span className="muted">Nominator</span></span>
               </button>
             </li>
           ))}

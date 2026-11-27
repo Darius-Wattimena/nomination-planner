@@ -1,6 +1,6 @@
 import {ROLES} from "../Constants";
 import type {Gamemode, User, UserRole} from "../models/Types";
-import {avatarUrl} from "../utils/users";
+import {avatarUrl, displayName} from "../utils/users";
 import ModeIcon from "./ModeIcon";
 
 export function Avatar({user, size = "small"}: {user: User, size?: "small" | "large"}) {
@@ -24,7 +24,7 @@ export function RoleBadges({user}: {user: User}) {
 }
 
 export function People({users}: {users: User[]}) {
-  const names = users.map(it => it.username).join(", ")
+  const names = users.map(it => displayName(it)).join(", ")
   if (users.length === 0) return <span className="people"/>
   return (
     <span className="people" role="img" aria-label={`Nominators: ${names}`} title={names}>

@@ -3,7 +3,7 @@ import type {Gamemode, User} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import {Avatar, RoleBadges} from "../ui/Person";
 import {useSession} from "../utils/session";
-import {canNominate, onProbation} from "../utils/users";
+import {canNominate, displayName, onProbation} from "../utils/users";
 import {inProgress} from "../utils/involvement";
 import {usePairings} from "../resources/pairings";
 import {focusesByItself} from "../utils/phone";
@@ -42,14 +42,14 @@ export default function NominatorPicker({mode, partner, fullOnly, excluded, onPi
 
   return (
     <div className="picker">
-      {fullOnly && <p className="muted">{partner ? `Only full nominators, as ${partner.username} is on probation.` : "Only full nominators, as this mode needs one nomination."}</p>}
+      {fullOnly && <p className="muted">{partner ? `Only full nominators, as ${displayName(partner)} is on probation.` : "Only full nominators, as this mode needs one nomination."}</p>}
       <input ref={input} type="search" aria-label="Search nominators" placeholder="Search nominators" value={text} onChange={event => setText(event.target.value)}/>
       <ul aria-busy={!nominators}>
         {options.map(({user, load, together}) => (
           <li key={user.osuId}>
             <button className="picker-user" onClick={() => onPick(user)}>
               <Avatar user={user}/>
-              <span className="picker-name"><strong>{user.osuId === self?.osuId ? `${user.username} (you)` : user.username}</strong><RoleBadges user={user}/></span>
+              <span className="picker-name"><strong>{user.osuId === self?.osuId ? `${displayName(user)} (you)` : displayName(user)}</strong><RoleBadges user={user}/></span>
               <span className="picker-facts">
                 <span>{load === 0 ? "nothing planned" : `${load} in progress`}</span>
                 {together > 0 && <span>{together} ranked together</span>}

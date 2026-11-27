@@ -71,9 +71,11 @@ export function statusOf(error: unknown) {
   return (error as AxiosError).response?.status
 }
 
-/** What the backend said went wrong, its errors are a ProblemDetail */
+/** What the backend said went wrong, its errors are a ProblemDetail. Not for server errors, those don't tell what to do, so the caller's own message is better. */
 export function problemOf(error: unknown): string | undefined {
-  const detail = (error as AxiosError<{detail?: unknown}>).response?.data?.detail
+  const response = (error as AxiosError<{detail?: unknown}>).response
+  if (!response || response.status >= 500) return undefined
+  const detail = response.data?.detail
   return typeof detail === "string" && detail.trim() ? detail : undefined
 }
 

@@ -3,6 +3,7 @@ import {lazy, Suspense} from "react";
 import {Link, Route, Routes, useLocation} from 'react-router';
 import PageHeader from "./ui/PageHeader";
 import Shell from "./ui/Shell";
+import {useTitle} from "./ui/useTitle";
 import {EmptyState, Loading, LoginButton, Unreachable} from "./ui/States";
 import {useSession, useSessionKnown, useSessionUnreachable} from "./utils/session";
 
@@ -41,6 +42,9 @@ function RequireAuth({children}: {children: ReactNode}) {
   const known = useSessionKnown()
   const unreachable = useSessionUnreachable()
   const location = useLocation()
+  const asking = !session?.user && known && !unreachable
+  // What is shown otherwise sets its own
+  useTitle(asking ? "Log in to continue" : undefined)
 
   if (session?.user) return <>{children}</>
   if (!known) return <Loading/>

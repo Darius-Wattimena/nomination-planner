@@ -10,6 +10,7 @@ import {Table} from "./Columns";
 import type {Camera, Network, Point, Size, Star} from "./sky";
 import {findStars, fit, isVisible, layout, pan, partnersOf, placeNames, radius, shares, starScale, strongestLinks, toScreen, zoomAt} from "./sky";
 import type {Link} from "./stats";
+import {displayName} from "../utils/users";
 
 const CLASSES: Record<Gamemode, string> = {
   [Gamemode.Osu]: "in-osu",
@@ -42,7 +43,10 @@ export default function Constellation({data}: {data: Network}) {
   const byId = useMemo(() => new Map(data.people.map(it => [it.user.osuId, it])), [data])
   const most = Math.max(1, ...data.people.map(it => it.count))
   const strongest = Math.max(1, ...data.links.map(it => it.count))
-  const nameOf = (id: string) => byId.get(id)?.user.username ?? ""
+  const nameOf = (id: string) => {
+    const user = byId.get(id)?.user
+    return user ? displayName(user) : ""
+  }
 
   // The sky takes the room it gets, which differs between a phone and a desktop
   useLayoutEffect(() => {
@@ -182,7 +186,7 @@ export default function Constellation({data}: {data: Network}) {
     return (
       <a key={user.osuId} className="star" href={`/team?user=${user.osuId}`} data-faded={!lit(user.osuId) || undefined}
          data-active={focus === user.osuId || pair?.includes(user.osuId) || undefined}
-         aria-label={`${user.username}, ${count} ranked in ${parts.map(part => GAMEMODE_NAMES[part.mode]).join(" and ")}`}
+         aria-label={`${displayName(user)}, ${count} ranked in ${parts.map(part => GAMEMODE_NAMES[part.mode]).join(" and ")}`}
          onPointerEnter={event => event.pointerType === "mouse" && setHovered(user.osuId)}
          onPointerLeave={() => setHovered(undefined)}
          onFocus={() => setHovered(user.osuId)}
@@ -201,7 +205,7 @@ export default function Constellation({data}: {data: Network}) {
           return <circle key={mode} className={`star-part ${CLASSES[mode]}`} cx={point.x} cy={point.y} r={r / 2} strokeWidth={r} pathLength={100}
                          strokeDasharray={parts.length === 1 ? undefined : `${part * 100} 100`} strokeDashoffset={-offset * 100}/>
         })}
-        {named.has(user.osuId) && <text x={point.x} y={point.y + r + 15} textAnchor="middle">{user.username}</text>}
+        {named.has(user.osuId) && <text x={point.x} y={point.y + r + 15} textAnchor="middle">{displayName(user)}</text>}
       </a>
     )
   }
@@ -252,18 +256,18 @@ export default function Constellation({data}: {data: Network}) {
               {found.length === 0 && <li className="muted">Nobody with that name ranked something here.</li>}
               {found.map(it => (
                 <li key={it.user.osuId}>
-                  <button onClick={() => choose(it.user.osuId)}><span>{it.user.username}</span><span className="load-text">{it.count} ranked</span></button>
+                  <button onClick={() => choose(it.user.osuId)}><span>{displayName(it.user)}</span><span className="load-text">{it.count} ranked</span></button>
                 </li>
               ))}
             </ul>
           }
 
           {!searching && person &&
-            <section aria-label={person.user.username}>
+            <section aria-label={displayName(person.user)}>
               <header className="sky-person">
                 <Avatar user={person.user}/>
                 <div>
-                  <RouterLink to={`/team?user=${person.user.osuId}`}>{person.user.username}</RouterLink>
+                  <RouterLink to={`/team?user=${person.user.osuId}`}>{displayName(person.user)}</RouterLink>
                   <span className="muted">{person.count} ranked, {shares(person).map(it => `${person.modes[it.mode]} ${GAMEMODE_NAMES[it.mode]}`).join(", ")}</span>
                 </div>
                 <button className="icon-button" aria-label="Show everyone again" title="Show everyone again" onClick={() => setSelection(undefined)}><FaXmark/></button>

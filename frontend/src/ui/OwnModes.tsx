@@ -18,7 +18,7 @@ export default function OwnModesDialog({user, open, onClose}: {user: User, open:
     setChosen(modes)
     saving.current = saving.current.then(() => saveInterests(modes)).catch(() => {
       setChosen(undefined)
-      toast("Your modes could not be saved, please try again", {kind: "error"})
+      toast("Could not save your modes. Try again.", {kind: "error"})
     })
   }
 

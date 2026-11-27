@@ -7,6 +7,7 @@ import {MapRow} from "../beatmaps/MapRow";
 import type {Beatmap, User} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import PageHeader from "../ui/PageHeader";
+import {useTitle} from "../ui/useTitle";
 import Freshness from "../ui/Freshness";
 import {LoginButton, PlannerStatus, Unreachable} from "../ui/States";
 import {canEdit, useSession, useSessionUnreachable} from "../utils/session";
@@ -15,6 +16,7 @@ import {LABELS, stageOf, suggestions} from "../utils/workflow";
 import {involvementOf} from "../utils/involvement";
 import {usePairings} from "../resources/pairings";
 import JoinButton from "../beatmaps/JoinButton";
+import {displayName} from "../utils/users";
 
 const GROUPS: {id: Part, title: string, hint: string}[] = [
   {id: "move", title: LABELS.move, hint: "The other nominator is done, or it has to be checked again"},
@@ -32,7 +34,10 @@ export default function Home() {
 function Welcome() {
   // The backend sends the browser to /login?failed when logging in with osu! didn't work out
   const loginFailed = useSearchParams()[0].has("failed")
-  if (useSessionUnreachable()) return <Unreachable/>
+  const unreachable = useSessionUnreachable()
+  // Unreachable sets its own
+  useTitle(unreachable ? undefined : "Welcome")
+  if (unreachable) return <Unreachable/>
   return (
     <div className="welcome">
       <img src={logo} alt=""/>
@@ -90,7 +95,7 @@ function Workspace({user}: {user: User}) {
 
   return (
     <div className="page">
-        <PageHeader title={title} subtitle={<>{user.username} <Freshness/></>}/>
+        <PageHeader title={title} subtitle={<>{displayName(user)} <Freshness/></>}/>
         <PlannerStatus/>
 
         {!nominator && own}

@@ -16,6 +16,7 @@ import {Rings} from "../ui/Ring";
 import {EmptyState, Loading} from "../ui/States";
 import {useSession} from "../utils/session";
 import {toDate} from "../utils/workflow";
+import {displayName} from "../utils/users";
 
 /** What is done. Too much to keep in memory, so the server does the searching. */
 export default function Archive({page}: {page: BeatmapPage}) {
@@ -34,7 +35,8 @@ export default function Archive({page}: {page: BeatmapPage}) {
   const modes = GAMEMODES.filter(it => params.get("mode")?.split(",").includes(it))
   const bn = params.get("bn") ?? undefined
   // Profiles pass the name along, for nominators that are no longer on the planner
-  const bnName = bn === user?.osuId ? "me" : nominators?.find(it => it.osuId === bn)?.username ?? params.get("name") ?? `user ${bn}`
+  const named = nominators?.find(it => it.osuId === bn)
+  const bnName = bn === user?.osuId ? "me" : (named && displayName(named)) ?? params.get("name") ?? `user ${bn}`
   const {selected, open, close} = useOpenMap()
   const filter: BeatmapFilter = {page, search: params.get("q") ?? "", gamemodes: modes, nominators: bn ? [bn] : []}
 
@@ -57,7 +59,7 @@ export default function Archive({page}: {page: BeatmapPage}) {
 
   return (
     <div className="page">
-        <PageHeader title="Archive" subtitle={total.data !== undefined ? `${count} ${page === "RANKED" ? "ranked" : "in the graveyard"}` : " "}>
+        <PageHeader title="Archive" tabTitle={page === "RANKED" ? "Ranked" : "Graveyard"} subtitle={total.data !== undefined ? `${count} ${page === "RANKED" ? "ranked" : "in the graveyard"}` : " "}>
           <nav className="segmented" aria-label="Archive">
             <NavLink to="/ranked">Ranked</NavLink>
             <NavLink to="/graveyard">Graveyard</NavLink>
@@ -83,7 +85,7 @@ export default function Archive({page}: {page: BeatmapPage}) {
                     <span className="cover-text">
                       <span>{it.artist}</span>
                       <button className="map-open" onClick={() => open(it.osuId)}>{it.title}</button>
-                      <em>Mapped by {it.mapper.username}</em>
+                      <em>Mapped by {displayName(it.mapper)}</em>
                     </span>
                     <span className="map-foot"><Rings beatmap={it}/>{ranked && <span className="age">{ranked.toLocaleDateString()}</span>}</span>
                   </li>

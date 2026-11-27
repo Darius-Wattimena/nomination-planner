@@ -52,3 +52,11 @@ export function avatarUrl(userId: string) {
     ? "https://osu.ppy.sh/images/layout/avatar-guest.png"
     : `https://a.ppy.sh/${userId}`
 }
+
+/** What the backend stores as the name of users that osu! can't find, which is what happens to restricted users */
+export const RESTRICTED_NAME = "RESTRICTED"
+
+/** The name to show, as restricted users have none */
+export function displayName(user: User) {
+  return user.username === RESTRICTED_NAME ? "Restricted user" : user.username
+}

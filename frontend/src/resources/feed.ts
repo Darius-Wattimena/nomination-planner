@@ -45,6 +45,19 @@ export function applyUpdate(feed: Feed | undefined, update: FeedUpdate): Feed {
   return {token: update.token, users, beatmaps}
 }
 
+/** Whether the user is the same as the one that was known, everything about them shows up on the beatmaps */
+export function sameUser(a: User | undefined, b: User) {
+  if (!a) return false
+  const roles = (user: User) => user.gamemodes.map(it => `${it.gamemode}:${it.role}`).join(",")
+  return a.osuId === b.osuId && a.username === b.username && !!a.restricted === !!b.restricted && roles(a) === roles(b)
+    && (a.interests ?? []).join(",") === (b.interests ?? []).join(",")
+}
+
+/** Whether the update changes any user, the backend also sends users that stayed the same */
+export function changesUsers(feed: Feed | undefined, update: FeedUpdate) {
+  return update.users.some(it => !sameUser(feed?.users[it.osuId], it))
+}
+
 export function toBeatmap(feed: Feed, beatmap: FeedBeatmap): Beatmap {
   const user = (id: string, name = "Unknown"): User => id === MISSING_USER_ID ? NOBODY : feed.users[id] ?? {osuId: id, username: name, gamemodes: []}
   return {

@@ -18,7 +18,7 @@ import StatusBadge from "../ui/StatusBadge";
 import {useToast} from "../ui/useToast";
 import {canEdit, isAdmin, useSession} from "../utils/session";
 import {canJoin, doneNominations, isHybrid, lacksFullNominator, needsFullNominator, neededNominations, openSpot, roleOf, spots} from "../utils/nominations";
-import {highestRole, isMissing, onProbation, sortedModes} from "../utils/users";
+import {displayName, highestRole, isMissing, onProbation, sortedModes} from "../utils/users";
 import {ageLabel, nextStep, toDate} from "../utils/workflow";
 import {inProgress} from "../utils/involvement";
 import {useNominators} from "./actions";
@@ -115,7 +115,7 @@ function Details({beatmap, onClose, onChanged}: {beatmap: Beatmap, onClose: () =
       </header>
       <div className="map-facts">
         <StatusBadge status={beatmap.status}/>
-        <span className="with-avatar"><Avatar user={beatmap.mapper}/>{beatmap.mapper.username}</span>
+        <span className="with-avatar"><Avatar user={beatmap.mapper}/>{displayName(beatmap.mapper)}</span>
         {ranked ? <span>ranked {ranked.toLocaleDateString()}</span> : age && <span>updated {age}{age !== "today" && " ago"}</span>}
         <Links beatmap={beatmap}/>
       </div>
@@ -169,7 +169,7 @@ function Links({beatmap}: {beatmap: Beatmap}) {
       <a className="icon-button" href={url} target="_blank" rel="noreferrer" aria-label="Open on osu!" title="Open on osu!"><FaArrowUpRightFromSquare/></a>
       <a className="icon-button" href={`${url}/discussion`} target="_blank" rel="noreferrer" aria-label="Open the discussion" title="Open the discussion"><FaRegComments/></a>
       <button className="icon-button" aria-label="Copy the link" title="Copy the link" onClick={() => {
-        navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Could not copy the link.", {kind: "error"}))
+        navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Could not copy the link", {kind: "error"}))
       }}><FaLink/></button>
     </span>
   )
@@ -204,7 +204,7 @@ function ModeRow({beatmap, mode, editable, selected, onSelect}: ModeRowProps) {
           : <>
               <Avatar user={nominator} size="large"/>
               <span className="cell-text">
-                <strong>{nominator.username}</strong>
+                <strong>{displayName(nominator)}</strong>
                 {hasNominated ? <span className="nominated"><FaCheck/>Nominated</span> : <span className={`role-badge ${role.className}`}>{role.short}</span>}
               </span>
             </>
@@ -212,7 +212,7 @@ function ModeRow({beatmap, mode, editable, selected, onSelect}: ModeRowProps) {
           <div key={index} className="cell" data-open={missing || undefined} data-done={hasNominated || undefined} data-selected={selected === index || undefined}>
             {editable && !hasNominated
               ? <button className="cell-main" aria-pressed={selected === index}
-                        aria-label={`${GAMEMODE_NAMES[mode.gamemode]}: ${missing ? "add a nominator" : `change ${nominator.username}`}`}
+                        aria-label={`${GAMEMODE_NAMES[mode.gamemode]}: ${missing ? "add a nominator" : `change ${displayName(nominator)}`}`}
                         onClick={() => onSelect(index)}>{content}</button>
               : <div className="cell-main">{content}</div>
             }
@@ -263,14 +263,14 @@ function SlotInspector({beatmap, slot, mode, onClose}: SlotInspectorProps) {
       {current &&
         <div className="inspector-person">
           <Avatar user={current} size="large"/>
-          <div><strong>{current.username}</strong><RoleBadges user={current}/><span className="muted">{inProgress(maps, current.osuId)} in progress</span></div>
+          <div><strong>{displayName(current)}</strong><RoleBadges user={current}/><span className="muted">{inProgress(maps, current.osuId)} in progress</span></div>
           <button className="button" onClick={() => {
             remove(slot.mode, current)
             onClose()
           }}>Remove</button>
         </div>
       }
-      <p className="muted">{current ? "Replace with" : "Who will nominate?"}{partner && ` (together with ${partner.username})`}</p>
+      <p className="muted">{current ? "Replace with" : "Who will nominate?"}{partner && ` (together with ${displayName(partner)})`}</p>
       <NominatorPicker
         mode={slot.mode}
         partner={partner}
@@ -300,7 +300,7 @@ function Manage({beatmap, onClose, onChanged}: {beatmap: Beatmap, onClose: () =>
       onChanged?.()
       toast("Up to date with osu!")
     } catch (error) {
-      toast(problemOf(error) ?? "Could not sync with osu!.", {kind: "error"})
+      toast(problemOf(error) ?? "Could not sync with osu!", {kind: "error"})
     } finally {
       setSyncing(false)
     }
@@ -330,13 +330,13 @@ function Manage({beatmap, onClose, onChanged}: {beatmap: Beatmap, onClose: () =>
         onConfirm={() => finish(async () => {
           await request(Api.updateBeatmapStatus(beatmap.osuId, newStatus))
           putBeatmap({...beatmap, status: newStatus})
-        }, graved ? "Back in progress" : "Moved to the graveyard", "Could not change the status.")}
+        }, graved ? "Back in progress" : "Moved to the graveyard", "Could not change the status")}
       >
         <p><b>{beatmap.title}</b> changes from {beatmap.status} to {newStatus}.</p>
       </ConfirmDialog>
       <ConfirmDialog
         open={confirming === "delete"} onClose={() => setConfirming(undefined)} title="Delete this beatmap?" action="Delete beatmap" danger
-        onConfirm={() => finish(() => deleteBeatmap(beatmap.osuId), "Beatmap deleted", "Could not delete the beatmap.")}
+        onConfirm={() => finish(() => deleteBeatmap(beatmap.osuId), "Beatmap deleted", "Could not delete the beatmap")}
       >
         <p><b>{beatmap.title}</b> and its planning disappear from the planner. This can't be undone.</p>
       </ConfirmDialog>

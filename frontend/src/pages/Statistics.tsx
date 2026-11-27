@@ -14,6 +14,7 @@ import {People} from "../ui/Person";
 import ModeIcon, {ModeSwitch} from "../ui/ModeIcon";
 import PageHeader from "../ui/PageHeader";
 import {EmptyState, Loading} from "../ui/States";
+import {displayName} from "../utils/users";
 
 // Only loaded for the tab that shows them
 const Constellation = lazy(() => import("../stats/Constellation"))
@@ -121,8 +122,8 @@ export default function Statistics() {
                   {newMappers.slice(0, 8).map(map => (
                     <li key={map.osuId} className="debut">
                       <span className="map-thumb"><Cover id={map.osuId} size="card"/></span>
-                      <span className="map-name"><button className="map-open" onClick={() => open(map.osuId)}>{map.mapper.username}</button><span className="muted">{map.title}</span>
-                        <span className="debut-by"><People users={nominatorsOf(map)}/><span>{names(nominatorsOf(map).map(it => it.username))}</span></span>
+                      <span className="map-name"><button className="map-open" onClick={() => open(map.osuId)}>{displayName(map.mapper)}</button><span className="muted">{map.title}</span>
+                        <span className="debut-by"><People users={nominatorsOf(map)}/><span>{names(nominatorsOf(map).map(it => displayName(it)))}</span></span>
                       </span>
                       <span className="age">{rankedDate(map)?.toLocaleDateString("en", {month: "short", year: "numeric"})}</span>
                     </li>

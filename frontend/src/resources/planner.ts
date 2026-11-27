@@ -8,7 +8,7 @@ import Api from "./Api";
 import {find, logOutSession, request, statusOf, useQuery} from "./client";
 import {forgetRanked} from "./ranked";
 import type {Feed, FeedBeatmap, FeedUpdate} from "./feed";
-import {applyUpdate, forgetFeed, NOBODY, readFeed, storeFeed, toBeatmap} from "./feed";
+import {applyUpdate, changesUsers, forgetFeed, NOBODY, readFeed, storeFeed, toBeatmap} from "./feed";
 
 export {NOBODY}
 
@@ -73,13 +73,14 @@ function subscribe(listener: () => void) {
 
 function receive(update: FeedUpdate) {
   const before = feed
+  const usersChanged = changesUsers(before, update)
   feed = applyUpdate(feed, update)
   const nothingNew = before && !update.isComplete && update.beatmaps.length + update.users.length + update.removed.length === 0
   if (nothingNew) {
     set({error: false, loadedAt: Date.now()})
     return
   }
-  set({...fromFeed(feed, update.isComplete || update.users.length > 0), error: false, loadedAt: Date.now()})
+  set({...fromFeed(feed, update.isComplete || usersChanged), error: false, loadedAt: Date.now()})
   if (owner) storeFeed(owner, feed)
 }
 

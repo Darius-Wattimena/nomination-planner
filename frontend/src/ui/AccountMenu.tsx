@@ -7,7 +7,7 @@ import {useTheme} from "../utils/theme";
 import {useHelp} from "./useHelp";
 import {Avatar} from "./Person";
 import OwnModesDialog from "./OwnModes";
-import {choosesOwnModes} from "../utils/users";
+import {choosesOwnModes, displayName} from "../utils/users";
 import {usePopup} from "./usePopup";
 
 /** Everything that isn't needed all day */
@@ -19,10 +19,10 @@ export default function AccountMenu({user}: {user: User}) {
 
   return (
     <div className="account" ref={root} onKeyDown={onKeyDown}>
-      <button ref={button} className="me" aria-expanded={open} aria-label={`Menu of ${user.username}`} onClick={() => setOpen(!open)}><Avatar user={user}/></button>
+      <button ref={button} className="me" aria-expanded={open} aria-label={`Menu of ${displayName(user)}`} onClick={() => setOpen(!open)}><Avatar user={user}/></button>
       {open &&
         <nav className="popup account-menu" aria-label="Account" onClick={() => setOpen(false)}>
-          <Link className="account-profile" to={`/team?user=${user.osuId}`}><Avatar user={user} size="large"/><span><strong>{user.username}</strong><span className="muted">Your profile</span></span></Link>
+          <Link className="account-profile" to={`/team?user=${user.osuId}`}><Avatar user={user} size="large"/><span><strong>{displayName(user)}</strong><span className="muted">Your profile</span></span></Link>
           {choosesOwnModes(user) && <button onClick={() => setChoosing(true)}><FaSliders/>Your modes</button>}
           <button onClick={toggle}>{theme === "dark" ? <FaSun/> : <FaMoon/>}{theme === "dark" ? "Light theme" : "Dark theme"}</button>
           <button onClick={openHelp}><FaCircleQuestion/>Help</button>

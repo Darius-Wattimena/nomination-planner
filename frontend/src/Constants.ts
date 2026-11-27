@@ -24,7 +24,7 @@ export const PENDING_STATUSES = [
 
 export const ROLES: Record<UserRole, {name: string, short: string, className: string}> = {
   Nominator: {name: "Beatmap Nominator", short: "BN", className: "role-bn"},
-  Probation: {name: "Probation Beatmap Nominator", short: "Probation", className: "role-pbn"},
-  NominationAssessment: {name: "Nomination Assessment", short: "NAT", className: "role-nat"},
+  Probation: {name: "Probationary Beatmap Nominator", short: "Probation", className: "role-pbn"},
+  NominationAssessment: {name: "Nomination Assessment Team", short: "NAT", className: "role-nat"},
   Mapper: {name: "Mapper", short: "Mapper", className: "role-user"}
 }

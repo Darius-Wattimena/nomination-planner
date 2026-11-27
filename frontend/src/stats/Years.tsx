@@ -6,6 +6,7 @@ import ModeIcon from "../ui/ModeIcon";
 import {Avatar} from "../ui/Person";
 import type {Summary} from "./stats";
 import {inYear, network, nominatorsOf, perMonth, rankedDate, summarize} from "./stats";
+import {displayName} from "../utils/users";
 
 interface FiguresProps {
   summary: Summary
@@ -62,7 +63,7 @@ export function Highlights({maps, all, year, mode}: {maps: Beatmap[], all: Beatm
         {pair &&
           <li>
             <span className="muted">Most often together</span>
-            <strong>{userOf(pair.a).username} and {userOf(pair.b).username}</strong>
+            <strong>{displayName(userOf(pair.a))} and {displayName(userOf(pair.b))}</strong>
             <span>{pair.count} ranked</span>
           </li>
         }
@@ -71,7 +72,7 @@ export function Highlights({maps, all, year, mode}: {maps: Beatmap[], all: Beatm
           <li>
             <span className="muted">First ranked nomination</span>
             <strong>{fresh.length} {fresh.length === 1 ? "nominator" : "nominators"}</strong>
-            <span className="highlight-people">{fresh.slice(0, 8).map(it => <Link key={it.osuId} to={`/team?user=${it.osuId}`} aria-label={it.username} title={it.username}><Avatar user={it}/></Link>)}{fresh.length > 8 && `+${fresh.length - 8}`}</span>
+            <span className="highlight-people">{fresh.slice(0, 8).map(it => <Link key={it.osuId} to={`/team?user=${it.osuId}`} aria-label={displayName(it)} title={displayName(it)}><Avatar user={it}/></Link>)}{fresh.length > 8 && `+${fresh.length - 8}`}</span>
           </li>
         }
       </ul>

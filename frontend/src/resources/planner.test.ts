@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
-import {Gamemode} from "../models/Types";
+import {BeatmapStatus, Gamemode} from "../models/Types";
 import {beatmap, bn, NOBODY} from "../test/builders";
 
 const request = vi.fn()
 const find = vi.fn()
+// Reads the store without rendering
+vi.mock("react", async original => ({...await original<object>(), useSyncExternalStore: (_: unknown, get: () => unknown) => get()}))
 vi.mock("./client", () => ({request, find, statusOf: (error: {response?: {status: number}}) => error.response?.status, useQuery: vi.fn()}))
 
-const {changeNominator, ConflictError, reloadPlanner, setNominator, UNDO_TIME} = await import("./planner")
+const {changeNominator, ConflictError, reloadPlanner, setNominator, UNDO_TIME, usePlanner} = await import("./planner")
 
 describe("reloadPlanner", () => {
   it("shares the reload that is running instead of starting another", async () => {
@@ -31,6 +33,38 @@ describe("reloadPlanner", () => {
     await reloadPlanner()
 
     expect(request).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("updates", () => {
+  const map = (id: string, title = `Title ${id}`) => ({
+    id, artist: "Artist", title, mapper: "10", status: BeatmapStatus.Pending,
+    modes: [{mode: Gamemode.Osu, by: [{user: "1"}]}], added: "2026-01-01T00:00:00Z", updated: "2026-01-02T00:00:00Z"
+  })
+
+  it("keeps the beatmaps that didn't change when the update carries users that stayed the same", async () => {
+    request.mockReset()
+    request.mockResolvedValueOnce({token: "t1", isComplete: true, users: [bn("1")], beatmaps: [map("1"), map("2")], removed: []})
+    await reloadPlanner()
+    const before = usePlanner().maps!
+
+    // The backend sends the users of every beatmap that changed
+    request.mockResolvedValueOnce({token: "t2", isComplete: false, users: [bn("1")], beatmaps: [map("2", "New")], removed: []})
+    await reloadPlanner()
+    const after = usePlanner().maps!
+
+    expect(after.find(it => it.osuId === "1")).toBe(before.find(it => it.osuId === "1"))
+    expect(after.find(it => it.osuId === "2")?.title).toBe("New")
+  })
+
+  it("makes the beatmaps again when a user changed", async () => {
+    const before = usePlanner().maps!
+    request.mockResolvedValueOnce({token: "t3", isComplete: false, users: [{...bn("1"), username: "Renamed"}], beatmaps: [], removed: []})
+    await reloadPlanner()
+    const after = usePlanner().maps!
+
+    expect(after.find(it => it.osuId === "1")).not.toBe(before.find(it => it.osuId === "1"))
+    expect(after.find(it => it.osuId === "1")?.gamemodes[0].nominators[0].nominator.username).toBe("Renamed")
   })
 })
 

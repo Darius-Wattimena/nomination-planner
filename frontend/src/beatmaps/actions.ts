@@ -2,6 +2,7 @@ import {GAMEMODE_NAMES, MISSING_USER_ID} from "../Constants";
 import type {Beatmap, Gamemode, User} from "../models/Types";
 import {changeNominator, ConflictError, NOBODY} from "../resources/planner";
 import {useToast} from "../ui/useToast";
+import {displayName} from "../utils/users";
 
 /** Change the nominators of a beatmap. Everything can be undone, so nothing has to be confirmed up front. Each change returns how to undo it. */
 export function useNominators(beatmap: Beatmap) {
@@ -10,7 +11,7 @@ export function useNominators(beatmap: Beatmap) {
   function change(mode: Gamemode, oldId: string, user: User, message: string) {
     const undo = changeNominator(beatmap.osuId, mode, oldId, user, error => toast(error instanceof ConflictError
       ? `Someone else changed ${beatmap.title}. It now shows the latest nominators.`
-      : `Could not change the nominators of ${beatmap.title}.`, {kind: "error"}))
+      : `Could not change the nominators of ${beatmap.title}`, {kind: "error"}))
     toast(message, {undo})
     return undo
   }
@@ -19,8 +20,8 @@ export function useNominators(beatmap: Beatmap) {
     join: (mode: Gamemode, user: User) =>
       change(mode, MISSING_USER_ID, user, `You plan to nominate ${beatmap.title} (${GAMEMODE_NAMES[mode]})`),
     assign: (mode: Gamemode, oldId: string, user: User) =>
-      change(mode, oldId, user, `${user.username} plans to nominate ${beatmap.title}`),
+      change(mode, oldId, user, `${displayName(user)} plans to nominate ${beatmap.title}`),
     remove: (mode: Gamemode, user: User) =>
-      change(mode, user.osuId, NOBODY, `${user.username} no longer nominates ${beatmap.title}`)
+      change(mode, user.osuId, NOBODY, `${displayName(user)} no longer nominates ${beatmap.title}`)
   }
 }

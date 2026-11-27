@@ -2,7 +2,7 @@ import {beforeEach, describe, expect, it, vi} from "vitest";
 import {BeatmapStatus, Gamemode} from "../models/Types";
 import {bn} from "../test/builders";
 import type {Feed, FeedUpdate} from "./feed";
-import {applyUpdate, forgetFeed, NOBODY, readFeed, storeFeed, toBeatmap} from "./feed";
+import {applyUpdate, changesUsers, forgetFeed, NOBODY, readFeed, storeFeed, toBeatmap} from "./feed";
 
 const BN = bn("1")
 const map = (id: string, changes = {}) => ({
@@ -34,6 +34,20 @@ describe("applyUpdate", () => {
     const next = applyUpdate(start, update({token: "t3", isComplete: true, beatmaps: [map("3")]}))
 
     expect(next).toEqual({token: "t3", users: {}, beatmaps: {"3": map("3")}})
+  })
+})
+
+describe("changesUsers", () => {
+  const start = applyUpdate(undefined, update({isComplete: true, users: [BN]}))
+
+  it("only counts users that differ from the ones that are known", () => {
+    expect(changesUsers(start, update({users: [{...BN, gamemodes: [...BN.gamemodes]}]}))).toBe(false)
+    expect(changesUsers(start, update({users: []}))).toBe(false)
+    expect(changesUsers(start, update({users: [{...BN, username: "Renamed"}]}))).toBe(true)
+    expect(changesUsers(start, update({users: [{...BN, restricted: true}]}))).toBe(true)
+    expect(changesUsers(start, update({users: [{...BN, gamemodes: [{gamemode: Gamemode.Osu, role: "Probation"}]}]}))).toBe(true)
+    expect(changesUsers(start, update({users: [bn("2")]}))).toBe(true)
+    expect(changesUsers(undefined, update({users: [BN]}))).toBe(true)
   })
 })
 

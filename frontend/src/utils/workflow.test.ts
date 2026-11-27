@@ -196,6 +196,15 @@ describe("dates", () => {
     expect(isStale(beatmap({dateUpdated: daysAgo(21)}))).toBe(true)
     expect(isStale(beatmap({status: BeatmapStatus.Qualified, dateUpdated: daysAgo(40)}))).toBe(false)
   })
+
+  it("counts from the time it is given, which can be one that changes only once a day", () => {
+    const map = beatmap({dateUpdated: daysAgo(20)})
+    const tomorrow = NOW.getTime() + 86_400_000
+
+    expect(ageLabel(map, tomorrow)).toBe("3w")
+    expect(isStale(map, tomorrow)).toBe(true)
+    expect(isStale(map, NOW.getTime())).toBe(false)
+  })
 })
 
 describe("old beatmaps", () => {

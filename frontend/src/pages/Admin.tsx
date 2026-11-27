@@ -9,6 +9,7 @@ import {problemOf, request} from "../resources/client";
 import {ConfirmDialog} from "../ui/Dialog";
 import Health from "../stats/Health";
 import PageHeader from "../ui/PageHeader";
+import {useTitle} from "../ui/useTitle";
 import {EmptyState} from "../ui/States";
 import {isAdmin, useSession} from "../utils/session";
 
@@ -17,8 +18,10 @@ export default function Admin() {
   // Every sync that starts has something new to wait for
   const [started, setStarted] = useState(0)
   const onStarted = () => setStarted(it => it + 1)
+  const allowed = isAdmin(session)
+  useTitle(allowed ? undefined : "No permission")
 
-  if (!isAdmin(session)) {
+  if (!allowed) {
     return (
       <div className="page">
         <EmptyState title="No permission">
@@ -64,12 +67,13 @@ function useSync(onStarted: () => void) {
   return {syncing, result, failed, run}
 }
 
-function SyncResult({syncing, result, failed, unit}: Omit<ReturnType<typeof useSync>, "run"> & {unit: string}) {
+/** @param unit what is synced, in the singular */
+function SyncResult({syncing, result, failed, unit}: Omit<ReturnType<typeof useSync>, "run"> & {unit: "beatmap" | "user"}) {
   return (
     <div role="status">
       {syncing && <p className="alert"><span className="spinner"/>Starting the sync…</p>}
       {failed && <p className="alert alert-error">{failed}</p>}
-      {result && <p className="alert alert-success">{result.queued} {unit} will be synced in the background. They change on the planner one by one.</p>}
+      {result && <p className="alert alert-success">{result.queued} {result.queued === 1 ? unit : `${unit}s`} will be synced in the background. {result.queued === 1 ? "It changes on the planner once that is done." : "They change on the planner one by one."}</p>}
     </div>
   )
 }
@@ -101,7 +105,7 @@ function SyncBeatmaps({onStarted}: {onStarted: () => void}) {
         })}
       </div>
       <p className="alert alert-warning">Every beatmap takes at least 2 seconds. Users that are unknown to the planner are looked up too.</p>
-      <SyncResult {...sync} unit="beatmap(s)"/>
+      <SyncResult {...sync} unit="beatmap"/>
       <div className="button-row">
         <button className="button button-primary" disabled={sync.syncing} onClick={() => setConfirming(true)}>
           {everything ? "Sync all pending beatmaps" : "Sync selected beatmaps"}
@@ -190,11 +194,11 @@ function SyncUsers({onStarted}: {onStarted: () => void}) {
       <p className="muted">Look up users on osu! again, for example after their role changed.</p>
       <form onSubmit={submit}>
         <label className="field">
-          <span>User IDs, separated by a comma</span>
+          <span>osu! user IDs, separated by commas or spaces</span>
           <input value={text} placeholder="2369776, 318565" inputMode="numeric" aria-invalid={invalid} disabled={sync.syncing} onChange={event => setText(event.target.value)}/>
         </label>
         {invalid && <p className="field-error">Only use numeric osu! user IDs.</p>}
-        <SyncResult {...sync} unit="user(s)"/>
+        <SyncResult {...sync} unit="user"/>
         <button className="button button-primary" disabled={sync.syncing}>Sync users</button>
       </form>
     </section>

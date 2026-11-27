@@ -6,7 +6,8 @@ import Cover from "../ui/Cover";
 import {People} from "../ui/Person";
 import {Rings} from "../ui/Ring";
 import {useSession} from "../utils/session";
-import {isMissing, sortedModes} from "../utils/users";
+import {useToday} from "../utils/today";
+import {displayName, isMissing, sortedModes} from "../utils/users";
 import {ageLabel, isStale, LABELS, nextStep} from "../utils/workflow";
 
 interface MapProps {
@@ -24,9 +25,11 @@ function people(beatmap: Beatmap): User[] {
   return users.filter((user, index) => users.findIndex(it => it.osuId === user.osuId) === index)
 }
 
+/** Renders again by itself when the day changes, the row around it doesn't have to */
 function Age({beatmap}: {beatmap: Beatmap}) {
-  const stale = isStale(beatmap)
-  return <span className={stale ? "age age-stale" : "age"} title={stale ? "Nothing happened for a while" : "Last update"}>{stale && <FaHourglassHalf aria-label={LABELS.stale}/>}{ageLabel(beatmap)}</span>
+  const today = useToday()
+  const stale = isStale(beatmap, today)
+  return <span className={stale ? "age age-stale" : "age"} title={stale ? "Nothing happened for a while" : "Last update"}>{stale && <FaHourglassHalf aria-label={LABELS.stale}/>}{ageLabel(beatmap, today)}</span>
 }
 
 /** Rows only render again when their beatmap changed, which matters for long lists that update live */
@@ -38,7 +41,7 @@ export const MapRow = memo(function MapRow({beatmap, selected, onOpen, reason, c
       <span className="map-thumb"><Cover id={beatmap.osuId} size="card"/></span>
       <span className="map-name">
         <button className="map-open" onClick={() => onOpen(beatmap.osuId)}>{beatmap.title}</button>
-        <span className="muted">{beatmap.artist} · {beatmap.mapper.username}</span>
+        <span className="muted">{beatmap.artist} · {displayName(beatmap.mapper)}</span>
       </span>
       <Rings beatmap={beatmap}/>
       {reason ? <span className="step step-calm">{reason}</span> : <span className={`step step-${step.tone}`}>{step.text}</span>}
@@ -58,7 +61,7 @@ export const MapCard = memo(function MapCard({beatmap, selected, onOpen}: MapPro
       <span className="cover-text">
         <span>{beatmap.artist}</span>
         <button className="map-open" onClick={() => onOpen(beatmap.osuId)}>{beatmap.title}</button>
-        <em>Mapped by {beatmap.mapper.username}</em>
+        <em>Mapped by {displayName(beatmap.mapper)}</em>
       </span>
       <span className={`step step-${step.tone}`}>{step.text}</span>
       <span className="map-foot"><Rings beatmap={beatmap}/><People users={people(beatmap)}/><Age beatmap={beatmap}/></span>

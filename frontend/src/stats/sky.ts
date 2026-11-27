@@ -1,6 +1,7 @@
 import {GAMEMODES} from "../Constants";
 import {Gamemode} from "../models/Types";
 import type {Link, network} from "./stats";
+import {displayName} from "../utils/users";
 
 export type Network = ReturnType<typeof network>
 export type Star = Network["people"][number]
@@ -166,7 +167,7 @@ export function placeNames(people: Star[], screen: Map<string, Point>, sizes: Ma
   })
   const boxOf = (star: Star): Box => {
     const point = screen.get(star.user.osuId)!
-    const half = star.user.username.length * 4.1 + 4, top = point.y + sizes.get(star.user.osuId)! + 3
+    const half = displayName(star.user).length * 4.1 + 4, top = point.y + sizes.get(star.user.osuId)! + 3
     return {left: point.x - half, right: point.x + half, top, bottom: top + 17}
   }
 

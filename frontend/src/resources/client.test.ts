@@ -132,6 +132,8 @@ describe("problemOf", () => {
   it("reads the detail of a ProblemDetail", () => {
     expect(problemOf({response: {status: 409, data: {title: "Conflict", detail: "Already on the planner"}}})).toBe("Already on the planner")
     expect(problemOf({response: {status: 500, data: ""}})).toBeUndefined()
+    expect(problemOf({response: {status: 502, data: {title: "Bad Gateway", detail: "osu! did not answer"}}})).toBeUndefined()
+    expect(problemOf({response: {status: 500, data: {detail: "NullPointerException"}}})).toBeUndefined()
     expect(problemOf(new Error("offline"))).toBeUndefined()
   })
 })

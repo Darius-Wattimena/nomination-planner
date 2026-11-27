@@ -15,9 +15,10 @@ import PageHeader from "../ui/PageHeader";
 import {Avatar, RoleBadges} from "../ui/Person";
 import {Loading} from "../ui/States";
 import OwnModesDialog from "../ui/OwnModes";
+import {useTitle} from "../ui/useTitle";
 import {MODE_WORDS, modeParam} from "../utils/query";
 import {useSession} from "../utils/session";
-import {choosesOwnModes, highestRole, modesOf, roleModes} from "../utils/users";
+import {choosesOwnModes, displayName, highestRole, modesOf, roleModes} from "../utils/users";
 import type {Part} from "../utils/workflow";
 import {ageInDays, LABELS, lookingForNominator} from "../utils/workflow";
 import type {Involvement} from "../utils/involvement";
@@ -146,7 +147,7 @@ function Overview() {
                   <span className="map-thumb"><Cover id={map.osuId} size="card"/></span>
                   <span className="map-name">
                     <button className="map-open" onClick={() => open(map.osuId)}>{map.title}</button>
-                    <span className="muted">{partner ? nominated ? `${partner.username} already nominated` : `together with ${partner.username}` : "no nominators yet"}{full && ", full nominator needed"}</span>
+                    <span className="muted">{partner ? nominated ? `${displayName(partner)} already nominated` : `together with ${displayName(partner)}` : "no nominators yet"}{full && ", full nominator needed"}</span>
                   </span>
                 </li>
               ))}
@@ -175,7 +176,7 @@ function MemberCard({member, mode, free, self}: {member: Member, mode?: Gamemode
       <div className="member-head">
         <Avatar user={user} size="large"/>
         <div>
-          <Link className="member-name" to={`/team?user=${user.osuId}`}>{user.username}</Link>
+          <Link className="member-name" to={`/team?user=${user.osuId}`}>{displayName(user)}</Link>
           <span className="member-roles">
             {mode
               ? <><span className={`role-badge ${role.className}`} title={role.name}>{role.short}</span>{others.map(it => <ModeIcon key={it} mode={it}/>)}</>
@@ -209,6 +210,8 @@ function Profile({id}: {id: string}) {
   // Somebody who is no longer on the planner can still be among those who ranked something
   const before = ranked?.flatMap(it => [it.mapper, ...it.gamemodes.flatMap(mode => mode.nominators).map(slot => slot.nominator)]).find(it => it.osuId === id && it.username !== "Unknown")
   const user = isSelf ? self : known ?? nominators.find(it => it.osuId === id) ?? before
+  const name = user ? displayName(user) : `User ${id}`
+  useTitle(name)
 
   const own = [...involvementOf(maps, id)]
     .sort((a, b) => ORDER.indexOf(a.part) - ORDER.indexOf(b.part))
@@ -223,7 +226,7 @@ function Profile({id}: {id: string}) {
       <header className="profile">
         {user && <Avatar user={user} size="large"/>}
         <div>
-          <h1>{user?.username ?? `User ${id}`}</h1>
+          <h1>{name}</h1>
           {user && <RoleBadges user={user}/>}
           {self && isSelf && choosesOwnModes(self) &&
             <p className="muted own-modes-line">
@@ -236,7 +239,7 @@ function Profile({id}: {id: string}) {
           }
         </div>
         <div className="button-row">
-          <Link className="button" to={`/ranked?${new URLSearchParams({bn: id, ...(user && {name: user.username})})}`}>Ranked beatmaps</Link>
+          <Link className="button" to={`/ranked?${new URLSearchParams({bn: id, ...(user && {name: displayName(user)})})}`}>Ranked beatmaps</Link>
           <a className="icon-button" href={`https://osu.ppy.sh/users/${id}`} target="_blank" rel="noreferrer" aria-label="Open on osu!" title="Open on osu!"><FaArrowUpRightFromSquare/></a>
         </div>
       </header>
