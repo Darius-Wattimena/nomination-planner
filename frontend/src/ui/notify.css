@@ -1,0 +1,3 @@
+/* The choice of browser notifications in the account menu */
+.account-menu .notify-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1; padding-block: 8px; line-height: 1.3; }
+.account-menu .notify-check { color: var(--accent-text); }
