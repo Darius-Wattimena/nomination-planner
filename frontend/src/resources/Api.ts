@@ -27,7 +27,7 @@ const Api = {
   }),
   deleteBeatmap: (id: string): AxiosRequestConfig => ({
     method: 'DELETE',
-    url: `/v2/beatmap/${id}/delete`
+    url: `/v2/beatmap/${id}`
   }),
   updateBeatmapStatus: (id: string, status: BeatmapStatus): AxiosRequestConfig => ({
     method: 'PATCH',
@@ -101,10 +101,10 @@ const Api = {
     url: '/v2/admin/sync/beatmaps/pending',
     params: toParams({status})
   }),
+  // Answers with the beatmap as osu! has it now
   syncBeatmap: (id: string): AxiosRequestConfig => ({
     method: 'POST',
-    url: '/v2/admin/sync/beatmaps/single',
-    params: {id}
+    url: `/v2/beatmap/${id}/sync`
   })
 }
 

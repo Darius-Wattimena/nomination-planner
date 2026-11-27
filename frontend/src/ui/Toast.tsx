@@ -1,12 +1,14 @@
 import type {ReactNode} from "react";
-import {useCallback, useRef, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 import {UNDO_TIME} from "../resources/planner";
 import {FaXmark} from "react-icons/fa6";
 import type {ShowToast, ToastOptions} from "./useToast";
 import {ToastContext} from "./useToast";
 
+type Shown = ToastOptions & {id: number, message: string}
+
 export function ToastProvider({children}: {children: ReactNode}) {
-  const [toasts, setToasts] = useState<(ToastOptions & {id: number, message: string})[]>([])
+  const [toasts, setToasts] = useState<Shown[]>([])
   const nextId = useRef(0)
 
   const dismiss = useCallback((id: number) => setToasts(all => all.filter(it => it.id !== id)), [])
@@ -18,26 +20,47 @@ export function ToastProvider({children}: {children: ReactNode}) {
       let extra = all.length - 2
       return [...all.filter(it => it.undo || extra-- <= 0), {id, message, ...options}]
     })
-    window.setTimeout(() => dismiss(id), options.undo ? UNDO_TIME : options.kind === "error" ? 8000 : 4000)
-  }, [dismiss])
+  }, [])
 
   return (
     <ToastContext.Provider value={show}>
       {children}
       <div className="toasts">
-        {toasts.map(({id, message, kind, undo}) => (
-          <div key={id} className={`toast toast-${kind ?? "success"}`} role={kind === "error" ? "alert" : "status"}>
-            <span>{message}</span>
-            {undo &&
-              <button className="link" onClick={() => {
-                dismiss(id)
-                undo()
-              }}>Undo</button>
-            }
-            <button className="icon-button" aria-label="Dismiss" onClick={() => dismiss(id)}><FaXmark/></button>
-          </div>
-        ))}
+        {toasts.map(toast => <Toast key={toast.id} toast={toast} onDismiss={dismiss}/>)}
       </div>
     </ToastContext.Provider>
+  )
+}
+
+/** Goes away by itself, but not while the mouse or the keyboard is on it */
+function Toast({toast: {id, message, kind, undo}, onDismiss}: {toast: Shown, onDismiss: (id: number) => void}) {
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const left = useRef(undo ? UNDO_TIME : kind === "error" ? 8000 : 4000)
+  const paused = hovered || focused
+
+  useEffect(() => {
+    if (paused) return
+    const started = Date.now()
+    const timer = window.setTimeout(() => onDismiss(id), left.current)
+    return () => {
+      window.clearTimeout(timer)
+      left.current = Math.max(1000, left.current - (Date.now() - started))
+    }
+  }, [paused, id, onDismiss])
+
+  return (
+    <div className={`toast toast-${kind ?? "success"}`} role={kind === "error" ? "alert" : "status"}
+         onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+         onFocus={() => setFocused(true)} onBlur={event => setFocused(event.currentTarget.contains(event.relatedTarget))}>
+      <span>{message}</span>
+      {undo &&
+        <button className="link" onClick={() => {
+          onDismiss(id)
+          undo()
+        }}>Undo</button>
+      }
+      <button className="icon-button" aria-label="Dismiss" onClick={() => onDismiss(id)}><FaXmark/></button>
+    </div>
   )
 }

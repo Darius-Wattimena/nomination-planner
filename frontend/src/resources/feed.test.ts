@@ -50,7 +50,7 @@ describe("toBeatmap", () => {
       note: "Hi",
       mapper: {osuId: "10", username: "Mapper", gamemodes: []},
       status: BeatmapStatus.Pending,
-      gamemodes: [{gamemode: Gamemode.Osu, isReady: false, nominators: [{nominator: BN, hasNominated: true}, {nominator: NOBODY, hasNominated: false}]}],
+      gamemodes: [{gamemode: Gamemode.Osu, nominators: [{nominator: BN, hasNominated: true}, {nominator: NOBODY, hasNominated: false}]}],
       mainGamemodes: [Gamemode.Osu],
       dateAdded: "2026-01-01T00:00:00Z",
       dateUpdated: "2026-01-02T00:00:00Z"

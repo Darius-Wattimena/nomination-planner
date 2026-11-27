@@ -2,23 +2,39 @@ import {useEffect, useRef, useState} from "react";
 import type {Beatmap} from "../models/Types";
 import {saveNote} from "../resources/planner";
 
+/** The backend refuses longer notes */
+const MAX_LENGTH = 2000
+
 /** Saves by itself, there is nothing to remember */
 export default function Note({beatmap, editable}: {beatmap: Beatmap, editable: boolean}) {
-  const [note, setNote] = useState(beatmap.note ?? "")
+  const remote = beatmap.note ?? ""
+  const [note, setNote] = useState(remote)
   const [state, setState] = useState<"idle" | "dirty" | "saving" | "saved" | "failed">("idle")
   const latest = useRef({note, beatmap, dirty: false})
   useEffect(() => {
     latest.current = {...latest.current, note, beatmap}
   })
 
+  // Follow changes of others, unless that would throw away what is being typed
+  const [seen, setSeen] = useState(remote)
+  const [sent, setSent] = useState<string>()
+  const [overtaken, setOvertaken] = useState(false)
+  if (remote !== seen) {
+    setSeen(remote)
+    if (state === "idle" || state === "saved") setNote(remote)
+    else if (remote !== note && remote !== sent) setOvertaken(true)
+  }
+
   async function save() {
     if (!latest.current.dirty) return
     latest.current.dirty = false
     const text = latest.current.note
+    setSent(text)
     setState("saving")
     try {
       await saveNote(latest.current.beatmap, text)
       setState(latest.current.note === text ? "saved" : "dirty")
+      setOvertaken(false)
     } catch {
       latest.current.dirty = true
       setState("failed")
@@ -45,11 +61,13 @@ export default function Note({beatmap, editable}: {beatmap: Beatmap, editable: b
           {{idle: "", dirty: "", saving: "Saving…", saved: "Saved", failed: "Not saved. Keep typing to try again."}[state]}
         </span>
       </div>
-      <textarea id="beatmap-note" rows={4} placeholder="What should the other nominators know?" value={note} onChange={event => {
+      {overtaken && <p className="alert alert-warning" role="alert">Someone else changed this note. Saving yours replaces theirs.</p>}
+      <textarea id="beatmap-note" rows={4} maxLength={MAX_LENGTH} placeholder="What should the other nominators know?" value={note} onChange={event => {
         setNote(event.target.value)
         latest.current.dirty = true
         setState("dirty")
       }}/>
+      {note.length > MAX_LENGTH - 200 && <span className="muted note-count">{note.length} of {MAX_LENGTH} characters</span>}
     </section>
   )
 }

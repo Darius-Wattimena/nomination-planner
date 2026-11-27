@@ -1,5 +1,6 @@
 import type {KeyboardEvent, ReactNode} from "react";
 import {useEffect, useMemo, useRef, useState} from "react";
+import {usePopup} from "../ui/usePopup";
 import {FaCheck, FaChevronDown, FaFilter, FaMagnifyingGlass, FaXmark} from "react-icons/fa6";
 import {GAMEMODE_NAMES, GAMEMODES, PENDING_STATUSES} from "../Constants";
 import type {Beatmap, User} from "../models/Types";
@@ -145,10 +146,8 @@ interface FilterMenuProps {
 }
 
 function FilterMenu({label, keys, options, searchable, tokens, maps, self, onChange}: FilterMenuProps) {
-  const [open, setOpen] = useState(false)
+  const {open, setOpen, root, button, close, onKeyDown} = usePopup<HTMLDivElement>()
   const [end, setEnd] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
-  const button = useRef<HTMLButtonElement>(null)
 
   const own = useMemo(() => tokens.filter(it => it.key && keys.includes(it.key)), [tokens, keys])
   // Something typed can be part of a name, so it isn't always one of the options
@@ -158,30 +157,12 @@ function FilterMenu({label, keys, options, searchable, tokens, maps, self, onCha
   ], [own, options])
   const picked = all.filter(option => own.some(it => isOption(it, option)))
 
-  useEffect(() => {
-    if (!open) return
-    const outside = (event: Event) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false)
-    }
-    document.addEventListener("pointerdown", outside)
-    document.addEventListener("focusin", outside)
-    return () => {
-      document.removeEventListener("pointerdown", outside)
-      document.removeEventListener("focusin", outside)
-    }
-  }, [open])
-
   function toggle(option: Option) {
     onChange(tokens.some(it => isOption(it, option)) ? tokens.filter(it => !isOption(it, option)) : [...tokens, {key: option.key, value: option.value}])
   }
 
-  function close() {
-    setOpen(false)
-    button.current?.focus()
-  }
-
   return (
-    <div className="filter" ref={root} data-open={open || undefined} onClick={event => event.target === root.current && setOpen(false)}>
+    <div className="filter" ref={root} data-open={open || undefined} onKeyDown={onKeyDown} onClick={event => event.target === root.current && setOpen(false)}>
       <button ref={button} className="filter-button" aria-expanded={open} aria-haspopup="dialog" data-active={picked.length > 0 || undefined} onClick={event => {
         setEnd(event.currentTarget.getBoundingClientRect().left + 300 > window.innerWidth)
         setOpen(!open)

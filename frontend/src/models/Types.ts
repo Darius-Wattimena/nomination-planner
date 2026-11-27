@@ -1,6 +1,6 @@
 export type UserRole = 'Mapper' | 'Nominator' | 'Probation' | 'NominationAssessment'
 export type PageLimit = 'TEN' | 'TWENTY' | 'FIFTY'
-export type BeatmapPage = 'PENDING' | 'RANKED' | 'GRAVEYARD'
+export type BeatmapPage = 'RANKED' | 'GRAVEYARD'
 
 export interface UserContext {
   // The backend leaves the user out when it could not be found
@@ -10,8 +10,8 @@ export interface UserContext {
   csrfToken: string
 }
 
-export interface RolePermission {
-  osuRole: UserRole
+interface RolePermission {
+  /** VIEWER, EDITOR and ADMIN, the same the backend checks */
   roles: string[]
 }
 
@@ -25,7 +25,7 @@ export interface User {
   interests?: Gamemode[]
 }
 
-export interface UserGamemode {
+interface UserGamemode {
   gamemode: Gamemode
   role: UserRole
 }
@@ -50,13 +50,11 @@ export interface Pairing {
   name: string
   pairingPending: number
   pairingRanked: number
-  pairingGraved: number
 }
 
 export interface BeatmapGamemode {
   gamemode: Gamemode
   nominators: BeatmapNominator[]
-  isReady: boolean
 }
 
 export interface BeatmapNominator {
@@ -66,11 +64,9 @@ export interface BeatmapNominator {
 
 export interface BeatmapFilter {
   search: string
-  status: BeatmapStatus[]
   page: BeatmapPage
   nominators: string[]
   gamemodes: Gamemode[]
-  missingNominator: Gamemode[]
 }
 
 export enum Gamemode {
@@ -91,7 +87,7 @@ export enum BeatmapStatus {
   Unfinished = "Unfinished"
 }
 
-export interface SyncInfo {
-  duration: number
-  totalSynced: number
+/** A sync runs in the background, this is how many it will go through */
+export interface SyncQueued {
+  queued: number
 }

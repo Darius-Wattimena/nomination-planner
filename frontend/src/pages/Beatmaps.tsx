@@ -10,15 +10,13 @@ import {usePlanner} from "../resources/planner";
 import {useAddBeatmap} from "../beatmaps/useAddBeatmap";
 import {Freshness, RingLegend} from "../ui/Help";
 import PageHeader from "../ui/PageHeader";
-import {EmptyState} from "../ui/States";
-import {usePhone} from "../utils/phone";
+import {EmptyState, PlannerStatus} from "../ui/States";
+import {focusesByItself, usePhone} from "../utils/phone";
 import {filterMaps, MODE_WORDS} from "../utils/query";
 import {canEdit, useSession} from "../utils/session";
 import {modesOf} from "../utils/users";
 import {ageInDays, hiddenAsOld, OLD_DAYS, stageOf, STAGES} from "../utils/workflow";
-import {readStored, store} from "../utils/storage";
-import {PlannerError} from "../ui/States";
-import {focusesByItself} from "../utils/phone";
+import {readStored, store, storeFirst} from "../utils/storage";
 
 const STEP = 60
 
@@ -30,7 +28,7 @@ interface SavedView {
 export default function Beatmaps() {
   const session = useSession()
   const user = session?.user
-  const {maps, error} = usePlanner()
+  const {maps} = usePlanner()
   const openAdd = useAddBeatmap()
   const [params, setParams] = useSearchParams()
   const phone = usePhone()
@@ -39,7 +37,10 @@ export default function Beatmaps() {
   const layout = phone ? "list" : chosen
   const [saved, setSaved] = useState<SavedView[]>(() => readStored<SavedView[]>("savedViews") ?? [])
   const [naming, setNaming] = useState<string>()
+  // The list grows as a whole, every column by itself
   const [limit, setLimit] = useState(STEP)
+  const [columnLimits, setColumnLimits] = useState<Record<string, number>>({})
+  const limitOf = (column: string) => columnLimits[column] ?? STEP
 
   const ownModes = modesOf(user).map(it => `mode:${MODE_WORDS[it]}`).join(" ")
   const query = params.get("q") ?? ownModes
@@ -66,7 +67,7 @@ export default function Beatmaps() {
 
   function saveViews(next: SavedView[]) {
     setSaved(next)
-    store("savedViews", next)
+    storeFirst("savedViews", next)
   }
 
   const matching = useMemo(() => filterMaps(maps ?? [], query, user), [maps, query, user])
@@ -83,8 +84,9 @@ export default function Beatmaps() {
   if (limitFor !== `${query}|${layout}`) {
     setLimitFor(`${query}|${layout}`)
     setLimit(STEP)
+    setColumnLimits({})
   }
-  const ids = (layout === "list" ? ordered.slice(0, limit) : columns.flatMap(it => it.maps.slice(0, limit))).map(it => it.osuId)
+  const ids = (layout === "list" ? ordered.slice(0, limit) : columns.flatMap(it => it.maps.slice(0, limitOf(it.id)))).map(it => it.osuId)
 
   const isSaved = [...views, ...saved].some(it => it.query === query)
 
@@ -106,9 +108,6 @@ export default function Beatmaps() {
 
         <div className="views" role="group" aria-label="Views">
           {views.map(view => <button key={view.name} className="view" aria-pressed={view.query === query} onClick={() => update({q: view.query})}>{view.name}</button>)}
-          <label className="view view-check" title={`Also show beatmaps nobody changed in ${OLD_DAYS} days`}>
-            <input type="checkbox" checked={older} onChange={event => update({older: event.target.checked})}/>Include older ones
-          </label>
           {saved.map(view => (
             <span key={view.name} className="view view-saved" data-active={view.query === query || undefined}>
               <button aria-pressed={view.query === query} onClick={() => update({q: view.query})}>{view.name}</button>
@@ -138,8 +137,7 @@ export default function Beatmaps() {
           </p>
         }
 
-        {error && <PlannerError/>}
-        {!maps && !error && <ul className="map-list" aria-busy aria-label="Loading">{[0, 1, 2, 3, 4].map(it => <li key={it} className="map-row skeleton"/>)}</ul>}
+        <PlannerStatus rows={5}/>
         {maps && found.length === 0 &&
           <EmptyState title="Nothing matches">
             <p className="muted">No beatmap in progress fits this search.</p>
@@ -155,9 +153,9 @@ export default function Beatmaps() {
                 <header><h2>{column.label}</h2><span className="count">{column.maps.length}</span></header>
                 <p className="muted">{column.hint}</p>
                 <ul>
-                  {column.maps.slice(0, limit).map(it => <MapCard key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={() => open(it.osuId)}/>)}
+                  {column.maps.slice(0, limitOf(column.id)).map(it => <MapCard key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={() => open(it.osuId)}/>)}
                 </ul>
-                {column.maps.length > limit && <button className="button" onClick={() => setLimit(limit + STEP)}>Show more</button>}
+                {column.maps.length > limitOf(column.id) && <button className="button" onClick={() => setColumnLimits({...columnLimits, [column.id]: limitOf(column.id) + STEP})}>Show more</button>}
               </section>
             ))}
           </div>

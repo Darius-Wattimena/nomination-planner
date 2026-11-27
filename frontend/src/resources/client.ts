@@ -3,7 +3,7 @@ import axios from "axios";
 import {useCallback, useEffect, useState} from "react";
 import {CONFIG} from "../Settings";
 import type {UserContext} from "../models/Types";
-import {announceSessionChange, getSession, onSessionChangeElsewhere, setSession} from "../utils/session";
+import {announceSessionChange, getSession, onSessionChangeElsewhere, setSession, setSessionUnreachable} from "../utils/session";
 import Api from "./Api";
 
 // The login is a cookie of the backend, which the browser only sends along when asked to
@@ -14,10 +14,17 @@ export async function loadSession() {
   try {
     const result = await client.request<UserContext | "">(Api.session())
     setSession(result.status === 200 && result.data ? result.data : undefined)
-  } catch {
-    // Without an answer nobody can be logged in, the pages tell the backend can't be reached
-    setSession(undefined)
+  } catch (error) {
+    // Without an answer it is unknown who is logged in, the pages tell that instead of asking to log in
+    if (isUnreachable(error)) setSessionUnreachable()
+    else setSession(undefined)
   }
+}
+
+/** No answer at all, or the backend itself failed */
+export function isUnreachable(error: unknown) {
+  const status = statusOf(error)
+  return status === undefined || status >= 500
 }
 
 onSessionChangeElsewhere(() => void loadSession())
@@ -62,6 +69,12 @@ export async function logOutSession() {
 
 export function statusOf(error: unknown) {
   return (error as AxiosError).response?.status
+}
+
+/** What the backend said went wrong, its errors are a ProblemDetail */
+export function problemOf(error: unknown): string | undefined {
+  const detail = (error as AxiosError<{detail?: unknown}>).response?.data?.detail
+  return typeof detail === "string" && detail.trim() ? detail : undefined
 }
 
 /** Like request, where something that doesn't exist is undefined instead of an error */

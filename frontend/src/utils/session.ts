@@ -7,6 +7,7 @@ const CHANGED = "sessionChanged"
 const listeners = new Set<() => void>()
 let current: UserContext | undefined
 let known = false
+let unreachable = false
 
 // Before the login moved to a cookie the osu! tokens were kept here
 forget("userContext")
@@ -22,7 +23,19 @@ export function getSession() {
 export function setSession(session: UserContext | undefined) {
   current = session
   known = true
+  unreachable = false
   notify()
+}
+
+/** The backend didn't answer, so who is logged in is still unknown. Whoever was known stays. */
+export function setSessionUnreachable() {
+  known = true
+  unreachable = true
+  notify()
+}
+
+export function isSessionUnreachable() {
+  return unreachable
 }
 
 /** Let the other open tabs find out who is logged in again */
@@ -52,8 +65,13 @@ export function useSessionKnown() {
   return useSyncExternalStore(subscribe, () => known)
 }
 
+/** Whether the backend could not be reached the last time it was asked */
+export function useSessionUnreachable() {
+  return useSyncExternalStore(subscribe, isSessionUnreachable)
+}
+
 export function canEdit(session: UserContext | undefined) {
-  return !!session && session.permission.osuRole !== "Mapper"
+  return !!session?.permission.roles.includes("EDITOR")
 }
 
 /** The NAT and developers, the same permission the backend checks */

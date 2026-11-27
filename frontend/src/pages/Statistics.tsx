@@ -1,19 +1,19 @@
-import {useMemo, useState} from "react";
+import {useMemo} from "react";
 import {useSearchParams} from "react-router";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
-import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
-import type {Gamemode} from "../models/Types";
+import {GAMEMODE_NAMES} from "../Constants";
 import {useRanked} from "../resources/ranked";
 import Columns, {Table} from "../stats/Columns";
 import Constellation from "../stats/Constellation";
 import {combinations, debuts, inLastYear, inYear, network, nominatorsOf, overTime, perMonth, rankedDate, summarize, yearBefore} from "../stats/stats";
 import {Figures, Highlights, YearTable} from "../stats/Years";
+import {modeParam} from "../utils/query";
 import {boards, scores} from "../stats/boards";
 import Leaderboards from "../stats/Leaderboards";
 import Cover from "../ui/Cover";
 import {People} from "../ui/Person";
-import ModeIcon from "../ui/ModeIcon";
+import ModeIcon, {ModeSwitch} from "../ui/ModeIcon";
 import PageHeader from "../ui/PageHeader";
 import {EmptyState, Loading} from "../ui/States";
 
@@ -24,16 +24,17 @@ export default function Statistics() {
   const [params, setParams] = useSearchParams()
   const {selected, open, close} = useOpenMap()
   const tab = TABS.find(it => it.id === params.get("view"))?.id ?? "overview"
-  const [mode, setMode] = useState<Gamemode>()
+  const chosen = modeParam(params.get("mode"))
+  const mode = chosen === "all" ? undefined : chosen
   const years = useMemo(() => Array.from(new Set((maps ?? []).map(it => rankedDate(it)?.getFullYear()).filter((it): it is number => !!it))).sort((a, b) => b - a), [maps])
   const period = params.get("period") ?? "recent"
   const year = /^[0-9]{4}$/.test(period) ? Number(period) : undefined
   const lastYear = !year && period !== "all"
   const thisYear = new Date().getFullYear()
 
-  function update(changes: {view?: string, period?: string}) {
+  function update(changes: {view?: string, period?: string, mode?: string}) {
     const next = new URLSearchParams(params)
-    Object.entries(changes).forEach(([key, value]) => ["overview", "recent"].includes(value) ? next.delete(key) : next.set(key, value))
+    Object.entries(changes).forEach(([key, value]) => ["overview", "recent"].includes(value) || (key === "mode" && value === "all") ? next.delete(key) : next.set(key, value))
     setParams(next, {replace: true})
   }
 
@@ -61,10 +62,7 @@ export default function Statistics() {
     <div className="page">
       <PageHeader title="Statistics" subtitle="Beatmaps that were ranked through the planner, not all of osu!">
         <div className="button-row">
-          <div className="segmented" role="group" aria-label="Game mode">
-            <button aria-pressed={!mode} onClick={() => setMode(undefined)}>All</button>
-            {GAMEMODES.map(it => <button key={it} aria-pressed={mode === it} aria-label={GAMEMODE_NAMES[it]} onClick={() => setMode(it)}><ModeIcon mode={it}/><span className="segmented-text">{GAMEMODE_NAMES[it]}</span></button>)}
-          </div>
+          <ModeSwitch selected={mode} onChange={it => update({mode: it ?? "all"})}/>
           <select id="period" aria-label="Period" value={period} onChange={event => update({period: event.target.value})}>
             <option value="recent">Last 12 months</option>
             <option value="all">All time</option>

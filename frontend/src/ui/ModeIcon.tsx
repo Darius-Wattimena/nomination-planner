@@ -49,3 +49,24 @@ export function ModePicker({selected, onChange, label}: ModePickerProps) {
     </div>
   )
 }
+
+interface ModeSwitchProps {
+  modes?: Gamemode[]
+  /** Nothing is all of them */
+  selected: Gamemode | undefined
+  onChange: (mode: Gamemode | undefined) => void
+}
+
+/** One mode, or all of them */
+export function ModeSwitch({modes = GAMEMODES, selected, onChange}: ModeSwitchProps) {
+  return (
+    <div className="segmented" role="group" aria-label="Game mode">
+      <button aria-pressed={!selected} onClick={() => onChange(undefined)}>All</button>
+      {modes.map(it => (
+        <button key={it} aria-pressed={selected === it} aria-label={GAMEMODE_NAMES[it]} onClick={() => onChange(it)}>
+          <ModeIcon mode={it}/><span className="segmented-text">{GAMEMODE_NAMES[it]}</span>
+        </button>
+      ))}
+    </div>
+  )
+}

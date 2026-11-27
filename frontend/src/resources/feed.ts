@@ -56,7 +56,6 @@ export function toBeatmap(feed: Feed, beatmap: FeedBeatmap): Beatmap {
     status: beatmap.status,
     gamemodes: beatmap.modes.map(({mode, by}) => ({
       gamemode: mode,
-      isReady: false,
       nominators: Array.from({length: Math.max(2, by.length)}, (_, index) => ({
         nominator: by[index] ? user(by[index].user) : NOBODY,
         hasNominated: !!by[index]?.done

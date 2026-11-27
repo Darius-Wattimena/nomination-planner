@@ -11,7 +11,7 @@ import {canNominate, isMissing, isNominator, onProbation, sortedModes} from "./u
 const people = (mode: BeatmapGamemode) => mode.nominators.filter(it => !isMissing(it.nominator))
 
 /** The modes that can be the main one, a single one when it is decided */
-export function mainModes(map: Beatmap): Gamemode[] {
+function mainModes(map: Beatmap): Gamemode[] {
   const possible = map.mainGamemodes?.length ? map.mainGamemodes : map.gamemodes.map(it => it.gamemode)
   if (possible.length < 2) return possible
   // Otherwise it's the one that is nominated first

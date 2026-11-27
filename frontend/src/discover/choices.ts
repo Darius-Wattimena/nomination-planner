@@ -1,5 +1,5 @@
 import {useState} from "react";
-import {readStored, store} from "../utils/storage";
+import {readStored, storeFirst} from "../utils/storage";
 
 export type Choice = "pass" | "like"
 
@@ -26,17 +26,13 @@ export function useChoices(userId: string) {
   function save(next: Choices) {
     setChoices(next)
     // Not being able to remember it must not get in the way
-    store(key, next)
+    storeFirst(key, next)
   }
 
   return {
     choices,
     choose: (id: string, choice: Choice) => save({...choices, [id]: {choice, at: Date.now()}}),
-    forget: (id: string) => {
-      const next = {...choices}
-      delete next[id]
-      save(next)
-    },
+    forget: (...ids: string[]) => save(Object.fromEntries(Object.entries(choices).filter(([id]) => !ids.includes(id)))),
     forgetPasses: () => save(Object.fromEntries(Object.entries(choices).filter(([, it]) => it.choice !== "pass")))
   }
 }

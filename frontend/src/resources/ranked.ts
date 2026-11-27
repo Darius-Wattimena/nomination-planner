@@ -64,7 +64,6 @@ function toBeatmaps({names, beatmaps}: Ranked): Beatmap[] {
     status: BeatmapStatus.Ranked,
     gamemodes: it.modes.map(({mode, by}) => ({
       gamemode: mode,
-      isReady: true,
       nominators: Array.from({length: Math.max(2, by.length)}, (_, index) => by[index]
         ? {nominator: user(by[index]), hasNominated: true}
         : {nominator: NOBODY, hasNominated: false})

@@ -3,7 +3,7 @@ import type {Beatmap, Gamemode, User} from "../models/Types";
 import {changeNominator, ConflictError, NOBODY} from "../resources/planner";
 import {useToast} from "../ui/useToast";
 
-/** Change the nominators of a beatmap. Everything can be undone, so nothing has to be confirmed up front. */
+/** Change the nominators of a beatmap. Everything can be undone, so nothing has to be confirmed up front. Each change returns how to undo it. */
 export function useNominators(beatmap: Beatmap) {
   const toast = useToast()
 
@@ -12,6 +12,7 @@ export function useNominators(beatmap: Beatmap) {
       ? `Someone else changed ${beatmap.title}. It now shows the latest nominators.`
       : `Could not change the nominators of ${beatmap.title}.`, {kind: "error"}))
     toast(message, {undo})
+    return undo
   }
 
   return {

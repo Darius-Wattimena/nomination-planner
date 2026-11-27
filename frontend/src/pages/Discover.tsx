@@ -10,21 +10,27 @@ import type {Choice} from "../discover/choices";
 import {useChoices} from "../discover/choices";
 import {useSongPreview} from "../discover/useSongPreview";
 import type {Beatmap, Gamemode, User} from "../models/Types";
-import {usePlanner} from "../resources/planner";
+import {UNDO_TIME, usePlanner} from "../resources/planner";
 import Cover from "../ui/Cover";
-import ModeIcon from "../ui/ModeIcon";
+import {ModeSwitch} from "../ui/ModeIcon";
 import PageHeader from "../ui/PageHeader";
 import {Ring} from "../ui/Ring";
-import {EmptyState, Loading} from "../ui/States";
+import {EmptyState, PlannerStatus} from "../ui/States";
 import StatusBadge from "../ui/StatusBadge";
 import {canEdit, useSession} from "../utils/session";
 import {canNominate} from "../utils/users";
-import {ageLabel, suggestions} from "../utils/workflow";
+import {ageLabel, partOf, suggestions} from "../utils/workflow";
 import {usePairings} from "../resources/pairings";
 import JoinButton from "../beatmaps/JoinButton";
-import {PlannerError} from "../ui/States";
 
 const SWIPE = 110
+
+/** A choice, or a join that can be undone for a while */
+interface Step {
+  id: string
+  undo?: () => void
+  at: number
+}
 
 export default function Discover() {
   const session = useSession()
@@ -46,13 +52,13 @@ export default function Discover() {
 }
 
 function Deck({user}: {user: User}) {
-  const {maps, error} = usePlanner()
+  const {maps} = usePlanner()
   const {rankedWith} = usePairings(user.osuId)
   const {choices, choose, forget, forgetPasses} = useChoices(user.osuId)
   const {selected: opened, open, close} = useOpenMap()
   const [mode, setMode] = useState<Gamemode>()
   const [currentId, setCurrentId] = useState<string>()
-  const [history, setHistory] = useState<string[]>([])
+  const [history, setHistory] = useState<Step[]>([])
 
   const ownModes = GAMEMODES.filter(it => canNominate(user, it))
 
@@ -66,41 +72,42 @@ function Deck({user}: {user: User}) {
 
   if (current?.map.osuId !== currentId) setCurrentId(current?.map.osuId)
 
+  // Saved for later until you plan to nominate it
+  const joined = Object.keys(choices).filter(id => choices[id].choice === "like" && maps?.some(it => it.osuId === id && partOf(it, user.osuId)))
+  if (joined.length > 0) forget(...joined)
+
   const song = useSongPreview(current?.map.osuId, upcoming[0]?.map.osuId)
 
   function decide(choice: Choice) {
     if (!current) return
     choose(current.map.osuId, choice)
-    setHistory([...history, current.map.osuId])
+    next({id: current.map.osuId, at: Date.now()})
+  }
+
+  function next(step: Step) {
+    setHistory([...history, step])
     setCurrentId(upcoming[0]?.map.osuId)
     if (opened) close()
   }
 
   function undo() {
-    const last = history[history.length - 1]
+    // A join that can no longer be undone is passed over
+    const steps = history.filter(it => !it.undo || Date.now() - it.at < UNDO_TIME)
+    const last = steps[steps.length - 1]
+    setHistory(steps.slice(0, -1))
     if (!last) return
-    forget(last)
-    setHistory(history.slice(0, -1))
-    setCurrentId(last)
+    if (last.undo) last.undo()
+    else forget(last.id)
+    setCurrentId(last.id)
   }
 
   return (
     <div className="page">
         <PageHeader title="Discover" subtitle={maps ? queue.length === 0 ? "You heard everything" : `${queue.length} ${queue.length === 1 ? "beatmap" : "beatmaps"} looking for a nominator like you` : " "}>
-          {ownModes.length > 1 &&
-            <div className="segmented" role="group" aria-label="Game mode">
-              <button aria-pressed={!mode} onClick={() => setMode(undefined)}>All</button>
-              {ownModes.map(it => (
-                <button key={it} aria-pressed={mode === it} aria-label={GAMEMODE_NAMES[it]} onClick={() => setMode(it)}>
-                  <ModeIcon mode={it}/><span className="segmented-text">{GAMEMODE_NAMES[it]}</span>
-                </button>
-              ))}
-            </div>
-          }
+          {ownModes.length > 1 && <ModeSwitch modes={ownModes} selected={mode} onChange={setMode}/>}
         </PageHeader>
 
-        {error && <PlannerError/>}
-        {!maps && !error && <Loading/>}
+        <PlannerStatus rows={3}/>
 
         <div className="discover">
           {maps && !current &&
@@ -114,7 +121,8 @@ function Deck({user}: {user: User}) {
               <Card key={current.map.osuId} map={current.map} mode={current.mode} reason={current.reason} song={song} onDecide={decide} onOpen={() => open(current.map.osuId)}/>
               <div className="deck-actions">
                 <button className="deck-button" onClick={() => decide("pass")}><FaXmark/>Skip</button>
-                <JoinButton key={current.map.osuId} beatmap={current.map} mode={current.mode} user={user} className="deck-button deck-join"/>
+                <JoinButton key={current.map.osuId} beatmap={current.map} mode={current.mode} user={user} className="deck-button deck-join"
+                            onJoined={undoJoin => next({id: current.map.osuId, undo: undoJoin, at: Date.now()})}/>
                 <button className="deck-button deck-like" onClick={() => decide("like")}><FaHeart/>Interested</button>
               </div>
               <div className="deck-foot">

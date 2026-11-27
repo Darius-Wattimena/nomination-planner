@@ -5,12 +5,12 @@ import type {AxiosRequestConfig} from "axios";
 const backend = vi.fn()
 vi.mock("axios", () => ({default: {create: vi.fn(() => ({request: backend}))}}))
 
-const {loadSession, logOutSession, request} = await import("./client")
-const {getSession} = await import("../utils/session")
+const {loadSession, logOutSession, problemOf, request} = await import("./client")
+const {getSession, isSessionUnreachable} = await import("../utils/session")
 
 const session = (csrfToken: string) => ({
   user: {osuId: "1", username: "BN", gamemodes: []},
-  permission: {osuRole: "Nominator", roles: ["VIEWER", "EDITOR"]},
+  permission: {roles: ["VIEWER", "EDITOR"]},
   csrfToken
 })
 
@@ -42,12 +42,31 @@ describe("loadSession", () => {
     expect(getSession()).toBeUndefined()
   })
 
-  it("treats a backend that can't be reached as nobody logged in", async () => {
+  it("tells the backend can't be reached instead of logging out", async () => {
     await logIn()
     backend.mockRejectedValueOnce(new Error("offline"))
     await loadSession()
 
+    expect(isSessionUnreachable()).toBe(true)
+    expect(getSession()?.user?.username).toBe("BN")
+  })
+
+  it("counts a failing backend as unreachable, until it answers again", async () => {
+    backend.mockRejectedValueOnce(refused(502))
+    await loadSession()
+    expect(isSessionUnreachable()).toBe(true)
+
+    await logIn()
+    expect(isSessionUnreachable()).toBe(false)
+  })
+
+  it("knows nobody is logged in when the backend refuses", async () => {
+    await logIn()
+    backend.mockRejectedValueOnce(refused(401))
+    await loadSession()
+
     expect(getSession()).toBeUndefined()
+    expect(isSessionUnreachable()).toBe(false)
   })
 })
 
@@ -78,7 +97,7 @@ describe("request", () => {
       .mockResolvedValueOnce({status: 200, data: session("new")})
       .mockResolvedValueOnce({status: 200, data: "done"})
 
-    expect(await request({method: "DELETE", url: "/v2/beatmap/1/delete"})).toBe("done")
+    expect(await request({method: "DELETE", url: "/v2/beatmap/1"})).toBe("done")
     expect(headersOf(3)).toEqual({"X-CSRF-TOKEN": "new"})
   })
 
@@ -86,7 +105,7 @@ describe("request", () => {
     await logIn()
     backend.mockRejectedValueOnce(refused(403)).mockResolvedValueOnce({status: 200, data: session("token")})
 
-    await expect(request({method: "DELETE", url: "/v2/beatmap/1/delete"})).rejects.toEqual(refused(403))
+    await expect(request({method: "DELETE", url: "/v2/beatmap/1"})).rejects.toEqual(refused(403))
     expect(backend).toHaveBeenCalledTimes(3)
   })
 
@@ -106,5 +125,13 @@ describe("logOutSession", () => {
     await expect(logOutSession()).rejects.toThrow("offline")
     expect(getSession()).toBeUndefined()
     expect(localStorage.getItem("sessionChanged")).not.toBeNull()
+  })
+})
+
+describe("problemOf", () => {
+  it("reads the detail of a ProblemDetail", () => {
+    expect(problemOf({response: {status: 409, data: {title: "Conflict", detail: "Already on the planner"}}})).toBe("Already on the planner")
+    expect(problemOf({response: {status: 500, data: ""}})).toBeUndefined()
+    expect(problemOf(new Error("offline"))).toBeUndefined()
   })
 })

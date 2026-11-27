@@ -1,8 +1,8 @@
 import type {FormEvent, ReactNode} from "react";
 import {useCallback, useState} from "react";
-import {useNavigate} from "react-router";
 import {GAMEMODE_NAMES} from "../Constants";
 import type {Beatmap, Gamemode} from "../models/Types";
+import {problemOf, statusOf} from "../resources/client";
 import {addBeatmap, NOBODY, setNominator, usePlanner} from "../resources/planner";
 import Cover from "../ui/Cover";
 import Dialog from "../ui/Dialog";
@@ -16,19 +16,20 @@ import {nextStep} from "../utils/workflow";
 import type {OpenAdd} from "./useAddBeatmap";
 import {AddContext} from "./useAddBeatmap";
 import {focusesByItself} from "../utils/phone";
+import MapView from "./MapView";
 
 function parse(text: string) {
   const id = text.trim()
   return /^[0-9]{2,}$/.test(id) ? {id, mode: undefined} : parseOsuLink(id)
 }
 
-/** The window to add a beatmap */
+/** The window to add a beatmap. What was added opens over the page you are on. */
 export function AddBeatmapProvider({children}: {children: ReactNode}) {
   const session = useSession()
   const editor = canEdit(session)
   const {maps = []} = usePlanner()
-  const navigate = useNavigate()
   const [link, setLink] = useState<string>()
+  const [shown, setShown] = useState<string>()
   const open = useCallback<OpenAdd>((initial = "") => setLink(initial), [])
   const close = () => setLink(undefined)
 
@@ -38,9 +39,10 @@ export function AddBeatmapProvider({children}: {children: ReactNode}) {
       <Dialog open={editor && link !== undefined} onClose={close} title="Add beatmap">
         <AddForm key={link} initial={link ?? ""} maps={maps} onClose={close} onOpen={id => {
           close()
-          navigate(`/beatmaps?q=&map=${id}`)
+          setShown(id)
         }}/>
       </Dialog>
+      <MapView id={shown} onOpen={setShown} onClose={() => setShown(undefined)}/>
     </AddContext.Provider>
   )
 }
@@ -88,8 +90,13 @@ function AddForm({initial, maps, onClose, onOpen}: AddFormProps) {
     let added: Beatmap | undefined
     try {
       added = await addBeatmap(found.id, modes)
-    } catch {
-      setError("Could not add the beatmap. Try again.")
+    } catch (error) {
+      // Someone else was first
+      if (statusOf(error) === 409) {
+        toast("This beatmap is already on the planner")
+        return onOpen(found.id)
+      }
+      setError(problemOf(error) ?? "Could not add the beatmap. Try again.")
       return setBusy(false)
     }
     if (!added) {

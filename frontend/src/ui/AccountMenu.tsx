@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import {useState} from "react";
 import {Link} from "react-router";
 import {FaCircleQuestion, FaMoon, FaRightFromBracket, FaSliders, FaSun} from "react-icons/fa6";
 import type {User} from "../models/Types";
@@ -8,35 +8,17 @@ import {useHelp} from "./useHelp";
 import {Avatar} from "./Person";
 import OwnModesDialog from "./OwnModes";
 import {choosesOwnModes} from "../utils/users";
+import {usePopup} from "./usePopup";
 
 /** Everything that isn't needed all day */
 export default function AccountMenu({user}: {user: User}) {
   const openHelp = useHelp()
   const {theme, toggle} = useTheme()
-  const [open, setOpen] = useState(false)
+  const {open, setOpen, root, button, onKeyDown} = usePopup<HTMLDivElement>()
   const [choosing, setChoosing] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
-  const button = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const outside = (event: Event) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false)
-    }
-    document.addEventListener("pointerdown", outside)
-    document.addEventListener("focusin", outside)
-    return () => {
-      document.removeEventListener("pointerdown", outside)
-      document.removeEventListener("focusin", outside)
-    }
-  }, [open])
 
   return (
-    <div className="account" ref={root} onKeyDown={event => {
-      if (event.key !== "Escape" || !open) return
-      setOpen(false)
-      button.current?.focus()
-    }}>
+    <div className="account" ref={root} onKeyDown={onKeyDown}>
       <button ref={button} className="me" aria-expanded={open} aria-label={`Menu of ${user.username}`} onClick={() => setOpen(!open)}><Avatar user={user}/></button>
       {open &&
         <nav className="popup account-menu" aria-label="Account" onClick={() => setOpen(false)}>

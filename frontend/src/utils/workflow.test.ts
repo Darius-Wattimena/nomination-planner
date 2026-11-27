@@ -2,7 +2,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import type {User} from "../models/Types";
 import {BeatmapStatus, Gamemode} from "../models/Types";
 import {beatmap, bn, mode, probation} from "../test/builders";
-import {ageInDays, ageLabel, hiddenAsOld, isOld, lookingForNominator, OLD_DAYS, partOf, isStale, nextStep, stageOf, suggestions, toDate} from "./workflow";
+import {ageInDays, ageLabel, hiddenAsOld, lookingForNominator, OLD_DAYS, partOf, isStale, nextStep, stageOf, suggestions, toDate} from "./workflow";
 
 const {Osu, Taiko} = Gamemode
 const NOW = new Date("2026-06-01T12:00:00Z")
@@ -200,6 +200,8 @@ describe("dates", () => {
 
 describe("old beatmaps", () => {
   const old = (changes: Parameters<typeof beatmap>[0] = {}) => beatmap({dateUpdated: daysAgo(OLD_DAYS), ...changes})
+  // For somebody who has nothing to do with them
+  const isOld = (map: ReturnType<typeof beatmap>) => hiddenAsOld(map, undefined)
 
   it("are those nobody changed for months", () => {
     expect(isOld(old())).toBe(true)

@@ -5,12 +5,11 @@ import {usePlanner} from "../resources/planner";
 import {useRanked} from "../resources/ranked";
 import {Avatar, RoleBadges} from "../ui/Person";
 import {Loading} from "../ui/States";
-import {canNominate} from "../utils/users";
+import {canNominate, isMissing} from "../utils/users";
 import {badges, scores} from "./boards";
 import Columns from "./Columns";
 import {Badges} from "./Leaderboards";
 import {debuts, nominatorsOf, perMonth, rankedDate, topBy} from "./stats";
-import {isMissing} from "../utils/users";
 
 interface NominatorYearProps {
   id: string

@@ -3,14 +3,12 @@ import {useState} from "react";
 import Modal from "react-modal";
 import {useNavigate} from "react-router";
 import {FaMagnifyingGlass, FaXmark} from "react-icons/fa6";
-import type {User} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import {useSession} from "../utils/session";
 import {nextStep} from "../utils/workflow";
 import Cover from "./Cover";
 import {Avatar} from "./Person";
 import {FindContext} from "./useFind";
-import {MISSING_USER_ID} from "../Constants";
 import {focusesByItself} from "../utils/phone";
 
 /** Find a beatmap or nominator, whatever page you are on */
@@ -32,14 +30,13 @@ export function FindProvider({children}: {children: ReactNode}) {
 function Find({onClose}: {onClose: () => void}) {
   const self = useSession()?.user
   const navigate = useNavigate()
-  const {maps = []} = usePlanner()
+  const {maps = [], nominators = []} = usePlanner()
   const [text, setText] = useState("")
 
   const wanted = text.trim().toLowerCase()
   const found = wanted === "" ? [] : maps.filter(it => `${it.artist} ${it.title} ${it.mapper.username} ${it.osuId}`.toLowerCase().includes(wanted)).slice(0, 8)
-  const everybody = new Map<string, User>(maps.flatMap(it => it.gamemodes).flatMap(it => it.nominators).map(it => [it.nominator.osuId, it.nominator]))
-  everybody.delete(MISSING_USER_ID)
-  const people = wanted === "" ? [] : Array.from(everybody.values()).filter(it => it.username.toLowerCase().includes(wanted)).slice(0, 4)
+  // Everybody who can nominate, also when they are not on anything right now
+  const people = wanted === "" ? [] : nominators.filter(it => it.username.toLowerCase().includes(wanted)).slice(0, 4)
 
   function go(path: string) {
     navigate(path)

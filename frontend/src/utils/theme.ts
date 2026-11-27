@@ -1,5 +1,5 @@
 import {useState} from "react";
-import {readText, store} from "./storage";
+import {readText, storeFirst} from "./storage";
 
 export type Theme = "dark" | "light"
 
@@ -8,8 +8,13 @@ function preferredTheme(): Theme {
   return readText("theme")?.replaceAll('"', "") === "light" ? "light" : "dark"
 }
 
+/** The --bar of each theme, which phones also use around the page */
+const BAR_COLORS: Record<Theme, string> = {dark: "#161d28", light: "#ffffff"}
+
 export function applyTheme(theme: Theme = preferredTheme()) {
   document.documentElement.dataset.theme = theme
+  // The theme is chosen on the planner, not by the system, so every variant gets its color
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach(it => it.content = BAR_COLORS[theme])
 }
 
 export function useTheme() {
@@ -17,7 +22,7 @@ export function useTheme() {
 
   function toggle() {
     const next = theme === "dark" ? "light" : "dark"
-    store("theme", next)
+    storeFirst("theme", next)
     applyTheme(next)
     setTheme(next)
   }

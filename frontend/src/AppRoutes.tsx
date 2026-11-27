@@ -3,11 +3,10 @@ import {lazy, Suspense} from "react";
 import {Link, Route, Routes, useLocation} from 'react-router';
 import PageHeader from "./ui/PageHeader";
 import Shell from "./ui/Shell";
-import {EmptyState, Loading, LoginButton} from "./ui/States";
-import {useSession, useSessionKnown} from "./utils/session";
+import {EmptyState, Loading, LoginButton, Unreachable} from "./ui/States";
+import {useSession, useSessionKnown, useSessionUnreachable} from "./utils/session";
 
 const Home = lazy(() => import("./pages/Home"));
-const Login = lazy(() => import("./pages/Login"));
 const Beatmaps = lazy(() => import("./pages/Beatmaps"));
 const Discover = lazy(() => import("./pages/Discover"));
 const Team = lazy(() => import("./pages/Team"));
@@ -21,7 +20,8 @@ export default function AppRoutes() {
       <Routes>
         <Route element={<Shell/>}>
           <Route path="/" element={<Home/>}/>
-          <Route path="/login" element={<Login/>}/>
+          {/* Where the backend sends the browser back to when logging in failed, as /login?failed */}
+          <Route path="/login" element={<Home/>}/>
           <Route path="/beatmaps" element={<RequireAuth><Beatmaps/></RequireAuth>}/>
           <Route path="/discover" element={<RequireAuth><Discover/></RequireAuth>}/>
           <Route path="/team" element={<RequireAuth><Team/></RequireAuth>}/>
@@ -39,10 +39,12 @@ export default function AppRoutes() {
 function RequireAuth({children}: {children: ReactNode}) {
   const session = useSession()
   const known = useSessionKnown()
+  const unreachable = useSessionUnreachable()
   const location = useLocation()
 
   if (session?.user) return <>{children}</>
   if (!known) return <Loading/>
+  if (unreachable) return <Unreachable/>
 
   return (
     <EmptyState title="Log in to continue">

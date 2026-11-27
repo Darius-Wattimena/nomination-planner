@@ -8,6 +8,7 @@ import {GAMEMODES} from "../Constants";
 import type {Beatmap, BeatmapFilter, BeatmapPage, PageLimit} from "../models/Types";
 import Api from "../resources/Api";
 import {useQuery} from "../resources/client";
+import {usePlanner} from "../resources/planner";
 import Cover from "../ui/Cover";
 import {ModePicker} from "../ui/ModeIcon";
 import PageHeader from "../ui/PageHeader";
@@ -19,6 +20,7 @@ import {toDate} from "../utils/workflow";
 /** What is done. Too much to keep in memory, so the server does the searching. */
 export default function Archive({page}: {page: BeatmapPage}) {
   const user = useSession()?.user
+  const {nominators} = usePlanner()
   const [params, setParams] = useSearchParams()
   // Several changes may follow each other before the page shows them
   const latest = useRef(params)
@@ -31,8 +33,10 @@ export default function Archive({page}: {page: BeatmapPage}) {
   const limit: PageLimit = params.get("limit") === "FIFTY" ? "FIFTY" : params.get("limit") === "TEN" ? "TEN" : "TWENTY"
   const modes = GAMEMODES.filter(it => params.get("mode")?.split(",").includes(it))
   const bn = params.get("bn") ?? undefined
+  // Profiles pass the name along, for nominators that are no longer on the planner
+  const bnName = bn === user?.osuId ? "me" : nominators?.find(it => it.osuId === bn)?.username ?? params.get("name") ?? `user ${bn}`
   const {selected, open, close} = useOpenMap()
-  const filter: BeatmapFilter = {page, search: params.get("q") ?? "", gamemodes: modes, nominators: bn ? [bn] : [], status: [], missingNominator: []}
+  const filter: BeatmapFilter = {page, search: params.get("q") ?? "", gamemodes: modes, nominators: bn ? [bn] : []}
 
   const total = useQuery<number>(Api.countBeatmaps(filter))
   const maps = useQuery<Beatmap[]>(Api.fetchBeatmaps(filter, pageNumber, limit))
@@ -62,10 +66,10 @@ export default function Archive({page}: {page: BeatmapPage}) {
         <div className="archive-filters">
           <Search value={filter.search} onChange={q => update({q})}/>
           <ModePicker selected={modes} onChange={it => update({mode: it.join(",")})} label="Game modes"/>
-          {user && bn !== user.osuId && <button className="chip" onClick={() => update({bn: user.osuId})}>Nominated by me</button>}
-          {bn && <button className="chip" aria-pressed onClick={() => update({bn: undefined})}>{bn === user?.osuId ? "Nominated by me" : `Nominator ${bn}`}<FaXmark/></button>}
+          {user && bn !== user.osuId && <button className="chip" onClick={() => update({bn: user.osuId, name: undefined})}>Nominated by me</button>}
+          {bn && <button className="chip" aria-pressed onClick={() => update({bn: undefined, name: undefined})}>Nominated by {bnName}<FaXmark/></button>}
         </div>
-        {maps.error && <p className="alert alert-error" role="alert">Could not load the archive. <button className="link" onClick={reload}>Try again</button></p>}
+        {(maps.error || total.error) && <p className="alert alert-error" role="alert">{maps.error ? "Could not load the archive." : "Could not count the beatmaps, so the pages are missing."} <button className="link" onClick={reload}>Try again</button></p>}
         {!maps.data && maps.loading && <Loading/>}
         {maps.data?.length === 0 && !maps.loading && <EmptyState title="Nothing found"><p className="muted">Try another search.</p></EmptyState>}
         {maps.data && maps.data.length > 0 &&
@@ -86,9 +90,11 @@ export default function Archive({page}: {page: BeatmapPage}) {
                 )
               })}
             </ul>
-            <Pagination total={count} pageNumber={pageNumber} limit={limit}
-                        onPage={it => update({page: it > 1 ? String(it) : undefined})}
-                        onLimit={it => update({limit: it})}/>
+            {total.data !== undefined &&
+              <Pagination total={count} pageNumber={pageNumber} limit={limit}
+                          onPage={it => update({page: it > 1 ? String(it) : undefined})}
+                          onLimit={it => update({limit: it})}/>
+            }
           </>
         }
       <MapView id={selected} ids={maps.data?.map(it => it.osuId)} onOpen={open} onClose={close} onChanged={reload}/>
@@ -99,6 +105,13 @@ export default function Archive({page}: {page: BeatmapPage}) {
 function Search({value, onChange}: {value: string, onChange: (value: string) => void}) {
   const [text, setText] = useState(value)
   const timer = useRef<number>(undefined)
+
+  // Follow the address, like going back, without touching what is being typed
+  const [followed, setFollowed] = useState(value)
+  if (followed !== value) {
+    setFollowed(value)
+    if (text.trim() !== value.trim()) setText(value)
+  }
   useEffect(() => () => window.clearTimeout(timer.current), [])
 
   return (

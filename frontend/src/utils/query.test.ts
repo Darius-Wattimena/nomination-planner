@@ -1,7 +1,8 @@
 import {describe, expect, it} from "vitest";
 import {BeatmapStatus, Gamemode} from "../models/Types";
-import {beatmap, bn, mode, user} from "../test/builders";
-import {filterMaps, formatQuery, parseQuery} from "./query";
+import {beatmap, bn, mode, probation, user} from "../test/builders";
+import {filterMaps, formatQuery, modeParam, parseQuery} from "./query";
+import {stageOf} from "./workflow";
 
 const {Osu, Catch} = Gamemode
 
@@ -80,11 +81,32 @@ describe("filterMaps", () => {
     expect(ids("is:open is:mine is:noted camellia")).toEqual(["1"])
   })
 
+  it("needs a nominator like the column of the board", () => {
+    const nominated = beatmap({osuId: "3", status: BeatmapStatus.Nominated, gamemodes: [mode(Osu, [bn("1"), true])]})
+    const disqualified = beatmap({osuId: "4", status: BeatmapStatus.Disqualified})
+    const onProbation = beatmap({osuId: "5", gamemodes: [mode(Osu, probation("1"), probation("2"))]})
+    const planned = beatmap({osuId: "6", gamemodes: [mode(Osu, bn("1"), bn("2"))]})
+    const all = [first, nominated, disqualified, onProbation, planned]
+
+    expect(filterMaps(all, "is:open", me).map(it => it.osuId)).toEqual(["1", "5"])
+    expect(filterMaps(all, "is:open", me)).toEqual(all.filter(it => stageOf(it) === "open"))
+    expect(filterMaps(all, "mode:osu is:open", me).map(it => it.osuId)).toEqual(["1", "5"])
+  })
+
   it("needs the open spot in the mode that is filtered on", () => {
     const hybrid = beatmap({osuId: "3", mainGamemodes: [Osu], gamemodes: [mode(Osu, bn("1"), bn("2")), mode(Catch)]})
 
     expect(filterMaps([hybrid], "mode:osu is:open", me)).toEqual([])
     expect(filterMaps([hybrid], "mode:catch is:open", me)).toEqual([hybrid])
     expect(filterMaps([hybrid], "mode:osu IS:Open", me)).toEqual([])
+  })
+})
+
+describe("modeParam", () => {
+  it("reads a mode from the address", () => {
+    expect(modeParam("fruits")).toBe(Catch)
+    expect(modeParam("all")).toBe("all")
+    expect(modeParam("catch")).toBeUndefined()
+    expect(modeParam(null)).toBeUndefined()
   })
 })

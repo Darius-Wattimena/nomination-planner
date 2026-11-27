@@ -12,7 +12,7 @@ export const GAMEMODE_NAMES: Record<Gamemode, string> = {
   [Gamemode.Mania]: "osu!mania"
 }
 
-// Statuses that can be filtered on the pending page
+// The statuses of beatmaps in progress, to filter on and to sync
 export const PENDING_STATUSES = [
   BeatmapStatus.Qualified,
   BeatmapStatus.Nominated,

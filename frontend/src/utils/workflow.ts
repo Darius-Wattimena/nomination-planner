@@ -139,7 +139,7 @@ export function isStale(map: Beatmap) {
 /** Months without any change, most likely forgotten instead of still in progress */
 export const OLD_DAYS = 90
 
-export function isOld(map: Beatmap) {
+function isOld(map: Beatmap) {
   return stageOf(map) !== "qualified" && ageInDays(map) >= OLD_DAYS
 }
 

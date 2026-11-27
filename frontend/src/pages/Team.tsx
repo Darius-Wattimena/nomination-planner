@@ -4,17 +4,18 @@ import {FaArrowLeft, FaArrowUpRightFromSquare, FaMagnifyingGlass} from "react-ic
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
-import {GAMEMODE_NAMES, GAMEMODES, ROLES} from "../Constants";
+import {GAMEMODE_NAMES, ROLES} from "../Constants";
 import type {Gamemode, User, UserRole} from "../models/Types";
 import {usePlanner} from "../resources/planner";
+import {useRanked} from "../resources/ranked";
 import NominatorYear, {NewPairings, NominatorBadges} from "../stats/NominatorYear";
 import Cover from "../ui/Cover";
-import ModeIcon from "../ui/ModeIcon";
+import ModeIcon, {ModeSwitch} from "../ui/ModeIcon";
 import PageHeader from "../ui/PageHeader";
 import {Avatar, RoleBadges} from "../ui/Person";
 import {Loading} from "../ui/States";
 import OwnModesDialog from "../ui/OwnModes";
-import {MODE_WORDS} from "../utils/query";
+import {MODE_WORDS, modeParam} from "../utils/query";
 import {useSession} from "../utils/session";
 import {choosesOwnModes, highestRole, modesOf, roleModes} from "../utils/users";
 import type {Part} from "../utils/workflow";
@@ -44,7 +45,8 @@ interface Member {
   together: number
 }
 
-type Sorting = "free" | "together" | "name"
+const SORTINGS = ["free", "together", "name"] as const
+type Sorting = typeof SORTINGS[number]
 
 /** Who you can team up with, what they are on, and where help is needed */
 export default function Team() {
@@ -57,11 +59,21 @@ function Overview() {
   const self = useSession()?.user
   const {maps = [], nominators} = usePlanner()
   const {selected, open, close} = useOpenMap()
+  // Kept in the address, so going back to the list or reloading it keeps what was chosen
+  const [params, setParams] = useSearchParams()
+  const chosen = modeParam(params.get("mode"))
   // Somebody who follows several modes, or none, starts with everyone
-  const [mode, setMode] = useState<Gamemode | undefined>(modesOf(self).length === 1 ? modesOf(self)[0] : undefined)
-  const [sorting, setSorting] = useState<Sorting>("free")
-  const [role, setRole] = useState<UserRole>()
-  const [text, setText] = useState("")
+  const mode = chosen === "all" ? undefined : chosen ?? (modesOf(self).length === 1 ? modesOf(self)[0] : undefined)
+  const sorting: Sorting = SORTINGS.find(it => it === params.get("sort")) ?? "free"
+  const role = TEAM_ROLES.find(it => it === params.get("role"))
+  const text = params.get("q") ?? ""
+
+  function update(key: string, value: string | undefined) {
+    const next = new URLSearchParams(params)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    setParams(next, {replace: true})
+  }
 
   const {rankedWith} = usePairings(self?.osuId)
 
@@ -94,10 +106,7 @@ function Overview() {
   return (
     <div className="page">
       <PageHeader title="Nominators" subtitle={members.length > 0 ? `${members.length} nominators for ${mode ? GAMEMODE_NAMES[mode] : "all modes"}. ${help.length} ${help.length === 1 ? "beatmap is" : "beatmaps are"} looking for one` : " "}>
-        <div className="segmented" role="group" aria-label="Game mode">
-          <button aria-pressed={!mode} onClick={() => setMode(undefined)}>All</button>
-          {GAMEMODES.map(it => <button key={it} aria-pressed={mode === it} aria-label={GAMEMODE_NAMES[it]} onClick={() => setMode(it)}><ModeIcon mode={it}/><span className="segmented-text">{GAMEMODE_NAMES[it]}</span></button>)}
-        </div>
+        <ModeSwitch selected={mode} onChange={it => update("mode", it ?? "all")}/>
       </PageHeader>
 
       <div className="team-layout">
@@ -105,13 +114,13 @@ function Overview() {
           <div className="team-tools">
             <label className="search">
               <FaMagnifyingGlass aria-hidden/>
-              <input id="team-search" type="search" aria-label="Find a nominator" placeholder="Find a nominator" value={text} onChange={event => setText(event.target.value)}/>
+              <input id="team-search" type="search" aria-label="Find a nominator" placeholder="Find a nominator" value={text} onChange={event => update("q", event.target.value)}/>
             </label>
             <div className="chips" role="group" aria-label="Role">
-              {TEAM_ROLES.map(it => <button key={it} className="chip" title={ROLES[it].name} aria-pressed={role === it} onClick={() => setRole(role === it ? undefined : it)}>{ROLES[it].short}</button>)}
+              {TEAM_ROLES.map(it => <button key={it} className="chip" title={ROLES[it].name} aria-pressed={role === it} onClick={() => update("role", role === it ? undefined : it)}>{ROLES[it].short}</button>)}
             </div>
             <label className="team-sort muted">Sort by{" "}
-              <select id="team-sort" value={sorting} onChange={event => setSorting(event.target.value as Sorting)}>
+              <select id="team-sort" value={sorting} onChange={event => update("sort", event.target.value === "free" ? undefined : event.target.value)}>
                 <option value="free">fewest in progress</option>
                 <option value="together">ranked with me</option>
                 <option value="name">name</option>
@@ -190,13 +199,16 @@ function MemberCard({member, mode, free, self}: {member: Member, mode?: Gamemode
 function Profile({id}: {id: string}) {
   const self = useSession()?.user
   const {maps = [], nominators = []} = usePlanner()
+  const ranked = useRanked().maps
   const {selected, open, close} = useOpenMap()
   const pairings = usePairings(id)
   const [choosing, setChoosing] = useState(false)
 
   const isSelf = id === self?.osuId
   const known = maps.flatMap(it => [...it.gamemodes.flatMap(mode => mode.nominators).map(slot => slot.nominator), it.mapper]).find(it => it.osuId === id)
-  const user = isSelf ? self : known ?? nominators.find(it => it.osuId === id)
+  // Somebody who is no longer on the planner can still be among those who ranked something
+  const before = ranked?.flatMap(it => [it.mapper, ...it.gamemodes.flatMap(mode => mode.nominators).map(slot => slot.nominator)]).find(it => it.osuId === id && it.username !== "Unknown")
+  const user = isSelf ? self : known ?? nominators.find(it => it.osuId === id) ?? before
 
   const own = [...involvementOf(maps, id)]
     .sort((a, b) => ORDER.indexOf(a.part) - ORDER.indexOf(b.part))
@@ -224,7 +236,7 @@ function Profile({id}: {id: string}) {
           }
         </div>
         <div className="button-row">
-          <Link className="button" to={`/ranked?bn=${id}`}>Ranked beatmaps</Link>
+          <Link className="button" to={`/ranked?${new URLSearchParams({bn: id, ...(user && {name: user.username})})}`}>Ranked beatmaps</Link>
           <a className="icon-button" href={`https://osu.ppy.sh/users/${id}`} target="_blank" rel="noreferrer" aria-label="Open on osu!" title="Open on osu!"><FaArrowUpRightFromSquare/></a>
         </div>
       </header>

@@ -17,7 +17,7 @@ export const mapper = user("100", {}, "Mapper")
 export function mode(gamemode: Gamemode, ...nominators: (User | [User, boolean])[]): BeatmapGamemode {
   const known = nominators.map(it => Array.isArray(it) ? {nominator: it[0], hasNominated: it[1]} : {nominator: it, hasNominated: false})
   while (known.length < 2) known.push({nominator: NOBODY, hasNominated: false})
-  return {gamemode, isReady: false, nominators: known}
+  return {gamemode, nominators: known}
 }
 
 export function beatmap(changes: Partial<Beatmap> = {}): Beatmap {

@@ -1,6 +1,7 @@
+import {GAMEMODES} from "../Constants";
 import type {Beatmap, User} from "../models/Types";
 import {Gamemode} from "../models/Types";
-import {openSpot, openSpots} from "./nominations";
+import {lacksFullNominator, openSpot} from "./nominations";
 import {isMissing} from "./users";
 import {partOf, isStale, stageOf} from "./workflow";
 
@@ -54,7 +55,8 @@ function matches(map: Beatmap, {key, value}: Token, user: User | undefined): boo
       return map.gamemodes.some(mode => mode.nominators.some(({nominator}) => !isMissing(nominator)
         && (text === "me" ? nominator.osuId === user?.osuId : nominator.osuId === text || nominator.username.toLowerCase().includes(text))))
     case "is":
-      if (text === "open") return openSpots(map) > 0
+      // The same as the column, so both count the same beatmaps
+      if (text === "open") return stageOf(map) === "open"
       if (text === "mine") return partOf(map, user?.osuId) !== undefined
       if (text === "move") return partOf(map, user?.osuId) === "move"
       if (text === "stale") return isStale(map)
@@ -73,12 +75,19 @@ export function filterMaps(maps: Beatmap[], text: string, user: User | undefined
     const group = token.key && token.key !== "is" ? token.key : `${token.key ?? "text"}-${index}`
     groups.set(group, [...(groups.get(group) ?? []), token])
   })
-  // With a mode and is:open, the open slot has to be in that mode
+  // With a mode and is:open, that mode has to be the one that needs a nominator
   const modes = groups.get("mode")
   const onlyOpen = tokens.some(it => it.key === "is" && it.value.toLowerCase() === "open")
 
   return maps.filter(map =>
     Array.from(groups.values()).every(group => group.some(token => matches(map, token, user)))
     && (!modes || !onlyOpen || map.gamemodes.some(mode =>
-      modes.some(it => [MODE_WORDS[mode.gamemode], mode.gamemode].includes(it.value.toLowerCase())) && !!openSpot(map, mode))))
+      modes.some(it => [MODE_WORDS[mode.gamemode], mode.gamemode].includes(it.value.toLowerCase())) && (!!openSpot(map, mode) || lacksFullNominator(map, mode)))))
+}
+
+
+/** A mode as it is in the address, where "all" is chosen on purpose and nothing leaves it to the page */
+export function modeParam(value: string | null): Gamemode | "all" | undefined {
+  if (value === "all") return "all"
+  return GAMEMODES.find(it => it === value)
 }

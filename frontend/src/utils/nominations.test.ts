@@ -6,7 +6,6 @@ import {
   doneNominations,
   isHybrid,
   lacksFullNominator,
-  mainModes,
   modesMissing,
   neededNominations,
   needsFullNominator,
@@ -23,7 +22,6 @@ describe("a beatmap of one mode", () => {
   it("needs two nominations of the main mode", () => {
     const map = beatmap({gamemodes: [mode(Osu)]})
 
-    expect(mainModes(map)).toEqual([Osu])
     expect(roleOf(map, map.gamemodes[0])).toBe("main")
     expect(isHybrid(map)).toBe(false)
     expect(neededNominations(map)).toBe(2)
@@ -84,8 +82,7 @@ describe("a hybrid with an undecided main mode", () => {
   it("needs one nomination per mode and one more for the main mode", () => {
     const map = beatmap({gamemodes: [mode(Osu), mode(Taiko)]})
 
-    expect(mainModes(map)).toEqual([Osu, Taiko])
-    expect(roleOf(map, map.gamemodes[0])).toBe("undecided")
+    expect(map.gamemodes.map(it => roleOf(map, it))).toEqual(["undecided", "undecided"])
     expect(neededNominations(map)).toBe(3)
     expect(openSpots(map)).toBe(3)
     expect(spots(map, map.gamemodes[0]).map(it => it.optional)).toEqual([undefined, true])
@@ -102,7 +99,6 @@ describe("a hybrid with an undecided main mode", () => {
   it("takes the mode that is nominated first as the main mode", () => {
     const map = beatmap({gamemodes: [mode(Osu, bn("1")), mode(Taiko, [bn("2", Taiko), true])]})
 
-    expect(mainModes(map)).toEqual([Taiko])
     expect(roleOf(map, map.gamemodes[0])).toBe("other")
     expect(roleOf(map, map.gamemodes[1])).toBe("main")
   })

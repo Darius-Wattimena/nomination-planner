@@ -1,5 +1,5 @@
 import type {ReactNode} from "react";
-import {Link, useLocation} from "react-router";
+import {Link, useSearchParams} from "react-router";
 import logo from "../assets/greaper.png";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
@@ -8,14 +8,13 @@ import type {Beatmap, User} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import PageHeader from "../ui/PageHeader";
 import {Freshness} from "../ui/Help";
-import {LoginButton} from "../ui/States";
-import {canEdit, useSession} from "../utils/session";
+import {LoginButton, PlannerStatus, Unreachable} from "../ui/States";
+import {canEdit, useSession, useSessionUnreachable} from "../utils/session";
 import type {Part} from "../utils/workflow";
 import {stageOf, suggestions} from "../utils/workflow";
 import {involvementOf} from "../utils/involvement";
 import {usePairings} from "../resources/pairings";
 import JoinButton from "../beatmaps/JoinButton";
-import {PlannerError} from "../ui/States";
 
 const GROUPS: {id: Part, title: string, hint: string}[] = [
   {id: "move", title: "Waiting for your nomination", hint: "The other nominator is done, or it has to be checked again"},
@@ -31,7 +30,9 @@ export default function Home() {
 }
 
 function Welcome() {
-  const loginFailed = (useLocation().state as {loginFailed?: boolean} | null)?.loginFailed
+  // The backend sends the browser to /login?failed when logging in with osu! didn't work out
+  const loginFailed = useSearchParams()[0].has("failed")
+  if (useSessionUnreachable()) return <Unreachable/>
   return (
     <div className="welcome">
       <img src={logo} alt=""/>
@@ -50,7 +51,7 @@ function Welcome() {
 
 function Workspace({user}: {user: User}) {
   const session = useSession()
-  const {maps, error} = usePlanner()
+  const {maps} = usePlanner()
   const {selected, open, close} = useOpenMap()
   const nominator = canEdit(session)
   const {rankedWith} = usePairings(nominator ? user.osuId : undefined)
@@ -69,7 +70,6 @@ function Workspace({user}: {user: User}) {
     ? suggestions(all, user, rankedWith).slice(0, 6)
     : []
 
-  // In the order of the page, every beatmap once
   const troubled = mapped.filter(it => stageOf(it) === "attention").length
   const title = !maps ? "Home"
     : moves > 0 ? `${moves} ${moves === 1 ? "beatmap is" : "beatmaps are"} ready for your nomination`
@@ -77,7 +77,10 @@ function Workspace({user}: {user: User}) {
     : mapped.length > 0 && !nominator ? `${mapped.length === 1 ? "Your beatmap is" : `Your ${mapped.length} beatmaps are`} on the way`
     : "You're all caught up"
 
-  const ids = Array.from(new Set([...(nominator ? [] : mapped), ...groups.flatMap(it => it.maps), ...mapped, ...fits.map(it => it.map)].map(it => it.osuId)))
+  // In the order of the page, where your own beatmaps come first for mappers. A beatmap can be in several places, it is stepped through once.
+  const parts = groups.flatMap(it => it.maps)
+  const shown = nominator ? [...parts, ...mapped, ...fits.map(it => it.map)] : [...mapped, ...parts]
+  const ids = Array.from(new Set(shown.map(it => it.osuId)))
 
   const own = mapped.length > 0 &&
     <section className="map-group">
@@ -88,8 +91,7 @@ function Workspace({user}: {user: User}) {
   return (
     <div className="page">
         <PageHeader title={title} subtitle={<>{user.username} <Freshness/></>}/>
-        {error && <PlannerError/>}
-        {!maps && !error && <ul className="map-list" aria-busy aria-label="Loading">{[0, 1, 2, 3].map(it => <li key={it} className="map-row skeleton"/>)}</ul>}
+        <PlannerStatus/>
 
         {!nominator && own}
         {groups.filter(it => it.maps.length > 0).map(({id, title: name, hint, maps: part}) => {

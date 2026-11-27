@@ -2,10 +2,10 @@ import type {FormEvent} from "react";
 import {useEffect, useState} from "react";
 import {Link} from "react-router";
 import {PENDING_STATUSES} from "../Constants";
-import type {SyncInfo} from "../models/Types";
+import type {SyncQueued} from "../models/Types";
 import {BeatmapStatus} from "../models/Types";
 import Api from "../resources/Api";
-import {request} from "../resources/client";
+import {problemOf, request} from "../resources/client";
 import {ConfirmDialog} from "../ui/Dialog";
 import Health from "../stats/Health";
 import PageHeader from "../ui/PageHeader";
@@ -14,41 +14,48 @@ import {isAdmin, useSession} from "../utils/session";
 
 export default function Admin() {
   const session = useSession()
+  // Every sync that starts has something new to wait for
+  const [started, setStarted] = useState(0)
+  const onStarted = () => setStarted(it => it + 1)
 
   if (!isAdmin(session)) {
     return (
-      <EmptyState title="No permission">
-        <p className="muted">This page is for the NAT.</p>
-        <Link to="/" className="button">Back to home</Link>
-      </EmptyState>
+      <div className="page">
+        <EmptyState title="No permission">
+          <p className="muted">This page is for the NAT.</p>
+          <Link to="/" className="button">Back to home</Link>
+        </EmptyState>
+      </div>
     )
   }
 
   return (
-    <>
+    <div className="page">
       <PageHeader title="Admin" subtitle="Only visible to the NAT"/>
       <Health/>
+      <SyncWaiting key={started}/>
       <div className="cards">
-        <SyncBeatmaps/>
-        <SyncUsers/>
+        <SyncBeatmaps onStarted={onStarted}/>
+        <SyncUsers onStarted={onStarted}/>
       </div>
-    </>
+    </div>
   )
 }
 
-function useSync() {
+function useSync(onStarted: () => void) {
   const [syncing, setSyncing] = useState(false)
-  const [result, setResult] = useState<SyncInfo>()
-  const [failed, setFailed] = useState(false)
+  const [result, setResult] = useState<SyncQueued>()
+  const [failed, setFailed] = useState<string>()
 
   async function run(config: Parameters<typeof request>[0]) {
     setSyncing(true)
     setResult(undefined)
-    setFailed(false)
+    setFailed(undefined)
     try {
-      setResult(await request<SyncInfo>(config))
-    } catch {
-      setFailed(true)
+      setResult(await request<SyncQueued>(config))
+      onStarted()
+    } catch (error) {
+      setFailed(problemOf(error) ?? "The sync could not be started.")
     } finally {
       setSyncing(false)
     }
@@ -60,17 +67,15 @@ function useSync() {
 function SyncResult({syncing, result, failed, unit}: Omit<ReturnType<typeof useSync>, "run"> & {unit: string}) {
   return (
     <div role="status">
-      {syncing && <p className="alert"><span className="spinner"/>Syncing, this can take a while…</p>}
-      {failed && <p className="alert alert-error">The sync did not finish. It may still be running on the server.</p>}
-      {result && (result.duration === 0
-        ? <p className="alert alert-success">{result.totalSynced} {unit} will be synced in the background. They change on the planner one by one.</p>
-        : <p className="alert alert-success">Synced {result.totalSynced} {unit} in {(result.duration / 1000).toFixed(1)} seconds.</p>)}
+      {syncing && <p className="alert"><span className="spinner"/>Starting the sync…</p>}
+      {failed && <p className="alert alert-error">{failed}</p>}
+      {result && <p className="alert alert-success">{result.queued} {unit} will be synced in the background. They change on the planner one by one.</p>}
     </div>
   )
 }
 
-function SyncBeatmaps() {
-  const {run, ...sync} = useSync()
+function SyncBeatmaps({onStarted}: {onStarted: () => void}) {
+  const {run, ...sync} = useSync(onStarted)
   const [statuses, setStatuses] = useState<BeatmapStatus[]>([])
   const [confirming, setConfirming] = useState(false)
   const everything = statuses.length === 0
@@ -97,7 +102,6 @@ function SyncBeatmaps() {
       </div>
       <p className="alert alert-warning">Every beatmap takes at least 2 seconds. Users that are unknown to the planner are looked up too.</p>
       <SyncResult {...sync} unit="beatmap(s)"/>
-      <SyncWaiting key={sync.result ? "after" : "before"}/>
       <div className="button-row">
         <button className="button button-primary" disabled={sync.syncing} onClick={() => setConfirming(true)}>
           {everything ? "Sync all pending beatmaps" : "Sync selected beatmaps"}
@@ -126,26 +130,49 @@ function SyncBeatmaps() {
   )
 }
 
-/** What is still waiting to be synced in the background */
+/** The beatmaps and users still waiting to be synced in the background. Stops asking once there are none, until the next sync. */
 function SyncWaiting() {
   const [waiting, setWaiting] = useState<number>()
 
   useEffect(() => {
-    let current = true
-    const check = () => request<number>(Api.fetchSyncWaiting()).then(it => current && setWaiting(it), () => undefined)
+    let stopped = false
+    let busy = false
+    let done = false
+    let timer: number | undefined
+
+    async function check() {
+      window.clearTimeout(timer)
+      // Nobody looks at a hidden page, it asks again once it is visible
+      if (stopped || busy || done || document.hidden) return
+      busy = true
+      try {
+        const count = await request<number>(Api.fetchSyncWaiting())
+        if (stopped) return
+        setWaiting(count)
+        done = count === 0
+      } catch {
+        // Asked again in a moment
+      } finally {
+        busy = false
+      }
+      if (!done && !stopped) timer = window.setTimeout(check, 3000)
+    }
+
+    const onVisible = () => void check()
     void check()
-    const timer = window.setInterval(check, 3000)
+    document.addEventListener("visibilitychange", onVisible)
     return () => {
-      current = false
-      window.clearInterval(timer)
+      stopped = true
+      window.clearTimeout(timer)
+      document.removeEventListener("visibilitychange", onVisible)
     }
   }, [])
 
   return waiting ? <p className="muted" role="status">{waiting} still waiting to be synced.</p> : null
 }
 
-function SyncUsers() {
-  const {run, ...sync} = useSync()
+function SyncUsers({onStarted}: {onStarted: () => void}) {
+  const {run, ...sync} = useSync(onStarted)
   const [text, setText] = useState("")
   const [invalid, setInvalid] = useState(false)
 

@@ -6,8 +6,8 @@ import {GAMEMODE_NAMES, GAMEMODES, MISSING_USER_ID, ROLES} from "../Constants";
 import type {Beatmap, BeatmapGamemode, Gamemode, User} from "../models/Types";
 import {BeatmapStatus} from "../models/Types";
 import Api from "../resources/Api";
-import {request} from "../resources/client";
-import {deleteBeatmap, putBeatmap, refreshBeatmap, useBeatmap, usePlanner} from "../resources/planner";
+import {problemOf, request} from "../resources/client";
+import {deleteBeatmap, putBeatmap, syncBeatmap, useBeatmap, usePlanner} from "../resources/planner";
 import Cover from "../ui/Cover";
 import {ConfirmDialog} from "../ui/Dialog";
 import {RingLegend} from "../ui/Help";
@@ -282,7 +282,7 @@ function SlotInspector({beatmap, slot, mode, onClose}: SlotInspectorProps) {
 }
 
 function Manage({beatmap, onClose, onChanged}: {beatmap: Beatmap, onClose: () => void, onChanged?: () => void}) {
-  const session = useSession()
+  const admin = isAdmin(useSession())
   const toast = useToast()
   const [confirming, setConfirming] = useState<"status" | "delete">()
   const [syncing, setSyncing] = useState(false)
@@ -292,12 +292,11 @@ function Manage({beatmap, onClose, onChanged}: {beatmap: Beatmap, onClose: () =>
   async function sync() {
     setSyncing(true)
     try {
-      await request(Api.syncBeatmap(beatmap.osuId))
-      await refreshBeatmap(beatmap.osuId)
+      await syncBeatmap(beatmap.osuId)
       onChanged?.()
       toast("Up to date with osu!")
-    } catch {
-      toast("Could not sync with osu!.", {kind: "error"})
+    } catch (error) {
+      toast(problemOf(error) ?? "Could not sync with osu!.", {kind: "error"})
     } finally {
       setSyncing(false)
     }
@@ -310,16 +309,16 @@ function Manage({beatmap, onClose, onChanged}: {beatmap: Beatmap, onClose: () =>
       onClose()
       onChanged?.()
       toast(done)
-    } catch {
-      toast(failed, {kind: "error"})
+    } catch (error) {
+      toast(problemOf(error) ?? failed, {kind: "error"})
     }
   }
 
   return (
     <section className="map-manage">
       <button className="button button-ghost" disabled={syncing} onClick={sync}>{syncing ? "Syncing…" : "Sync with osu!"}</button>
-      {isAdmin(session) && <button className="button button-ghost" onClick={() => setConfirming("status")}>{graved ? "Back to pending" : "Graveyard"}</button>}
-      <button className="button button-danger-ghost" onClick={() => setConfirming("delete")}>Delete</button>
+      {admin && <button className="button button-ghost" onClick={() => setConfirming("status")}>{graved ? "Back to pending" : "Graveyard"}</button>}
+      {admin && <button className="button button-danger-ghost" onClick={() => setConfirming("delete")}>Delete</button>}
 
       <ConfirmDialog
         open={confirming === "status"} onClose={() => setConfirming(undefined)}

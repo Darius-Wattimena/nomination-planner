@@ -28,7 +28,7 @@ interface PlannerState {
 }
 
 const EMPTY: PlannerState = {others: {}, error: false, refreshing: false, loadedAt: 0}
-// Only when waiting for changes didn't work
+// Only when waiting for changes doesn't work
 const REFRESH_AFTER = 60_000
 const RETRY_AFTER = 5_000
 
@@ -103,6 +103,9 @@ async function load() {
   if (changesBefore !== changes || ownerBefore !== owner) await load()
 }
 
+/** Whether waiting for changes works, then there is no need to load everything again now and then */
+let waiting = false
+
 /** Changes show up as soon as the backend has them, for as long as the planner is visible */
 async function listen(userId: string) {
   while (owner === userId && document.visibilityState === "visible") {
@@ -115,9 +118,11 @@ async function listen(userId: string) {
     const changesBefore = changes
     try {
       const update = await request<FeedUpdate>(Api.waitForPlanner(token))
+      waiting = true
       // Don't put back data from before a change that was made in the meantime
       if (owner === userId && changesBefore === changes && feed?.token === token) receive(update)
     } catch {
+      waiting = false
       if (owner === userId) set({error: true})
       await new Promise(resolve => window.setTimeout(resolve, RETRY_AFTER))
     }
@@ -130,7 +135,9 @@ function startListening(userId: string) {
   if (listening === userId) return
   listening = userId
   void listen(userId).finally(() => {
-    if (listening === userId) listening = undefined
+    if (listening !== userId) return
+    listening = undefined
+    waiting = false
   })
 }
 
@@ -151,7 +158,8 @@ export function usePlannerRefresh() {
     const refresh = () => {
       if (document.visibilityState !== "visible") return
       startListening(userId)
-      if (Date.now() - state.loadedAt > REFRESH_AFTER) void reloadPlanner()
+      // Waiting for changes keeps it fresh, a full reload is what is left when that fails
+      if (!(listening === userId && waiting) && Date.now() - state.loadedAt > REFRESH_AFTER) void reloadPlanner()
     }
     refresh()
     const timer = window.setInterval(refresh, REFRESH_AFTER)
@@ -167,15 +175,15 @@ export function usePlanner() {
   return useSyncExternalStore(subscribe, () => shown)
 }
 
-/** A beatmap of the planner, also when it is already in the archive */
+/** A beatmap of the planner, also when it is already in the archive. Asked for by itself when the planner doesn't know it (yet). */
 export function useBeatmap(id: string) {
   const {maps, others} = usePlanner()
   const known = maps?.find(it => it.osuId === id) ?? others[id]
-  const {data, loading: fetching, error} = useQuery<Beatmap>(known || !maps ? undefined : Api.fetchBeatmap(id), find)
+  const {data, loading: fetching, error} = useQuery<Beatmap>(known ? undefined : Api.fetchBeatmap(id), find)
   return {
     beatmap: known ?? data,
-    loading: !known && (!maps || fetching),
-    error
+    loading: !known && fetching,
+    error: !known && error
   }
 }
 
@@ -189,9 +197,16 @@ export function putBeatmap(beatmap: Beatmap) {
   set({maps, others: {...state.others, [beatmap.osuId]: beatmap}})
 }
 
-export async function refreshBeatmap(id: string) {
+async function refreshBeatmap(id: string) {
   const beatmap = await find<Beatmap>(Api.fetchBeatmap(id))
   if (beatmap) putBeatmap(beatmap)
+  return beatmap
+}
+
+/** Asks osu! for the latest of the beatmap */
+export async function syncBeatmap(id: string) {
+  const beatmap = await request<Beatmap>(Api.syncBeatmap(id))
+  putBeatmap(beatmap)
   return beatmap
 }
 
@@ -209,6 +224,8 @@ interface PendingChange {
   oldId: string
   user: User
   sending: boolean
+  /** Sent, but the backend refused it */
+  failed: boolean
   timer: number
   onError: (error: unknown) => void
 }
@@ -225,7 +242,7 @@ function withPending(map: Beatmap): Beatmap {
 
 function applyChange(map: Beatmap, {mode, oldId, user}: PendingChange): Beatmap {
   const known = map.gamemodes.find(it => it.gamemode === mode)
-  const current: BeatmapGamemode = known ?? {gamemode: mode, isReady: false, nominators: [0, 1].map(() => ({nominator: NOBODY, hasNominated: false}))}
+  const current: BeatmapGamemode = known ?? {gamemode: mode, nominators: [0, 1].map(() => ({nominator: NOBODY, hasNominated: false}))}
   const ids = current.nominators.map(it => it.nominator.osuId)
   // Already part of what the backend told us
   if (!ids.includes(oldId) || (user.osuId !== MISSING_USER_ID && ids.includes(user.osuId))) return map
@@ -242,27 +259,43 @@ function send(change: PendingChange) {
   window.clearTimeout(change.timer)
   queue = queue
     .then(() => setNominator(change.mapId, change.mode, change.oldId, change.user.osuId))
-    .catch(change.onError)
+    .catch(error => {
+      change.failed = true
+      change.onError(error)
+    })
     .finally(() => {
       pending = pending.filter(it => it !== change)
       set({})
     })
 }
 
+/** Later changes that are still waiting and build on this one, as they replace who it put in the slot */
+function dependingOn(change: PendingChange): PendingChange[] {
+  // An open spot is no person, filling any open spot doesn't build on this change
+  if (change.user.osuId === MISSING_USER_ID) return []
+  const later = pending.slice(pending.indexOf(change) + 1)
+  const direct = later.filter(it => !it.sending && it.mapId === change.mapId && it.mode === change.mode && it.oldId === change.user.osuId)
+  return direct.flatMap(it => [it, ...dependingOn(it)])
+}
+
 /** Shows the change right away and sends it a little later. Returns how to undo it, which leaves no trace until it is sent. */
 export function changeNominator(mapId: string, mode: Gamemode, oldId: string, user: User, onError: (error: unknown) => void) {
-  const change: PendingChange = {mapId, mode, oldId, user, onError, sending: false, timer: 0}
+  const change: PendingChange = {mapId, mode, oldId, user, onError, sending: false, failed: false, timer: 0}
   change.timer = window.setTimeout(() => send(change), UNDO_TIME)
   pending = [...pending, change]
   set({})
 
+  let undone = false
   return () => {
+    if (undone) return
+    undone = true
+    const dropped = [change, ...dependingOn(change)].filter(it => !it.sending)
+    dropped.forEach(it => window.clearTimeout(it.timer))
+    pending = pending.filter(it => !dropped.includes(it))
+    set({})
+    // What was sent is taken back, unless the backend refused it anyway
     if (change.sending) {
-      queue = queue.then(() => setNominator(mapId, mode, user.osuId, oldId)).catch(onError)
-    } else {
-      window.clearTimeout(change.timer)
-      pending = pending.filter(it => it !== change)
-      set({})
+      queue = queue.then(() => change.failed ? undefined : setNominator(mapId, mode, user.osuId, oldId)).catch(onError)
     }
   }
 }
@@ -283,6 +316,7 @@ export async function logOut() {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") void sendChanges()
 })
+// Closing the page can cut a change off halfway, so the browser asks to stay while any are left
 window.addEventListener("beforeunload", event => {
   if (pending.length === 0) return
   void sendChanges()
