@@ -1,38 +1,45 @@
-import {useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 import {readStored, storeFirst} from "../utils/storage";
 
 export type Choice = "pass" | "like"
 
 interface Entry {
   choice: Choice
-  at: number
+  /** Missing on likes from before it was kept */
+  at?: number
 }
 
-type Choices = Record<string, Entry>
+export type Choices = Record<string, Entry>
 
 /** Taste changes and so do beatmaps, a pass is not forever */
-const PASS_DURATION = 30 * 86_400_000
+export const PASS_DAYS = 30
+const PASS_DURATION = PASS_DAYS * 86_400_000
 
-function read(key: string): Choices {
-  const stored = readStored<Choices>(key) ?? {}
-  return Object.fromEntries(Object.entries(stored).filter(([, it]) => it.choice === "like" || Date.now() - it.at < PASS_DURATION))
+/** Leaves out passes that expired, and anything that isn't a choice */
+export function stillValid(stored: unknown, now = Date.now()): Choices {
+  if (!stored || typeof stored !== "object") return {}
+  return Object.fromEntries(Object.entries(stored as Record<string, Partial<Entry> | null>).filter((entry): entry is [string, Entry] => {
+    const it = entry[1]
+    return it?.choice === "like" || (it?.choice === "pass" && typeof it.at === "number" && now - it.at < PASS_DURATION)
+  }))
 }
 
 /** What you thought of beatmaps, only kept in this browser */
 export function useChoices(userId: string) {
   const key = `discover-${userId}`
-  const [choices, setChoices] = useState<Choices>(() => read(key))
+  const [state, setState] = useState(() => ({key, choices: stillValid(readStored(key))}))
+  if (state.key !== key) setState({key, choices: stillValid(readStored(key))})
+  const {choices} = state
 
-  function save(next: Choices) {
-    setChoices(next)
+  useEffect(() => {
     // Not being able to remember it must not get in the way
-    storeFirst(key, next)
-  }
+    storeFirst(state.key, state.choices)
+  }, [state])
 
-  return {
-    choices,
-    choose: (id: string, choice: Choice) => save({...choices, [id]: {choice, at: Date.now()}}),
-    forget: (...ids: string[]) => save(Object.fromEntries(Object.entries(choices).filter(([id]) => !ids.includes(id)))),
-    forgetPasses: () => save(Object.fromEntries(Object.entries(choices).filter(([, it]) => it.choice !== "pass")))
-  }
+  const change = useCallback((next: (choices: Choices) => Choices) => setState(now => ({...now, choices: next(now.choices)})), [])
+  const choose = useCallback((id: string, choice: Choice) => change(now => ({...now, [id]: {choice, at: Date.now()}})), [change])
+  const forget = useCallback((...ids: string[]) => change(now => Object.fromEntries(Object.entries(now).filter(([id]) => !ids.includes(id)))), [change])
+  const forgetPasses = useCallback(() => change(now => Object.fromEntries(Object.entries(now).filter(([, it]) => it.choice !== "pass"))), [change])
+
+  return {choices, choose, forget, forgetPasses}
 }

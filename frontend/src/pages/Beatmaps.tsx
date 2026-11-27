@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {useSearchParams} from "react-router";
 import {FaList, FaPlus, FaTableColumns, FaXmark} from "react-icons/fa6";
 import {useOpenMap} from "../beatmaps/useOpenMap";
@@ -8,21 +8,33 @@ import Filters from "../beatmaps/Filters";
 import type {Beatmap} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import {useAddBeatmap} from "../beatmaps/useAddBeatmap";
-import {Freshness, RingLegend} from "../ui/Help";
+import Freshness from "../ui/Freshness";
+import {RingLegend} from "../ui/Help";
 import PageHeader from "../ui/PageHeader";
 import {EmptyState, PlannerStatus} from "../ui/States";
 import {focusesByItself, usePhone} from "../utils/phone";
 import {filterMaps, MODE_WORDS} from "../utils/query";
 import {canEdit, useSession} from "../utils/session";
 import {modesOf} from "../utils/users";
-import {ageInDays, hiddenAsOld, OLD_DAYS, stageOf, STAGES} from "../utils/workflow";
+import {ageInDays, hiddenAsOld, LABELS, OLD_DAYS, stageOf, STAGES} from "../utils/workflow";
 import {readStored, store, storeFirst} from "../utils/storage";
+import {useToast} from "../ui/useToast";
 
 const STEP = 60
 
 interface SavedView {
   name: string
   query: string
+}
+
+/** Stored by an older version or changed by hand, what isn't a view is left out */
+function readViews(): SavedView[] {
+  const stored = readStored<unknown>("savedViews")
+  if (!Array.isArray(stored)) return []
+  return stored.filter((it: unknown): it is SavedView => {
+    const view = it as Partial<SavedView> | null
+    return typeof view?.name === "string" && view.name.trim() !== "" && typeof view.query === "string"
+  })
 }
 
 export default function Beatmaps() {
@@ -35,7 +47,8 @@ export default function Beatmaps() {
   const [chosen, setLayout] = useState<"board" | "list">(() => readStored<"board" | "list">("boardLayout") ?? "board")
   // Columns need room next to each other
   const layout = phone ? "list" : chosen
-  const [saved, setSaved] = useState<SavedView[]>(() => readStored<SavedView[]>("savedViews") ?? [])
+  const [saved, setSaved] = useState<SavedView[]>(readViews)
+  const toast = useToast()
   const [naming, setNaming] = useState<string>()
   // The list grows as a whole, every column by itself
   const [limit, setLimit] = useState(STEP)
@@ -51,8 +64,8 @@ export default function Beatmaps() {
     {name: "Everything", query: ""},
     ...(ownModes ? [{name: "My modes", query: ownModes}] : []),
     ...(canEdit(session) ? [{name: "I'm nominating", query: "is:mine"}] : []),
-    {name: "Needs nominators", query: `${ownModes} is:open`.trim()},
-    {name: "Gone quiet", query: `${ownModes} is:stale`.trim()}
+    {name: LABELS.open, query: `${ownModes} is:open`.trim()},
+    {name: LABELS.stale, query: `${ownModes} is:stale`.trim()}
   ]
 
   function update(changes: {q?: string, older?: boolean}) {
@@ -65,19 +78,24 @@ export default function Beatmaps() {
     setParams(next, {replace: true})
   }
 
-  function saveViews(next: SavedView[]) {
-    setSaved(next)
-    storeFirst("savedViews", next)
+  useEffect(() => {
+    storeFirst("savedViews", saved)
+  }, [saved])
+
+  function deleteView(view: SavedView) {
+    const index = saved.indexOf(view)
+    setSaved(saved.filter(it => it !== view))
+    toast(`Deleted the view ${view.name}`, {undo: () => setSaved(now => now.some(it => it.name === view.name) ? now : [...now.slice(0, index), view, ...now.slice(index)])})
   }
 
   const matching = useMemo(() => filterMaps(maps ?? [], query, user), [maps, query, user])
-  const old = useMemo(() => matching.filter(it => hiddenAsOld(it, user?.osuId)), [matching, user])
-  const found = useMemo(() => older ? matching : matching.filter(it => !old.includes(it)), [matching, old, older])
-  const columns = STAGES.map(stage => ({
+  const old = useMemo(() => new Set(matching.filter(it => hiddenAsOld(it, user?.osuId))), [matching, user])
+  const found = useMemo(() => older ? matching : matching.filter(it => !old.has(it)), [matching, old, older])
+  const columns = useMemo(() => STAGES.map(stage => ({
     ...stage,
     maps: found.filter(it => stageOf(it) === stage.id).sort((a, b) => ageInDays(a) - ageInDays(b))
-  }))
-  const ordered = columns.flatMap(it => it.maps)
+  })), [found])
+  const ordered = useMemo(() => columns.flatMap(it => it.maps), [columns])
 
   // Start with a short list again for another search or layout
   const [limitFor, setLimitFor] = useState(`${query}|${layout}`)
@@ -109,9 +127,9 @@ export default function Beatmaps() {
         <div className="views" role="group" aria-label="Views">
           {views.map(view => <button key={view.name} className="view" aria-pressed={view.query === query} onClick={() => update({q: view.query})}>{view.name}</button>)}
           {saved.map(view => (
-            <span key={view.name} className="view view-saved" data-active={view.query === query || undefined}>
+            <span key={`saved:${view.name}`} className="view view-saved" data-active={view.query === query || undefined}>
               <button aria-pressed={view.query === query} onClick={() => update({q: view.query})}>{view.name}</button>
-              <button aria-label={`Delete view ${view.name}`} onClick={() => saveViews(saved.filter(it => it !== view))}><FaXmark/></button>
+              <button aria-label={`Delete view ${view.name}`} onClick={() => deleteView(view)}><FaXmark/></button>
             </span>
           ))}
           {!isSaved && (naming === undefined
@@ -119,7 +137,7 @@ export default function Beatmaps() {
             : <form onSubmit={event => {
                 event.preventDefault()
                 const name = naming.trim()
-                if (name) saveViews([...saved.filter(it => it.name !== name), {name, query}])
+                if (name) setSaved([...saved.filter(it => it.name !== name), {name, query}])
                 setNaming(undefined)
               }}>
                 <input id="view-name" autoFocus={focusesByItself()} aria-label="Name of the view" placeholder="Name, then Enter" value={naming} onChange={event => setNaming(event.target.value)} onBlur={() => setNaming(undefined)}/>
@@ -128,11 +146,11 @@ export default function Beatmaps() {
           <span className="views-end"><RingLegend/></span>
         </div>
         <Filters query={query} onChange={q => update({q})} maps={maps ?? []} stages={layout === "list"}/>
-        {old.length > 0 &&
+        {old.size > 0 &&
           <p className="older-note muted">
             {older
-              ? <>Including {old.length} {old.length === 1 ? "beatmap" : "beatmaps"} nobody changed in the last {OLD_DAYS} days.</>
-              : <>{old.length} {old.length === 1 ? "beatmap" : "beatmaps"} nobody changed in the last {OLD_DAYS} days {old.length === 1 ? "is" : "are"} left out. Your own stay.</>}
+              ? <>Including {old.size} {old.size === 1 ? "beatmap" : "beatmaps"} nobody changed in the last {OLD_DAYS} days.</>
+              : <>{old.size} {old.size === 1 ? "beatmap" : "beatmaps"} nobody changed in the last {OLD_DAYS} days {old.size === 1 ? "is" : "are"} left out. Your own stay.</>}
             {" "}<button className="link" onClick={() => update({older: !older})}>{older ? "Leave them out" : "Include them"}</button>
           </p>
         }
@@ -142,7 +160,7 @@ export default function Beatmaps() {
           <EmptyState title="Nothing matches">
             <p className="muted">No beatmap in progress fits this search.</p>
             {query && <button className="button" onClick={() => update({q: ""})}>Show everything</button>}
-            {old.length > 0 && <button className="button" onClick={() => update({older: true})}>Include older ones</button>}
+            {old.size > 0 && <button className="button" onClick={() => update({older: true})}>Include older ones</button>}
           </EmptyState>
         }
 
@@ -153,7 +171,7 @@ export default function Beatmaps() {
                 <header><h2>{column.label}</h2><span className="count">{column.maps.length}</span></header>
                 <p className="muted">{column.hint}</p>
                 <ul>
-                  {column.maps.slice(0, limitOf(column.id)).map(it => <MapCard key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={() => open(it.osuId)}/>)}
+                  {column.maps.slice(0, limitOf(column.id)).map(it => <MapCard key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={open}/>)}
                 </ul>
                 {column.maps.length > limitOf(column.id) && <button className="button" onClick={() => setColumnLimits({...columnLimits, [column.id]: limitOf(column.id) + STEP})}>Show more</button>}
               </section>
@@ -168,7 +186,7 @@ export default function Beatmaps() {
               return shown.length === 0 ? null : (
                 <section key={column.id} className="map-group">
                   <header><h2>{column.label}</h2><span className="count">{column.maps.length}</span></header>
-                  <ul className="map-list">{shown.map((it: Beatmap) => <MapRow key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={() => open(it.osuId)}/>)}</ul>
+                  <ul className="map-list">{shown.map((it: Beatmap) => <MapRow key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={open}/>)}</ul>
                 </section>
               )
             })}

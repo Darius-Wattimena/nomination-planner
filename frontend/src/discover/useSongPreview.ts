@@ -1,9 +1,10 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {previewUrl} from "../utils/preview";
-import {readStored, store} from "../utils/storage";
+import {readText, storeText} from "../utils/storage";
 
 function storedVolume() {
-  const volume = Number(readStored("volume") ?? 0.35)
+  // A plain number, also as stored before there were versions
+  const volume = Number(readText("volume") ?? 0.35)
   return volume >= 0 && volume <= 1 ? volume : 0.35
 }
 
@@ -20,7 +21,6 @@ export function useSongPreview(id: string | undefined, nextId: string | undefine
   const audio = useRef<HTMLAudioElement>(null)
   const wanted = useRef(false)
   const [playing, setPlaying] = useState(false)
-  const [progress, setProgress] = useState(0)
   const [missing, setMissing] = useState(false)
   const [volume, setVolume] = useState(storedVolume)
 
@@ -43,14 +43,12 @@ export function useSongPreview(id: string | undefined, nextId: string | undefine
   const [songFor, setSongFor] = useState(id)
   if (songFor !== id) {
     setSongFor(id)
-    setProgress(0)
     setMissing(false)
   }
 
   useEffect(() => {
     const player = element()
     player.loop = true
-    const onTime = () => setProgress(player.duration > 0 ? player.currentTime / player.duration : 0)
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
     const onError = () => {
@@ -58,12 +56,10 @@ export function useSongPreview(id: string | undefined, nextId: string | undefine
       setMissing(true)
       setPlaying(false)
     }
-    player.addEventListener("timeupdate", onTime)
     player.addEventListener("play", onPlay)
     player.addEventListener("pause", onPause)
     player.addEventListener("error", onError)
     return () => {
-      player.removeEventListener("timeupdate", onTime)
       player.removeEventListener("play", onPlay)
       player.removeEventListener("pause", onPause)
       player.removeEventListener("error", onError)
@@ -98,11 +94,19 @@ export function useSongPreview(id: string | undefined, nextId: string | undefine
 
   useEffect(() => {
     element().volume = volume
-    store("volume", volume)
+    storeText("volume", String(volume))
   }, [volume])
 
+  // Only the play button follows how far the song is, so the rest of the page doesn't render on every step
+  const onProgress = useCallback((listener: (progress: number) => void) => {
+    const player = audio.current ??= new Audio()
+    const onTime = () => listener(player.duration > 0 ? player.currentTime / player.duration : 0)
+    player.addEventListener("timeupdate", onTime)
+    return () => player.removeEventListener("timeupdate", onTime)
+  }, [])
+
   return {
-    playing, progress, missing, volume, setVolume,
+    playing, onProgress, missing, volume, setVolume,
     toggle: () => {
       wanted.current = !playing
       if (playing) element().pause()

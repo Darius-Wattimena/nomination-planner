@@ -4,12 +4,27 @@ import {BeatmapStatus} from "../models/Types";
 import {canJoin, lacksFullNominator, modesMissing, needsFullNominator, openSpot, openSpots, othersAreDone, roleOf, spots} from "./nominations";
 import {isMissing} from "./users";
 
+/** The words for the same things, so every page says them the same way */
+export const LABELS = {
+  /** is:open and the column, at least one open spot */
+  open: "Needs nominators",
+  /** is:move, the other nominator is done or it has to be checked again */
+  move: "Waiting for you",
+  /** The column, all nominators are known */
+  planned: "Planned",
+  /** On the desk of a nominator who didn't nominate yet, which is not the same as planned */
+  notNominated: "Not nominated yet",
+  /** A spot somebody took */
+  assigned: "Assigned",
+  stale: "Gone quiet"
+}
+
 export type Stage = "attention" | "open" | "checking" | "nominated" | "qualified" | "archived"
 
 export const STAGES: {id: Exclude<Stage, "archived">, label: string, hint: string}[] = [
   {id: "attention", label: "Disqualified or reset", hint: "Has to be checked again"},
-  {id: "open", label: "Needs nominators", hint: "At least one open spot"},
-  {id: "checking", label: "Planned", hint: "All nominators are known"},
+  {id: "open", label: LABELS.open, hint: "At least one open spot"},
+  {id: "checking", label: LABELS.planned, hint: "All nominators are known"},
   {id: "nominated", label: "Nominated", hint: "Waiting for the next nomination"},
   {id: "qualified", label: "Qualified", hint: "Ranked soon"}
 ]
@@ -47,7 +62,7 @@ export function nextStep(map: Beatmap, userId: string | undefined): {text: strin
 
   const prefix = stageOf(map) === "attention" ? `${map.status}. ` : ""
   const move = partOf(map, userId)
-  if (move === "move") return {text: prefix ? `${prefix}Check it again` : "Your turn to nominate", tone: "you"}
+  if (move === "move") return {text: prefix ? `${prefix}Check it again` : LABELS.move, tone: "you"}
 
   const open = openSpots(map)
   if (open > 0) {

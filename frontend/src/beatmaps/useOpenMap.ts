@@ -1,4 +1,4 @@
-import {useRef} from "react";
+import {useCallback, useEffect, useRef} from "react";
 import {useLocation, useNavigate, useSearchParams} from "react-router";
 
 /**
@@ -33,5 +33,12 @@ export function useOpenMap() {
     }
   }
 
-  return {selected, open, close}
+  // The same function every time, so rows that get it don't have to render again
+  const latest = useRef(open)
+  useEffect(() => {
+    latest.current = open
+  })
+  const stableOpen = useCallback((id: string) => latest.current(id), [])
+
+  return {selected, open: stableOpen, close}
 }

@@ -21,6 +21,13 @@ describe("involvement", () => {
     expect(involvement([...maps])).not.toBe(involvement(maps))
   })
 
+  it("leaves out archived beatmaps and lists a beatmap once", () => {
+    const ranked = beatmap({osuId: "3", status: BeatmapStatus.Ranked, gamemodes: [mode(Gamemode.Osu, bn("1"), bn("2"))]})
+    const hybrid = beatmap({osuId: "4", gamemodes: [mode(Gamemode.Osu, bn("1")), mode(Gamemode.Taiko, bn("1", Gamemode.Taiko))]})
+    expect(involvementOf([ranked], "1")).toEqual([])
+    expect(involvementOf([hybrid], "1").map(it => it.map)).toEqual([hybrid])
+  })
+
   it("counts what is in progress", () => {
     expect(inProgress(maps, "1")).toBe(1)
     expect(inProgress(maps, "3")).toBe(0)

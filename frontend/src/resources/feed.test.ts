@@ -94,6 +94,11 @@ describe("stored feed", () => {
     expect(readFeed("1")).toBeUndefined()
   })
 
+  it("is ignored when an older version stored it", () => {
+    storage.set("planner", JSON.stringify({owner: "1", feed}))
+    expect(readFeed("1")).toBeUndefined()
+  })
+
   it("is forgotten when the browser has no room for it", () => {
     storage.set("planner", "old")
     vi.stubGlobal("localStorage", {

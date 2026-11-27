@@ -217,7 +217,11 @@ function ModeRow({beatmap, mode, editable, selected, onSelect}: ModeRowProps) {
               : <div className="cell-main">{content}</div>
             }
             {missing && joinable && index === firstOpen &&
-              <button className="button button-primary" aria-label={`I'll nominate ${GAMEMODE_NAMES[mode.gamemode]}`} onClick={() => user && join(mode.gamemode, user)}>I'll nominate</button>
+              <>
+                <button className="button button-primary" aria-label={`I'll nominate ${GAMEMODE_NAMES[mode.gamemode]}`} onClick={() => user && join(mode.gamemode, user)}>I'll nominate</button>
+                {/* On small screens the spot itself makes room for the buttons, this picks somebody else instead */}
+                <button className="button cell-other" aria-label={`${GAMEMODE_NAMES[mode.gamemode]}: add someone else`} aria-pressed={selected === index} onClick={() => onSelect(index)}>Someone else…</button>
+              </>
             }
           </div>
         )

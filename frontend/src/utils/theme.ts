@@ -1,5 +1,5 @@
 import {useState} from "react";
-import {readText, storeFirst} from "./storage";
+import {readText, storeText} from "./storage";
 
 export type Theme = "dark" | "light"
 
@@ -22,7 +22,7 @@ export function useTheme() {
 
   function toggle() {
     const next = theme === "dark" ? "light" : "dark"
-    storeFirst("theme", next)
+    storeText("theme", next)
     applyTheme(next)
     setTheme(next)
   }

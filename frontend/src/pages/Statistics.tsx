@@ -1,21 +1,23 @@
-import {useMemo} from "react";
+import {lazy, Suspense, useMemo} from "react";
 import {useSearchParams} from "react-router";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
 import {GAMEMODE_NAMES} from "../Constants";
 import {useRanked} from "../resources/ranked";
 import Columns, {Table} from "../stats/Columns";
-import Constellation from "../stats/Constellation";
 import {combinations, debuts, inLastYear, inYear, network, nominatorsOf, overTime, perMonth, rankedDate, summarize, yearBefore} from "../stats/stats";
 import {Figures, Highlights, YearTable} from "../stats/Years";
 import {modeParam} from "../utils/query";
 import {boards, scores} from "../stats/boards";
-import Leaderboards from "../stats/Leaderboards";
 import Cover from "../ui/Cover";
 import {People} from "../ui/Person";
 import ModeIcon, {ModeSwitch} from "../ui/ModeIcon";
 import PageHeader from "../ui/PageHeader";
 import {EmptyState, Loading} from "../ui/States";
+
+// Only loaded for the tab that shows them
+const Constellation = lazy(() => import("../stats/Constellation"))
+const Leaderboards = lazy(() => import("../stats/Leaderboards"))
 
 const TABS = [{id: "overview", label: "Overview"}, {id: "constellation", label: "Constellation"}, {id: "leaderboards", label: "Leaderboards"}]
 
@@ -40,7 +42,8 @@ export default function Statistics() {
 
   const ofMode = useMemo(() => (maps ?? []).filter(it => !mode || it.gamemodes.some(own => own.gamemode === mode)), [maps, mode])
   const scope = useMemo(() => year ? ofMode.filter(it => inYear(it, year)) : lastYear ? ofMode.filter(it => inLastYear(it)) : ofMode, [ofMode, lastYear, year])
-  const stars = useMemo(() => network(scope, mode), [scope, mode])
+  // Worked out for the tab that shows it
+  const stars = useMemo(() => tab === "constellation" ? network(scope, mode) : undefined, [tab, scope, mode])
   const time = useMemo(() => year
     ? {unit: "month" as const, columns: perMonth(scope, year * 12, year * 12 + (year === thisYear ? new Date().getMonth() : 11)).map(it => ({...it, short: it.label.slice(0, 3)}))}
     : overTime(ofMode, lastYear), [ofMode, scope, lastYear, year, thisYear])
@@ -50,7 +53,7 @@ export default function Statistics() {
   const newMappers = useMemo(() => everyDebut.filter(it => scope.includes(it)), [everyDebut, scope])
 
   const firsts = useMemo(() => new Set(everyDebut.map(it => it.osuId)), [everyDebut])
-  const ranking = useMemo(() => boards(scores(scope, firsts, mode)), [scope, firsts, mode])
+  const ranking = useMemo(() => tab === "leaderboards" ? boards(scores(scope, firsts, mode)) : undefined, [tab, scope, firsts, mode])
 
   const summary = summarize(scope, firsts, mode)
   const before = year && years.includes(year - 1) ? summarize(yearBefore(ofMode, year), firsts, mode) : undefined
@@ -100,13 +103,13 @@ export default function Statistics() {
           {tab === "constellation" && <section className="stat">
             <h2>Constellation</h2>
             <p className="muted">Who ranked beatmaps together, grouped by mode</p>
-            <Constellation key={`${mode}-${period}`} data={stars}/>
+            {stars && <Suspense fallback={<Loading/>}><Constellation key={`${mode}-${period}`} data={stars}/></Suspense>}
           </section>}
 
           {tab === "leaderboards" && <section className="stat">
             <h2>Leaderboards</h2>
             <p className="muted">Different ways to stand out, {year ? `in ${year}` : lastYear ? "over the last 12 months" : "of all time"}{mode && ` for ${what}`}</p>
-            <Leaderboards boards={ranking}/>
+            {ranking && <Suspense fallback={<Loading/>}><Leaderboards boards={ranking}/></Suspense>}
           </section>}
 
           {tab === "overview" && <div className="stat-pair">

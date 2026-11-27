@@ -1,5 +1,5 @@
 import type {PointerEvent as ReactPointerEvent} from "react";
-import {useRef, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import {Link} from "react-router";
 import {FaArrowUpRightFromSquare, FaHeart, FaPause, FaPlay, FaRotateLeft, FaVolumeHigh, FaVolumeXmark, FaXmark} from "react-icons/fa6";
 import {useOpenMap} from "../beatmaps/useOpenMap";
@@ -35,7 +35,15 @@ interface Step {
 export default function Discover() {
   const session = useSession()
   if (!session?.user || !canEdit(session)) {
-    return <EmptyState title="Discover is for nominators"><Link className="button" to="/">Back to home</Link></EmptyState>
+    return (
+      <>
+        <PageHeader title="Discover"/>
+        <EmptyState title="Discover is for nominators">
+          <p className="muted">Only Beatmap Nominators and probationary Beatmap Nominators can use it, to find beatmaps that need a nominator.</p>
+          <Link className="button" to="/">Back to home</Link>
+        </EmptyState>
+      </>
+    )
   }
   if (!GAMEMODES.some(it => canNominate(session.user!, it))) {
     return (
@@ -62,19 +70,22 @@ function Deck({user}: {user: User}) {
 
   const ownModes = GAMEMODES.filter(it => canNominate(user, it))
 
-  const available = suggestions(maps ?? [], user, rankedWith, mode)
-  const queue = available.filter(it => !choices[it.map.osuId])
+  const available = useMemo(() => suggestions(maps ?? [], user, rankedWith, mode), [maps, user, rankedWith, mode])
+  const everything = useMemo(() => mode ? suggestions(maps ?? [], user, rankedWith) : available, [maps, user, rankedWith, mode, available])
+  const queue = useMemo(() => available.filter(it => !choices[it.map.osuId]), [available, choices])
   // Background refreshes may reorder the queue, but never the card in front of you
   const current = queue.find(it => it.map.osuId === currentId) ?? queue[0]
   const upcoming = queue.filter(it => it !== current)
-  const liked = suggestions(maps ?? [], user, rankedWith).filter(it => choices[it.map.osuId]?.choice === "like")
+  const liked = useMemo(() => everything.filter(it => choices[it.map.osuId]?.choice === "like"), [everything, choices])
   const passed = available.filter(it => choices[it.map.osuId]?.choice === "pass").length
 
   if (current?.map.osuId !== currentId) setCurrentId(current?.map.osuId)
 
   // Saved for later until you plan to nominate it
-  const joined = Object.keys(choices).filter(id => choices[id].choice === "like" && maps?.some(it => it.osuId === id && partOf(it, user.osuId)))
-  if (joined.length > 0) forget(...joined)
+  const joined = useMemo(() => Object.keys(choices).filter(id => choices[id].choice === "like" && maps?.some(it => it.osuId === id && partOf(it, user.osuId))), [choices, maps, user.osuId])
+  useEffect(() => {
+    if (joined.length > 0) forget(...joined)
+  }, [joined, forget])
 
   const song = useSongPreview(current?.map.osuId, upcoming[0]?.map.osuId)
 
@@ -143,7 +154,7 @@ function Deck({user}: {user: User}) {
               ? <p className="shortlist-empty">Mark beatmaps as interested to decide on them later.</p>
               : <ul className="map-list">
                   {liked.map(it => (
-                    <MapRow key={it.map.osuId} beatmap={it.map} selected={opened === it.map.osuId} reason={it.reason} onOpen={() => open(it.map.osuId)}>
+                    <MapRow key={it.map.osuId} beatmap={it.map} selected={opened === it.map.osuId} reason={it.reason} onOpen={open}>
                       <JoinButton beatmap={it.map} mode={it.mode} user={user}/>
                       <button className="icon-button" aria-label={`Remove ${it.map.title}`} title="Remove" onClick={() => forget(it.map.osuId)}><FaXmark/></button>
                     </MapRow>
@@ -245,9 +256,13 @@ function Card({map, mode, reason, song, onDecide, onOpen}: CardProps) {
 
 /** The approach circle closes in on the button while the song plays */
 function PlayButton({song, title}: {song: ReturnType<typeof useSongPreview>, title: string}) {
+  // A new card for every song, so it starts at the beginning
+  const [progress, setProgress] = useState(0)
+  const {onProgress} = song
+  useEffect(() => onProgress(setProgress), [onProgress])
   return (
     <button className="play" disabled={song.missing} aria-label={song.playing ? `Pause ${title}` : `Play ${title}`} onClick={song.toggle}>
-      {song.playing && <span className="approach" style={{scale: 1.9 - 0.9 * song.progress}}/>}
+      {song.playing && <span className="approach" style={{scale: 1.9 - 0.9 * progress}}/>}
       {song.playing ? <FaPause/> : <FaPlay/>}
     </button>
   )

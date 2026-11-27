@@ -1,7 +1,8 @@
 import type {KeyboardEvent, ReactNode} from "react";
 import {useEffect, useMemo, useRef, useState} from "react";
 import {usePopup} from "../ui/usePopup";
-import {FaCheck, FaChevronDown, FaFilter, FaMagnifyingGlass, FaXmark} from "react-icons/fa6";
+import {FaCheck, FaChevronDown, FaFilter, FaMagnifyingGlass, FaRegCircleQuestion, FaXmark} from "react-icons/fa6";
+import {useHelp} from "../ui/useHelp";
 import {GAMEMODE_NAMES, GAMEMODES, PENDING_STATUSES} from "../Constants";
 import type {Beatmap, User} from "../models/Types";
 import ModeIcon from "../ui/ModeIcon";
@@ -9,7 +10,7 @@ import {Avatar} from "../ui/Person";
 import type {Token} from "../utils/query";
 import {filterMaps, formatQuery, MODE_WORDS, parseQuery} from "../utils/query";
 import {useSession} from "../utils/session";
-import {STAGES} from "../utils/workflow";
+import {LABELS, STAGES} from "../utils/workflow";
 import {isMissing} from "../utils/users";
 import {focusesByItself} from "../utils/phone";
 
@@ -26,10 +27,10 @@ const MODES = GAMEMODES.map((it): Option => ({key: "mode", value: MODE_WORDS[it]
 const STATUSES = PENDING_STATUSES.map((it): Option => ({key: "status", value: it.toLowerCase(), label: it}))
 const STAGE_OPTIONS = STAGES.map((it): Option => ({key: "stage", value: it.id, label: it.label}))
 const MORE: Option[] = [
-  {key: "is", value: "open", label: "Needs a nominator"},
+  {key: "is", value: "open", label: LABELS.open},
   {key: "is", value: "mine", label: "I'm nominating"},
-  {key: "is", value: "move", label: "Waiting for me"},
-  {key: "is", value: "stale", label: "Gone quiet"},
+  {key: "is", value: "move", label: LABELS.move},
+  {key: "is", value: "stale", label: LABELS.stale},
   {key: "is", value: "noted", label: "Has a note"}
 ]
 const MORE_AND_STAGES = [...MORE, ...STAGE_OPTIONS]
@@ -69,6 +70,7 @@ interface FiltersProps {
 /** Search, and a menu for everything that can be filtered on. What is typed as bn:name ends up in the menus. */
 export default function Filters({query, onChange, maps, stages}: FiltersProps) {
   const self = useSession()?.user
+  const help = useHelp()
   const tokens = useMemo(() => parseQuery(query), [query])
   const filters = tokens.filter(it => it.key)
   const words = formatQuery(tokens.filter(it => !it.key))
@@ -118,6 +120,7 @@ export default function Filters({query, onChange, maps, stages}: FiltersProps) {
           setText("")
           onChange(formatQuery(filters))
         }}><FaXmark/></button>}
+        <button className="icon-button search-help" aria-label="How searching works" title="How searching works" onClick={help}><FaRegCircleQuestion/></button>
       </div>
       <button className="filter-button filters-toggle" aria-expanded={shown} data-active={filters.length > 0 || undefined} onClick={() => setShown(!shown)}>
         <FaFilter aria-hidden/><span>{filters.length > 0 ? `Filters: ${filters.length}` : "Filters"}</span>

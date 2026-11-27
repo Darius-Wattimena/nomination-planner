@@ -185,6 +185,8 @@ export default function Constellation({data}: {data: Network}) {
          aria-label={`${user.username}, ${count} ranked in ${parts.map(part => GAMEMODE_NAMES[part.mode]).join(" and ")}`}
          onPointerEnter={event => event.pointerType === "mouse" && setHovered(user.osuId)}
          onPointerLeave={() => setHovered(undefined)}
+         onFocus={() => setHovered(user.osuId)}
+         onBlur={() => setHovered(undefined)}
          onClick={event => {
            // Opening the profile in another tab still works
            if (event.ctrlKey || event.metaKey) return

@@ -25,7 +25,8 @@ export function ToastProvider({children}: {children: ReactNode}) {
   return (
     <ToastContext.Provider value={show}>
       {children}
-      <div className="toasts">
+      {/* Always there, so screen readers hear what is added to it. Errors interrupt by themselves. */}
+      <div className="toasts" role="status" aria-live="polite">
         {toasts.map(toast => <Toast key={toast.id} toast={toast} onDismiss={dismiss}/>)}
       </div>
     </ToastContext.Provider>
@@ -50,7 +51,7 @@ function Toast({toast: {id, message, kind, undo}, onDismiss}: {toast: Shown, onD
   }, [paused, id, onDismiss])
 
   return (
-    <div className={`toast toast-${kind ?? "success"}`} role={kind === "error" ? "alert" : "status"}
+    <div className={`toast toast-${kind ?? "success"}`} role={kind === "error" ? "alert" : undefined}
          onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
          onFocus={() => setFocused(true)} onBlur={event => setFocused(event.currentTarget.contains(event.relatedTarget))}>
       <span>{message}</span>

@@ -7,19 +7,19 @@ import {MapRow} from "../beatmaps/MapRow";
 import type {Beatmap, User} from "../models/Types";
 import {usePlanner} from "../resources/planner";
 import PageHeader from "../ui/PageHeader";
-import {Freshness} from "../ui/Help";
+import Freshness from "../ui/Freshness";
 import {LoginButton, PlannerStatus, Unreachable} from "../ui/States";
 import {canEdit, useSession, useSessionUnreachable} from "../utils/session";
 import type {Part} from "../utils/workflow";
-import {stageOf, suggestions} from "../utils/workflow";
+import {LABELS, stageOf, suggestions} from "../utils/workflow";
 import {involvementOf} from "../utils/involvement";
 import {usePairings} from "../resources/pairings";
 import JoinButton from "../beatmaps/JoinButton";
 
 const GROUPS: {id: Part, title: string, hint: string}[] = [
-  {id: "move", title: "Waiting for your nomination", hint: "The other nominator is done, or it has to be checked again"},
+  {id: "move", title: LABELS.move, hint: "The other nominator is done, or it has to be checked again"},
   {id: "partner", title: "Looking for a second nominator", hint: "You plan to nominate these"},
-  {id: "checking", title: "Planned", hint: "You didn't nominate yet"},
+  {id: "checking", title: LABELS.notNominated, hint: "Nothing is waiting on you yet"},
   {id: "waiting", title: "Waiting for the other nominator", hint: "You already nominated"},
   {id: "qualified", title: "Qualified", hint: "Ranked soon, unless it gets disqualified"}
 ]
@@ -57,7 +57,7 @@ function Workspace({user}: {user: User}) {
   const {rankedWith} = usePairings(nominator ? user.osuId : undefined)
 
   const row = (beatmap: Beatmap, reason?: string, action?: ReactNode) => (
-    <MapRow key={beatmap.osuId} beatmap={beatmap} selected={selected === beatmap.osuId} onOpen={() => open(beatmap.osuId)} reason={reason}>{action}</MapRow>
+    <MapRow key={beatmap.osuId} beatmap={beatmap} selected={selected === beatmap.osuId} onOpen={open} reason={reason}>{action}</MapRow>
   )
 
   const all = maps ?? []
@@ -107,7 +107,7 @@ function Workspace({user}: {user: User}) {
 
         {fits.length > 0 &&
           <section className="map-group">
-            <header><h2>Looking for a nominator</h2><span className="muted">In your modes, those with a nomination first</span></header>
+            <header><h2>{LABELS.open}</h2><span className="muted">In your modes, those with a nomination first</span></header>
             <ul className="map-list">
               {fits.map(({map, mode, reason}) => row(map, reason, <JoinButton beatmap={map} mode={mode} user={user}/>))}
             </ul>

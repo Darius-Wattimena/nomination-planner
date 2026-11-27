@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from "vitest";
-import {forget, readStored, readText, store, storeFirst} from "./storage";
+import {forget, readStored, readText, store, storeFirst, storeText, STORAGE_VERSION} from "./storage";
 
 let storage: Map<string, string>
 let room: number
@@ -26,6 +26,26 @@ describe("storage", () => {
     storage.set("theme", "light")
     expect(readText("theme")).toBe("light")
     expect(readStored("theme")).toBeUndefined()
+  })
+
+  it("keeps what people chose before there were versions, but not the caches", () => {
+    storage.set("views", JSON.stringify([{name: "Mine"}]))
+    expect(readStored("views")).toEqual([{name: "Mine"}])
+    storage.set("planner", JSON.stringify({token: "t", users: [], beatmaps: []}))
+    expect(readStored("planner")).toBeUndefined()
+  })
+
+  it("reads what another version stored as nothing", () => {
+    storage.set("views", JSON.stringify({version: STORAGE_VERSION - 1, value: [{name: "Mine"}]}))
+    expect(readStored("views")).toBeUndefined()
+    storage.set("views", JSON.stringify({version: STORAGE_VERSION, value: [{name: "Mine"}]}))
+    expect(readStored("views")).toEqual([{name: "Mine"}])
+  })
+
+  it("keeps plain text preferences as they were", () => {
+    expect(storeText("volume", "0.5")).toBe(true)
+    expect(storage.get("volume")).toBe("0.5")
+    expect(readText("volume")).toBe("0.5")
   })
 
   it("never throws when storage is blocked", () => {

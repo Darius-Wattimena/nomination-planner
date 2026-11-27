@@ -8,7 +8,7 @@ import {Loading} from "../ui/States";
 import {canNominate, isMissing} from "../utils/users";
 import {badges, scores} from "./boards";
 import Columns from "./Columns";
-import {Badges} from "./Leaderboards";
+import {Badges} from "./Badges";
 import {debuts, nominatorsOf, perMonth, rankedDate, topBy} from "./stats";
 
 interface NominatorYearProps {

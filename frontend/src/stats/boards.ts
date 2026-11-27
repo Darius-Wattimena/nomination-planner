@@ -53,7 +53,12 @@ function rank(all: Score[], valueOf: (score: Score) => number): Entry[] {
   const sorted = all.map(it => ({user: it.user, value: valueOf(it)}))
     .filter(it => it.value > 0)
     .sort((a, b) => b.value - a.value || a.user.username.localeCompare(b.user.username))
-  return sorted.map(it => ({...it, place: sorted.findIndex(other => other.value === it.value) + 1}))
+  // Sorted, so a shared place is the place of the first one with that value
+  let place = 0
+  return sorted.map((it, index) => {
+    if (index === 0 || sorted[index - 1].value !== it.value) place = index + 1
+    return {...it, place}
+  })
 }
 
 const count = (one: string, many: string) => (value: number) => `${value} ${value === 1 ? one : many}`

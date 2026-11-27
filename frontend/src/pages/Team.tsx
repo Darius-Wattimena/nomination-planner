@@ -19,7 +19,7 @@ import {MODE_WORDS, modeParam} from "../utils/query";
 import {useSession} from "../utils/session";
 import {choosesOwnModes, highestRole, modesOf, roleModes} from "../utils/users";
 import type {Part} from "../utils/workflow";
-import {ageInDays, lookingForNominator} from "../utils/workflow";
+import {ageInDays, LABELS, lookingForNominator} from "../utils/workflow";
 import type {Involvement} from "../utils/involvement";
 import {involvementOf} from "../utils/involvement";
 import {usePairings} from "../resources/pairings";
@@ -31,7 +31,7 @@ const ORDER: Part[] = ["move", "partner", "checking", "waiting", "qualified"]
 const STATE: Record<Part, string> = {
   move: "their turn",
   partner: "needs a second nominator",
-  checking: "planned",
+  checking: LABELS.notNominated.toLowerCase(),
   waiting: "waiting for the other nominator",
   qualified: "qualified"
 }
@@ -105,7 +105,7 @@ function Overview() {
 
   return (
     <div className="page">
-      <PageHeader title="Nominators" subtitle={members.length > 0 ? `${members.length} nominators for ${mode ? GAMEMODE_NAMES[mode] : "all modes"}. ${help.length} ${help.length === 1 ? "beatmap is" : "beatmaps are"} looking for one` : " "}>
+      <PageHeader title="Nominators" subtitle={members.length > 0 ? `${members.length} nominators for ${mode ? GAMEMODE_NAMES[mode] : "all modes"}. ${help.length} ${help.length === 1 ? "beatmap needs" : "beatmaps need"} nominators` : " "}>
         <ModeSwitch selected={mode} onChange={it => update("mode", it ?? "all")}/>
       </PageHeader>
 
@@ -139,7 +139,7 @@ function Overview() {
 
         {help.length > 0 &&
           <aside className="team-help">
-            <header><h2>Looking for a nominator</h2><span className="count">{help.length}</span></header>
+            <header><h2>{LABELS.open}</h2><span className="count">{help.length}</span></header>
             <ul>
               {help.slice(0, 7).map(({map, partner, nominated, full}) => (
                 <li key={map.osuId} className="help-item">
@@ -247,7 +247,7 @@ function Profile({id}: {id: string}) {
             <header><h2>In progress</h2><span className="count">{own.length}</span></header>
             {own.length === 0
               ? <p className="muted">Nothing in progress.</p>
-              : <ul className="map-list">{own.map(it => <MapRow key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={() => open(it.osuId)}/>)}</ul>
+              : <ul className="map-list">{own.map(it => <MapRow key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={open}/>)}</ul>
             }
           </section>
           <NominatorYear id={id} self={isSelf}/>

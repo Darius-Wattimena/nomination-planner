@@ -12,7 +12,7 @@ export interface FeedUpdate {
 }
 
 /** Users are only mentioned by their id */
-interface FeedBeatmap {
+export interface FeedBeatmap {
   id: string
   artist: string
   title: string

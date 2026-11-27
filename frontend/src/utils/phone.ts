@@ -1,5 +1,6 @@
 import {useSyncExternalStore} from "react";
 
+// The same as the @media (max-width: 560px) block at the end of styles/app.css, change both together
 const query = window.matchMedia("(max-width: 560px)")
 
 function subscribe(onChange: () => void) {

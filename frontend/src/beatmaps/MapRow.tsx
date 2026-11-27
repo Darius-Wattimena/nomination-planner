@@ -1,4 +1,5 @@
 import type {ReactNode} from "react";
+import {memo} from "react";
 import {FaHourglassHalf} from "react-icons/fa6";
 import type {Beatmap, User} from "../models/Types";
 import Cover from "../ui/Cover";
@@ -6,12 +7,13 @@ import {People} from "../ui/Person";
 import {Rings} from "../ui/Ring";
 import {useSession} from "../utils/session";
 import {isMissing, sortedModes} from "../utils/users";
-import {ageLabel, isStale, nextStep} from "../utils/workflow";
+import {ageLabel, isStale, LABELS, nextStep} from "../utils/workflow";
 
 interface MapProps {
   beatmap: Beatmap
   selected?: boolean
-  onOpen: () => void
+  /** Gets the id, so the same function can be handed to every row */
+  onOpen: (id: string) => void
   /** Replaces what has to happen next */
   reason?: string
   children?: ReactNode
@@ -24,17 +26,18 @@ function people(beatmap: Beatmap): User[] {
 
 function Age({beatmap}: {beatmap: Beatmap}) {
   const stale = isStale(beatmap)
-  return <span className={stale ? "age age-stale" : "age"} title={stale ? "Nothing happened for a while" : "Last update"}>{stale && <FaHourglassHalf aria-label="Gone quiet"/>}{ageLabel(beatmap)}</span>
+  return <span className={stale ? "age age-stale" : "age"} title={stale ? "Nothing happened for a while" : "Last update"}>{stale && <FaHourglassHalf aria-label={LABELS.stale}/>}{ageLabel(beatmap)}</span>
 }
 
-export function MapRow({beatmap, selected, onOpen, reason, children}: MapProps) {
+/** Rows only render again when their beatmap changed, which matters for long lists that update live */
+export const MapRow = memo(function MapRow({beatmap, selected, onOpen, reason, children}: MapProps) {
   const userId = useSession()?.user?.osuId
   const step = nextStep(beatmap, userId)
   return (
     <li className="map-row" data-map={beatmap.osuId} aria-current={selected || undefined}>
       <span className="map-thumb"><Cover id={beatmap.osuId} size="card"/></span>
       <span className="map-name">
-        <button className="map-open" onClick={onOpen}>{beatmap.title}</button>
+        <button className="map-open" onClick={() => onOpen(beatmap.osuId)}>{beatmap.title}</button>
         <span className="muted">{beatmap.artist} · {beatmap.mapper.username}</span>
       </span>
       <Rings beatmap={beatmap}/>
@@ -44,9 +47,9 @@ export function MapRow({beatmap, selected, onOpen, reason, children}: MapProps) 
       {children && <span className="map-action">{children}</span>}
     </li>
   )
-}
+})
 
-export function MapCard({beatmap, selected, onOpen}: MapProps) {
+export const MapCard = memo(function MapCard({beatmap, selected, onOpen}: MapProps) {
   const userId = useSession()?.user?.osuId
   const step = nextStep(beatmap, userId)
   return (
@@ -54,11 +57,11 @@ export function MapCard({beatmap, selected, onOpen}: MapProps) {
       <span className="map-thumb"><Cover id={beatmap.osuId} size="card"/></span>
       <span className="cover-text">
         <span>{beatmap.artist}</span>
-        <button className="map-open" onClick={onOpen}>{beatmap.title}</button>
+        <button className="map-open" onClick={() => onOpen(beatmap.osuId)}>{beatmap.title}</button>
         <em>Mapped by {beatmap.mapper.username}</em>
       </span>
       <span className={`step step-${step.tone}`}>{step.text}</span>
       <span className="map-foot"><Rings beatmap={beatmap}/><People users={people(beatmap)}/><Age beatmap={beatmap}/></span>
     </li>
   )
-}
+})

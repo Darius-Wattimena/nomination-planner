@@ -63,7 +63,7 @@ describe("nextStep", () => {
   it("tells a nominator when it is their turn", () => {
     const map = beatmap({gamemodes: [mode(Osu, bn("1"), [bn("2"), true])]})
 
-    expect(nextStep(map, "1")).toEqual({text: "Your turn to nominate", tone: "you"})
+    expect(nextStep(map, "1")).toEqual({text: "Waiting for you", tone: "you"})
     expect(nextStep({...map, status: BeatmapStatus.Disqualified}, "1")).toEqual({text: "Disqualified. Check it again", tone: "you"})
   })
 

@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from "react";
 import type {Beatmap} from "../models/Types";
 import {saveNote} from "../resources/planner";
+import {useToast} from "../ui/useToast";
 
 /** The backend refuses longer notes */
 const MAX_LENGTH = 2000
@@ -10,9 +11,10 @@ export default function Note({beatmap, editable}: {beatmap: Beatmap, editable: b
   const remote = beatmap.note ?? ""
   const [note, setNote] = useState(remote)
   const [state, setState] = useState<"idle" | "dirty" | "saving" | "saved" | "failed">("idle")
-  const latest = useRef({note, beatmap, dirty: false})
+  const toast = useToast()
+  const latest = useRef({note, beatmap, toast, dirty: false, closed: false})
   useEffect(() => {
-    latest.current = {...latest.current, note, beatmap}
+    Object.assign(latest.current, {note, beatmap, toast})
   })
 
   // Follow changes of others, unless that would throw away what is being typed
@@ -38,6 +40,8 @@ export default function Note({beatmap, editable}: {beatmap: Beatmap, editable: b
     } catch {
       latest.current.dirty = true
       setState("failed")
+      // Once closed, the only place left to say so
+      if (latest.current.closed) latest.current.toast("Note not saved", {kind: "error"})
     }
   }
 
@@ -48,7 +52,14 @@ export default function Note({beatmap, editable}: {beatmap: Beatmap, editable: b
   }, [note, state])
 
   // Closing the beatmap must not lose what was typed
-  useEffect(() => () => void save(), [])
+  useEffect(() => {
+    const current = latest.current
+    current.closed = false
+    return () => {
+      current.closed = true
+      void save()
+    }
+  }, [])
 
   if (!editable) {
     return beatmap.note ? <section className="map-note"><h3>Note</h3><p>{beatmap.note}</p></section> : null

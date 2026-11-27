@@ -7,7 +7,7 @@ import {highestRole} from "../utils/users";
 import Api from "./Api";
 import {find, logOutSession, request, statusOf, useQuery} from "./client";
 import {forgetRanked} from "./ranked";
-import type {Feed, FeedUpdate} from "./feed";
+import type {Feed, FeedBeatmap, FeedUpdate} from "./feed";
 import {applyUpdate, forgetFeed, NOBODY, readFeed, storeFeed, toBeatmap} from "./feed";
 
 export {NOBODY}
@@ -44,12 +44,22 @@ let loading: Promise<void> | undefined
 let changes = 0
 const listeners = new Set<() => void>()
 
+/** The beatmaps with the pending changes, made again only when one of them changed. Lists that stay the same keep what was worked out for them. */
+let applied: {maps?: Beatmap[], others: Record<string, Beatmap>, pending: PendingChange[], shown: Pick<PlannerState, "maps" | "others">} | undefined
+
 function set(next: Partial<PlannerState>) {
   state = {...state, ...next}
-  shown = pending.length === 0 ? state : {
-    ...state,
-    maps: state.maps?.map(withPending),
-    others: Object.fromEntries(Object.entries(state.others).map(([id, map]) => [id, withPending(map)]))
+  if (pending.length === 0) {
+    applied = undefined
+    shown = state
+  } else {
+    if (!applied || applied.maps !== state.maps || applied.others !== state.others || applied.pending !== pending) {
+      applied = {maps: state.maps, others: state.others, pending, shown: {
+        maps: state.maps?.map(withPending),
+        others: Object.fromEntries(Object.entries(state.others).map(([id, map]) => [id, withPending(map)]))
+      }}
+    }
+    shown = {...state, ...applied.shown}
   }
   listeners.forEach(listener => listener())
 }
@@ -69,14 +79,26 @@ function receive(update: FeedUpdate) {
     set({error: false, loadedAt: Date.now()})
     return
   }
-  set({...fromFeed(feed), error: false, loadedAt: Date.now()})
+  set({...fromFeed(feed, update.isComplete || update.users.length > 0), error: false, loadedAt: Date.now()})
   if (owner) storeFeed(owner, feed)
 }
 
-function fromFeed(feed: Feed): Pick<PlannerState, "maps" | "nominators"> {
+/** Beatmaps made from the feed, for as long as the feed keeps the same object for them and nobody changed */
+let made = new WeakMap<FeedBeatmap, Beatmap>()
+
+function fromFeed(feed: Feed, usersChanged = true): Pick<PlannerState, "maps" | "nominators"> {
+  if (usersChanged) made = new WeakMap()
   return {
-    maps: Object.values(feed.beatmaps).map(it => toBeatmap(feed, it)),
-    nominators: Object.values(feed.users).filter(it => highestRole(it) !== "Mapper").sort((a, b) => a.username.localeCompare(b.username))
+    maps: Object.values(feed.beatmaps).map(it => {
+      let beatmap = made.get(it)
+      if (!beatmap) {
+        beatmap = toBeatmap(feed, it)
+        made.set(it, beatmap)
+      }
+      return beatmap
+    }),
+    nominators: !usersChanged && state.nominators ? state.nominators
+      : Object.values(feed.users).filter(it => highestRole(it) !== "Mapper").sort((a, b) => a.username.localeCompare(b.username))
   }
 }
 
