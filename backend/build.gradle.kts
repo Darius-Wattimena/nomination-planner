@@ -131,18 +131,19 @@ tasks {
     }
 
     // What Elastic Beanstalk gets: the war as the root of Tomcat, and the setup of the instance (https with Let's Encrypt)
-    val beanstalkBundle by registering(Zip::class) {
-        group = "build"
-        description = "Bundles the war with the setup of the instance for Elastic Beanstalk"
-        archiveFileName.set("bnplanner.zip")
-        destinationDirectory.set(layout.buildDirectory.dir("libs"))
+    val beanstalkBundle =
+        register<Zip>("beanstalkBundle") {
+            group = "build"
+            description = "Bundles the war with the setup of the instance for Elastic Beanstalk"
+            archiveFileName.set("bnplanner.zip")
+            destinationDirectory.set(layout.buildDirectory.dir("libs"))
 
-        from(bootWar) { rename { "ROOT.war" } }
-        from(".platform") { into(".platform") }
-        // The certificate is also checked when only the settings change
-        from(".platform/hooks/prebuild") { into(".platform/confighooks/prebuild") }
-        filesMatching("**/*.sh") { permissions { unix("rwxr-xr-x") } }
-    }
+            from(bootWar) { rename { "ROOT.war" } }
+            from(".platform") { into(".platform") }
+            // The certificate is also checked when only the settings change
+            from(".platform/hooks/prebuild") { into(".platform/confighooks/prebuild") }
+            filesMatching("**/*.sh") { permissions { unix("rwxr-xr-x") } }
+        }
 
     assemble {
         dependsOn(beanstalkBundle)
