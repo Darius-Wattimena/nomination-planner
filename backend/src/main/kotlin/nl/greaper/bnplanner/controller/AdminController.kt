@@ -5,7 +5,9 @@ import nl.greaper.bnplanner.auth.RolePermission
 import nl.greaper.bnplanner.model.beatmap.BeatmapPage
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.service.SyncService
+import nl.greaper.bnplanner.service.WeeklySummaryService
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -18,7 +20,13 @@ import org.springframework.web.server.ResponseStatusException
 @RequestMapping("/v2/admin")
 class AdminController(
     private val syncService: SyncService,
+    private val weeklySummaryService: WeeklySummaryService,
 ) {
+    /** What the weekly summary would post right now, with the mode each part goes to */
+    @PostMapping("/weekly-summary/preview", produces = [MediaType.TEXT_PLAIN_VALUE])
+    @RolesAllowed(RolePermission.ADMIN)
+    fun previewWeeklySummary(): String = weeklySummaryService.preview()
+
     /** Queues the users to sync, only the unknown and restricted ones unless forced */
     @PostMapping("/sync/users/ids")
     @RolesAllowed(RolePermission.ADMIN)

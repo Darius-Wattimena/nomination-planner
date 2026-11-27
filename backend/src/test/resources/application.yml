@@ -44,3 +44,7 @@ cors:
 discord:
   enabled: false
   token: ""
+
+discord.weekly-summary:
+  enabled: false
+  cron: "0 0 9 * * MON"
