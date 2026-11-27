@@ -1,6 +1,9 @@
 import {useState} from "react";
 import {Link} from "react-router";
-import {FaCircleQuestion, FaMoon, FaRightFromBracket, FaSliders, FaSun} from "react-icons/fa6";
+import {FaBell, FaCheck, FaCircleQuestion, FaMoon, FaRegBellSlash, FaRightFromBracket, FaSliders, FaSun} from "react-icons/fa6";
+import {toggleNotifying, useNotifying} from "../utils/notify";
+import {useToast} from "./useToast";
+import "./notify.css";
 import type {User} from "../models/Types";
 import {logOut} from "../resources/planner";
 import {useTheme} from "../utils/theme";
@@ -16,6 +19,8 @@ export default function AccountMenu({user}: {user: User}) {
   const {theme, toggle} = useTheme()
   const {open, setOpen, root, button, onKeyDown} = usePopup<HTMLDivElement>()
   const [choosing, setChoosing] = useState(false)
+  const notify = useNotifying()
+  const toast = useToast()
 
   return (
     <div className="account" ref={root} onKeyDown={onKeyDown}>
@@ -24,6 +29,9 @@ export default function AccountMenu({user}: {user: User}) {
         <nav className="popup account-menu" aria-label="Account" onClick={() => setOpen(false)}>
           <Link className="account-profile" to={`/team?user=${user.osuId}`}><Avatar user={user} size="large"/><span><strong>{displayName(user)}</strong><span className="muted">Your profile</span></span></Link>
           {choosesOwnModes(user) && <button onClick={() => setChoosing(true)}><FaSliders/>Your modes</button>}
+          <button aria-pressed={notify} onClick={() => {
+            void toggleNotifying().then(problem => problem && toast(problem, {kind: "error"}))
+          }}>{notify ? <FaBell/> : <FaRegBellSlash/>}<span className="notify-label">Notify me when it's my turn{notify && <FaCheck className="notify-check" aria-hidden/>}</span></button>
           <button onClick={toggle}>{theme === "dark" ? <FaSun/> : <FaMoon/>}{theme === "dark" ? "Light theme" : "Dark theme"}</button>
           <button onClick={openHelp}><FaCircleQuestion/>Help</button>
           <button onClick={() => void logOut()}><FaRightFromBracket/>Log out</button>

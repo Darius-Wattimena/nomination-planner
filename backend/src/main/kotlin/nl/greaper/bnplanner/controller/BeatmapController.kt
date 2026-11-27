@@ -8,6 +8,7 @@ import nl.greaper.bnplanner.model.PageLimit
 import nl.greaper.bnplanner.model.beatmap.BeatmapFilter
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmap
+import nl.greaper.bnplanner.model.beatmap.ExposedBeatmapEvent
 import nl.greaper.bnplanner.model.beatmap.NewBeatmap
 import nl.greaper.bnplanner.service.BeatmapService
 import nl.greaper.bnplanner.service.BeatmapService.AddResult
@@ -45,6 +46,13 @@ class BeatmapController(
     fun findBeatmap(
         @PathVariable("id") id: String,
     ): ExposedBeatmap = service.findExposedBeatmap(id) ?: throw notOnPlanner(id)
+
+    /** The newest of what happened to it, empty for what happened before the history was kept */
+    @GetMapping("/{id}/events")
+    @RolesAllowed(RolePermission.VIEWER)
+    fun findEvents(
+        @PathVariable("id") id: String,
+    ): List<ExposedBeatmapEvent> = service.findEvents(id)
 
     @GetMapping("/count")
     @RolesAllowed(RolePermission.VIEWER)
@@ -89,7 +97,7 @@ class BeatmapController(
     fun syncBeatmap(
         login: OsuLogin,
         @PathVariable("id") id: String,
-    ): ExposedBeatmap = service.syncBeatmap(login.accessToken, id) ?: throw notOnPlanner(id)
+    ): ExposedBeatmap = service.syncBeatmap(login, id) ?: throw notOnPlanner(id)
 
     @PatchMapping("/{id}/{mode}/nominator")
     @RolesAllowed(RolePermission.EDITOR)

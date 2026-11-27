@@ -12,16 +12,20 @@ import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.client.OsuUnavailableException
 import nl.greaper.bnplanner.client.OsuWait
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
+import nl.greaper.bnplanner.datasource.BeatmapEventDataSource
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.PageLimit
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.beatmap.Beatmap
+import nl.greaper.bnplanner.model.beatmap.BeatmapEvent
+import nl.greaper.bnplanner.model.beatmap.BeatmapEventType
 import nl.greaper.bnplanner.model.beatmap.BeatmapFilter
 import nl.greaper.bnplanner.model.beatmap.BeatmapGamemode
 import nl.greaper.bnplanner.model.beatmap.BeatmapNominator
 import nl.greaper.bnplanner.model.beatmap.BeatmapPage
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmap
+import nl.greaper.bnplanner.model.beatmap.ExposedBeatmapEvent
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmapGamemode
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmapNominator
 import nl.greaper.bnplanner.model.beatmap.NewBeatmap
@@ -47,7 +51,13 @@ class BeatmapService(
     private val userService: UserService,
     private val osuHttpClient: OsuHttpClient,
     private val discordClient: DiscordClient?,
+    private val events: BeatmapEventDataSource,
 ) {
+    companion object {
+        /** How much of the history of a beatmap is shown */
+        const val HISTORY_SIZE = 50
+    }
+
     private val log = KotlinLogging.logger { }
 
     /** How adding a beatmap went */
@@ -68,6 +78,23 @@ class BeatmapService(
         dataSource.findAll { beatmap -> beatmap.gamemodes.any { gamemode -> gamemode.nominators.any { it.nominatorId == nominatorId } } }
 
     fun findExposedBeatmap(id: String): ExposedBeatmap? = dataSource.findById(id)?.toExposedBeatmap()
+
+    /** The newest of what happened to a beatmap, also of one that isn't on the planner (anymore) */
+    fun findEvents(id: String): List<ExposedBeatmapEvent> =
+        events.findNewest(id, HISTORY_SIZE).map { event ->
+            ExposedBeatmapEvent(
+                type = event.type,
+                at = event.at,
+                user = event.userId?.let { findUserOrUnknown(it) },
+                gamemodes = event.gamemodes,
+                nominator = event.nominatorId?.let { findUserOrUnknown(it) },
+                oldNominator = event.oldNominatorId?.let { findUserOrUnknown(it) },
+                status = event.status,
+                osuEvent = event.osuEvent,
+            )
+        }
+
+    private fun findUserOrUnknown(id: String): User = userService.findUserById(id) ?: User(id, "Unknown", emptyList())
 
     /** @return false when the beatmap is not on the planner */
     fun deleteBeatmap(
@@ -157,6 +184,7 @@ class BeatmapService(
             return AddResult.AlreadyOnPlanner
         }
 
+        events.insert(BeatmapEvent(newBeatmap.osuId, BeatmapEventType.Added, addDate, login.osuId, input.gamemodes))
         logBeatmapAdded(login, newBeatmap)
         return AddResult.Added(newBeatmap.toExposedBeatmap())
     }
@@ -168,19 +196,23 @@ class BeatmapService(
      * @throws OsuUnavailableException when osu! gave no clear answer in time
      */
     fun syncBeatmap(
-        osuApiToken: String,
+        login: OsuLogin,
         osuId: String,
     ): ExposedBeatmap? {
         val beatmap = findBeatmap(osuId) ?: return null
-        syncBeatmap(osuApiToken, beatmap, OsuWait.REQUEST)
+        syncBeatmap(login.accessToken, beatmap, OsuWait.REQUEST, login.osuId)
         return findExposedBeatmap(osuId)
     }
 
-    /** @throws OsuUnavailableException when osu! gave no clear answer about the beatmap or one of its nominators */
+    /**
+     * @param by who asked for it, null for a sync in the background
+     * @throws OsuUnavailableException when osu! gave no clear answer about the beatmap or one of its nominators
+     */
     fun syncBeatmap(
         osuApiToken: String,
         beatmap: Beatmap,
         wait: OsuWait = OsuWait.BACKGROUND,
+        by: String? = null,
     ) {
         // Don't sync a beatmap if it is already marked as ranked
         if (beatmap.status == BeatmapStatus.Ranked) {
@@ -197,7 +229,24 @@ class BeatmapService(
         val nominators = findNominators(osuApiToken, osuBeatmap, beatmap.osuId, wait)
 
         // Asking osu! took a while, so use what is stored by now
-        dataSource.modify(beatmap.osuId) { current -> applySync(current, osuBeatmap, nominators) }
+        dataSource.modify(beatmap.osuId) { current ->
+            applySync(current, osuBeatmap, nominators).also { recordSync(current, it, by) }
+        }
+    }
+
+    /** A sync in the background is only part of the history when it changed something */
+    private fun recordSync(
+        before: Beatmap,
+        after: Beatmap,
+        by: String?,
+    ) {
+        if (by == null && before == after) {
+            return
+        }
+
+        events.insert(
+            BeatmapEvent(after.osuId, BeatmapEventType.Synced, Instant.now(), by, status = after.status.takeIf { it != before.status }),
+        )
     }
 
     /** Who nominated which gamemode, asking osu! about the nominators the planner doesn't know yet */
@@ -362,7 +411,7 @@ class BeatmapService(
         log.info {
             "[OSU] ${kind.osuName} by ${userId ?: "osu!"} $gamemodes, now ${changed.status} (beatmap = $osuId, event = ${event.id})"
         }
-        logOsuEvent(changed, kind, userId, gamemodes)
+        logOsuEvent(changed, kind, userId, gamemodes, event.createdAt)
 
         return changed
     }
@@ -457,11 +506,16 @@ class BeatmapService(
         kind: BeatmapsetEventType,
         userId: String?,
         gamemodes: List<Gamemode>,
+        at: Instant,
     ) {
         // Already told by the reset or disqualification itself
         if (kind == BeatmapsetEventType.NOMINATION_RESET_RECEIVED) {
             return
         }
+
+        events.insert(
+            BeatmapEvent(beatmap.osuId, BeatmapEventType.StatusChanged, at, userId, gamemodes, status = beatmap.status, osuEvent = kind),
+        )
 
         val user = userId?.let { userService.findUserById(it) }
         val gamemodeText =
@@ -520,7 +574,10 @@ class BeatmapService(
                 current.copy(note = newNote, dateUpdated = Instant.now()).takeIf { current.note != newNote }
             }
 
-        updatedBeatmap?.let { logBeatmapNoteChange(login, it) }
+        updatedBeatmap?.let {
+            events.insert(BeatmapEvent(osuId, BeatmapEventType.NoteChanged, it.dateUpdated, login.osuId))
+            logBeatmapNoteChange(login, it)
+        }
 
         return findBeatmap(osuId) != null
     }
@@ -540,7 +597,10 @@ class BeatmapService(
                     ).takeIf { current.status != newStatus }
             }
 
-        updatedBeatmap?.let { logBeatmapStatusChange(login, it) }
+        updatedBeatmap?.let {
+            events.insert(BeatmapEvent(osuId, BeatmapEventType.StatusChanged, it.dateUpdated, login.osuId, status = newStatus))
+            logBeatmapStatusChange(login, it)
+        }
 
         return findBeatmap(osuId) != null
     }
@@ -561,9 +621,51 @@ class BeatmapService(
                 replaceNominator(current, gamemode, oldNominator, newNominator)
             } ?: return null
 
+        nominatorEvents(
+            updatedBeatmap,
+            login.osuId,
+            gamemode,
+            oldNominator,
+            newNominator,
+            gamemodesBeforeUpdate,
+        ).forEach { events.insert(it) }
         logUpdatedNominators(login, updatedBeatmap, oldNominator, newNominator, gamemode, gamemodesBeforeUpdate)
 
         return updatedBeatmap.toExposedBeatmap()
+    }
+
+    /** What changing a nominator did, in the order it happened */
+    private fun nominatorEvents(
+        beatmap: Beatmap,
+        by: String,
+        gamemode: Gamemode,
+        oldNominator: String,
+        newNominator: String,
+        gamemodesBefore: List<Gamemode>,
+    ): List<BeatmapEvent> {
+        fun event(
+            type: BeatmapEventType,
+            nominatorId: String? = null,
+            oldNominatorId: String? = null,
+        ) = BeatmapEvent(beatmap.osuId, type, beatmap.dateUpdated, by, listOf(gamemode), nominatorId, oldNominatorId)
+
+        val nominator =
+            when {
+                // Only an open spot that stays open, which changes nothing
+                oldNominator == newNominator -> null
+
+                oldNominator == MISSING_USER_ID -> event(BeatmapEventType.NominatorJoined, newNominator)
+
+                newNominator == MISSING_USER_ID -> event(BeatmapEventType.NominatorLeft, oldNominator)
+
+                else -> event(BeatmapEventType.NominatorReplaced, newNominator, oldNominator)
+            }
+
+        return listOfNotNull(
+            event(BeatmapEventType.ModeAdded).takeIf { gamemode !in gamemodesBefore },
+            nominator,
+            event(BeatmapEventType.ModeRemoved).takeIf { beatmap.gamemodes.none { it.gamemode == gamemode } },
+        )
     }
 
     /** Null when someone else already replaced the old nominator, or the new one already is part of the gamemode */
@@ -829,8 +931,7 @@ class BeatmapService(
                 val gamemodeNominators =
                     entry.nominators.map {
                         // Keeps their place, a gamemode always has two nominators
-                        val nominator = userService.findUserById(it.nominatorId) ?: User(it.nominatorId, "Unknown", emptyList())
-                        ExposedBeatmapNominator(nominator = nominator, hasNominated = it.hasNominated)
+                        ExposedBeatmapNominator(nominator = findUserOrUnknown(it.nominatorId), hasNominated = it.hasNominated)
                     }
 
                 ExposedBeatmapGamemode(

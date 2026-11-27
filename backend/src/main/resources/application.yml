@@ -68,3 +68,9 @@ cors:
 discord:
   enabled: false
   token: ""
+
+# Posts a summary of each mode to its public Discord channels every week: what went quiet, what waits longest for a second
+# nominator, and what qualified and ranked. Needs Discord to be turned on. The cron is in UTC.
+discord.weekly-summary:
+  enabled: false
+  cron: "0 0 9 * * MON"

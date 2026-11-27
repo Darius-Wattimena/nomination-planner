@@ -7,6 +7,7 @@ import {canEdit, isAdmin, useSession, useSessionKnown, useSessionUnreachable} fr
 import {useTheme} from "../utils/theme";
 import AccountMenu from "./AccountMenu";
 import {useFind} from "./useFind";
+import {useTurnNotifications} from "./useTurnNotifications";
 import {LoginButton} from "./States";
 import {involvementOf} from "../utils/involvement";
 
@@ -19,6 +20,7 @@ export default function Shell() {
   const {theme, toggle} = useTheme()
   const {maps} = usePlanner()
   usePlannerRefresh()
+  useTurnNotifications(user?.osuId)
 
   const moves = involvementOf(maps ?? [], user?.osuId).filter(it => it.part === "move").length
   const themeLabel = theme === "dark" ? "Use the light theme" : "Use the dark theme"

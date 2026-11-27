@@ -87,6 +87,28 @@ export enum BeatmapStatus {
   Unfinished = "Unfinished"
 }
 
+export type BeatmapEventType = "Added" | "NominatorJoined" | "NominatorLeft" | "NominatorReplaced" | "NoteChanged" | "StatusChanged" | "ModeAdded" | "ModeRemoved" | "Synced"
+
+/** The event of osu! that changed the status */
+export type OsuEventType = "NOMINATE" | "QUALIFY" | "RANK" | "NOMINATION_RESET" | "NOMINATION_RESET_RECEIVED" | "DISQUALIFY"
+
+/** Something that happened to a beatmap, the backend leaves out what doesn't apply */
+export interface BeatmapEvent {
+  type: BeatmapEventType
+  at: string | number
+  /** Who did it, missing for what osu! or the planner did by itself */
+  user?: User
+  gamemodes: Gamemode[]
+  /** Who joined or left, or replaced someone */
+  nominator?: User
+  /** Who was replaced */
+  oldNominator?: User
+  /** The status afterwards, for a sync only when it changed */
+  status?: BeatmapStatus
+  /** Missing when it changed on the planner */
+  osuEvent?: OsuEventType
+}
+
 /** A sync runs in the background, this is how many it will go through */
 export interface SyncQueued {
   queued: number

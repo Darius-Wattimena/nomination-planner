@@ -57,6 +57,8 @@ The first time, both start at the newest event and change nothing. After that th
 | `planner.admins` | `"2369776"` | osu! ids that may do everything on the planner, whatever their roles on osu! are. NAT members always may. |
 | `planner.wait-millis` | `25000` | How long the website waits for a change of the planner before it asks again. |
 | `beatmaps.keep-old` | `true` | Keeps the beatmap collection of the previous version up to date, so that version can be started again. Off on AWS. |
+| `discord.weekly-summary.enabled` | `false` | Posts a weekly summary of each mode to the public Discord channels of that mode: the beatmaps that went quiet (no change for 21 days or more), the 5 waiting longest for a second nominator, and how many qualified and ranked in the last 7 days. Needs `discord.enabled`. Admins can see what it would post with `POST /v2/admin/weekly-summary/preview`. |
+| `discord.weekly-summary.cron` | `"0 0 9 * * MON"` | When it posts, as a Spring cron in UTC (second, minute, hour, day of month, month, day of week). |
 
 ## Checks
 

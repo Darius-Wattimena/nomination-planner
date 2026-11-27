@@ -26,6 +26,7 @@ import {inProgress} from "../utils/involvement";
 import {useNominators} from "./actions";
 import NominatorPicker from "./NominatorPicker";
 import Note from "./Note";
+import History from "./History";
 
 interface MapViewProps {
   id: string | undefined
@@ -179,6 +180,7 @@ function Details({beatmap, onClose, onChanged}: {beatmap: Beatmap, onClose: () =
           }
           <div className="map-side-main" data-covered={selected ? true : undefined}>
             <Note beatmap={beatmap} editable={editable}/>
+            <History id={beatmap.osuId}/>
             {editable && <Manage beatmap={beatmap} onClose={onClose} onChanged={onChanged}/>}
           </div>
         </aside>
