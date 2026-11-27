@@ -21,6 +21,8 @@ import org.mockito.kotlin.mock
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.mock.web.MockHttpServletResponse
 import java.time.Instant
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 /** Contracts of everything except beatmaps */
 class OtherApiTest : ApiTest() {
@@ -117,7 +119,6 @@ class OtherApiTest : ApiTest() {
     // Live updates
 
     private fun waitForChanges(since: String): Pair<Long, JSONObject> {
-        session(As.VIEWER)
         val start = System.currentTimeMillis()
         val response = http("GET", "/v2/planner/wait?since=$since", by = As.VIEWER)
         assertEquals(200, response.statusCode(), response.body())
@@ -126,6 +127,7 @@ class OtherApiTest : ApiTest() {
 
     @Test
     fun `Should answer when nothing changed for a while`() {
+        // Logs in as well
         val token = JSONObject(get("/v2/planner").contentAsString).getString("token")
 
         val (duration, update) = waitForChanges(token)
@@ -137,15 +139,16 @@ class OtherApiTest : ApiTest() {
     @Test
     fun `Should answer as soon as something changed`() {
         beatmaps.insertOne(beatmap("1", mapperId = "1"))
+        // Logs in as well
         val token = JSONObject(get("/v2/planner").contentAsString).getString("token")
-        Thread {
-            Thread.sleep(100)
-            beatmaps.update(beatmap("1", note = "changed", mapperId = "1"))
-        }.start()
+        val answer = CompletableFuture.supplyAsync { waitForChanges(token) }
+        beatmaps.update(beatmap("1", note = "changed", mapperId = "1"))
 
-        val (duration, update) = waitForChanges(token)
-        assertTrue(duration < 350, "$duration")
-        assertEquals("changed", update.getJSONArray("beatmaps").getJSONObject(0).getString("note"))
+        val (_, update) = answer.get(10, TimeUnit.SECONDS)
+        val changed = update.getJSONArray("beatmaps")
+        assertEquals(1, changed.length())
+        assertEquals("1", changed.getJSONObject(0).getString("id"))
+        assertEquals("changed", changed.getJSONObject(0).getString("note"))
     }
 
     @Test

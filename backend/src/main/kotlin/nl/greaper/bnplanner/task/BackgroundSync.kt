@@ -1,9 +1,9 @@
 package nl.greaper.bnplanner.task
 
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
-import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.service.OsuJobs
 import nl.greaper.bnplanner.service.OsuService
+import nl.greaper.bnplanner.util.isInProgress
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
@@ -31,7 +31,7 @@ class BackgroundSync(
         osuService.findClientToken() ?: return emptyList()
         val next =
             beatmapDataSource
-                .findAll { it.status != BeatmapStatus.Ranked && it.status != BeatmapStatus.Graved }
+                .findAll { it.isInProgress() }
                 .sortedBy { checked[it.osuId] ?: Instant.EPOCH }
                 .take(perMinute)
                 .map { it.osuId }

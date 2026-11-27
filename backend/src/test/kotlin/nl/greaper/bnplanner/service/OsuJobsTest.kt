@@ -10,6 +10,7 @@ import nl.greaper.bnplanner.task.BackgroundSync
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
@@ -17,6 +18,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.RejectedExecutionException
 
 class OsuJobsTest {
     private val planner = Planner()
@@ -93,6 +95,34 @@ class OsuJobsTest {
         verify(service, times(2)).findBeatmap("1")
         verify(service).syncBeatmap(TOKEN, beatmap("2"))
         assertEquals(0, jobs.waiting)
+    }
+
+    @Test
+    fun `Should stop the job running and leave what is still queued`() {
+        val started = CountDownLatch(1)
+        var interrupted = false
+        val service =
+            mock<BeatmapService> {
+                on { findBeatmap(any()) } doAnswer {
+                    started.countDown()
+                    try {
+                        Thread.sleep(60_000)
+                    } catch (ex: InterruptedException) {
+                        interrupted = true
+                    }
+                    null
+                }
+            }
+        FakeOsu.respond("POST /oauth/token", own)
+        val jobs = OsuJobs(service, planner.userService, planner.osuService)
+
+        assertEquals(2, jobs.syncBeatmaps(listOf("1", "2")))
+        started.await()
+        jobs.stop()
+
+        assertEquals(true, interrupted)
+        verify(service).findBeatmap("1")
+        assertThrows<RejectedExecutionException> { jobs.syncBeatmaps(listOf("3")) }
     }
 
     @Test

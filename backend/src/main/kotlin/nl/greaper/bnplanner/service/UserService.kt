@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.client.OsuRequestException
+import nl.greaper.bnplanner.client.OsuWait
 import nl.greaper.bnplanner.datasource.UserDataSource
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
@@ -70,17 +71,17 @@ class UserService(
      * Returns null, leaving what we know about the user as is, when osu! gave no clear answer
      *
      * @param logEventToDiscord false to only log it here, like for a login or every user of a user sync
+     * @param wait how long to wait for osu!, gives no clear answer after that
      */
     fun forceFindUserById(
         osuApiToken: String,
         osuId: String,
         logEventToDiscord: Boolean = true,
+        wait: OsuWait = OsuWait.BACKGROUND,
     ): User? {
-        // osu! knows nothing about the modes someone chose themselves
-        val interests = dataSource.findUser(osuId)?.interests
         val osuUser =
             try {
-                osuHttpClient.findUserWithId(osuApiToken, osuId)
+                osuHttpClient.findUserWithId(osuApiToken, osuId, wait)
             } catch (ex: OsuRequestException) {
                 log.error(ex) { "Unable to update user (osuId = $osuId)" }
                 return null
@@ -88,8 +89,7 @@ class UserService(
 
         if (osuUser == null) {
             // Should only end up here if the user is restricted or the provided id is invalid
-            val restrictedUser = User(osuId, "RESTRICTED", emptyList(), restricted = true, interests = interests)
-            dataSource.saveUser(restrictedUser)
+            val restrictedUser = saveFromOsu(User(osuId, "RESTRICTED", emptyList(), restricted = true))
             log.info { "[CREATE] Added restricted user (osuId = $osuId)" }
 
             if (logEventToDiscord) {
@@ -106,9 +106,7 @@ class UserService(
             return restrictedUser
         }
 
-        val newUser = convertOsuUserToUser(osuUser).copy(interests = interests)
-
-        dataSource.saveUser(newUser)
+        val newUser = saveFromOsu(convertOsuUserToUser(osuUser))
 
         if (!logEventToDiscord) {
             log.debug { "[CREATE] Added user ${newUser.username} (osuId = $osuId)" }
@@ -127,6 +125,9 @@ class UserService(
 
         return newUser
     }
+
+    /** osu! knows nothing about the modes someone chose themselves, which they may have changed while asking osu! */
+    private fun saveFromOsu(user: User): User = dataSource.modifyUser(user.osuId) { current -> user.copy(interests = current?.interests) }
 
     /**
      * Follow someone joining or leaving a group on osu!, or changing their gamemodes in it, the same way a user sync sees it afterwards
@@ -224,9 +225,8 @@ class UserService(
         osuId: String,
         interests: Set<Gamemode>,
     ): User? {
-        val user = findUserById(osuId) ?: return null
         val chosen = Gamemode.entries.filter { it in interests }.takeIf { it.isNotEmpty() }
-        return user.copy(interests = chosen).also { dataSource.saveUser(it) }
+        return dataSource.modifyUser(osuId) { current -> current?.copy(interests = chosen) }
     }
 
     fun findUserById(osuId: String): User? {

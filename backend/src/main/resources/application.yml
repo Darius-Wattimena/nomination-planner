@@ -5,6 +5,9 @@ spring.config.import: "optional:file:/etc/bnplanner/secrets.yml"
 
 # Not running on Kubernetes, the health check only needs the status
 management.endpoint.health.probes.enabled: false
+# Anybody can ask for the health, so it only tells the status (DOWN when MongoDB can't be reached), never why
+management.endpoint.health.show-details: never
+management.endpoint.health.show-components: never
 
 mongodb:
   host: localhost
@@ -61,6 +64,7 @@ cors:
   methods: GET,POST,PUT,OPTIONS,DELETE,PATCH
   headers: origin,content-type,accept,x-requested-with,x-csrf-token
 
+# Posts the changes to Discord, needs a token. Turned on for AWS by infra/planner.yml when it has one.
 discord:
-  enabled: true
+  enabled: false
   token: ""

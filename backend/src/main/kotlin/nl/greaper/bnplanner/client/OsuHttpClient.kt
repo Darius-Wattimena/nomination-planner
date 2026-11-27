@@ -1,6 +1,8 @@
 package nl.greaper.bnplanner.client
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import nl.greaper.bnplanner.auth.LoginExpiredException
+import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.model.osu.AuthToken
 import nl.greaper.bnplanner.model.osu.BeatmapSet
@@ -25,12 +27,12 @@ import java.net.URLEncoder
 
 @Component
 class OsuHttpClient(
-    val config: OsuProperties,
-    val objectMapper: ObjectMapper,
+    private val config: OsuProperties,
+    private val objectMapper: ObjectMapper,
     sleeper: Sleeper = Sleeper.THREAD,
     clock: () -> Long = System::currentTimeMillis,
 ) {
-    val log = KotlinLogging.logger { }
+    private val log = KotlinLogging.logger { }
 
     private val rateLimit = OsuRateLimit(config.minRequestIntervalMillis, sleeper, clock)
 
@@ -83,10 +85,11 @@ class OsuHttpClient(
     fun get(
         uri: String,
         osuApiToken: String,
+        wait: OsuWait = OsuWait.BACKGROUND,
     ): ResponseEntity<String> {
         val requestUri = "${config.baseUrl}/api/v2$uri"
 
-        return rateLimit.call("GET $requestUri") {
+        return rateLimit.call("GET $requestUri", wait.maxMillis) {
             log.debug { "GET ==> $requestUri" }
 
             // Never share headers between calls, as they would use the token of each other
@@ -99,18 +102,28 @@ class OsuHttpClient(
         }
     }
 
+    /**
+     * Find a beatmap set, null when osu! doesn't know it
+     *
+     * @throws LoginExpiredException when osu! no longer accepts the token
+     * @throws OsuUnavailableException when osu! gave no clear answer
+     */
     fun findBeatmapWithId(
         osuApiToken: String,
         osuId: String,
-    ): BeatmapSet? {
-        return try {
-            val response = get("/beatmapsets/$osuId", osuApiToken)
-            return response.body?.let { objectMapper.readValue<BeatmapSet>(it) }
-        } catch (ex: Exception) {
-            log.error(ex) { "Unable to get a beatmap from the osu api, using id $osuId" }
+        wait: OsuWait = OsuWait.BACKGROUND,
+    ): BeatmapSet? =
+        try {
+            val response = get("/beatmapsets/$osuId", osuApiToken, wait)
+            objectMapper.readValue<BeatmapSet>(response.body ?: "")
+        } catch (ex: HttpClientErrorException.NotFound) {
+            log.info { "Beatmap is unknown to the osu api, using id $osuId" }
             null
+        } catch (ex: HttpClientErrorException.Unauthorized) {
+            throw LoginExpiredException()
+        } catch (ex: Exception) {
+            throw OsuUnavailableException("Unable to get a beatmap from the osu api, using id $osuId", ex)
         }
-    }
 
     /**
      * Find a user, null when osu! doesn't know them (which is also the case for restricted users)
@@ -120,9 +133,10 @@ class OsuHttpClient(
     fun findUserWithId(
         osuApiToken: String,
         osuId: String,
+        wait: OsuWait = OsuWait.BACKGROUND,
     ): Me? =
         try {
-            val response = get("/users/$osuId?key=id", osuApiToken)
+            val response = get("/users/$osuId?key=id", osuApiToken, wait)
             objectMapper.readValue<Me>(response.body ?: "")
         } catch (ex: HttpClientErrorException.NotFound) {
             log.info { "User is unknown to the osu api, using id $osuId" }

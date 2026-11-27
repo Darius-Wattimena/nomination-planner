@@ -1,5 +1,7 @@
 package nl.greaper.bnplanner.client
 
+import nl.greaper.bnplanner.auth.LoginExpiredException
+import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.osu.AuthToken
@@ -121,13 +123,26 @@ class OsuHttpClientRequestTest {
     }
 
     @Test
-    fun `Should find no beatmap when osu fails or gives an unexpected answer`() {
+    fun `Should find no beatmap when osu does not know it`() {
+        assertNull(client.findBeatmapWithId("token", "4"))
+    }
+
+    @Test
+    fun `Should fail to find a beatmap when osu fails or gives an unexpected answer`() {
         FakeOsu.respond("GET /api/v2/beatmapsets/5", "{}", 500)
         FakeOsu.respond("GET /api/v2/beatmapsets/6", "", 200)
         FakeOsu.respond("GET /api/v2/beatmapsets/7", "not json")
         FakeOsu.respond("GET /api/v2/beatmapsets/8", "{}")
+        FakeOsu.respond("GET /api/v2/beatmapsets/9", "{}", 403)
 
-        listOf("4", "5", "6", "7", "8").forEach { assertNull(client.findBeatmapWithId("token", it)) }
+        listOf("5", "6", "7", "8", "9").forEach { assertThrows<OsuUnavailableException> { client.findBeatmapWithId("token", it) } }
+    }
+
+    @Test
+    fun `Should tell the login expired when osu refuses the token for a beatmap`() {
+        FakeOsu.respond("GET /api/v2/beatmapsets/5", "{}", 401)
+
+        assertThrows<LoginExpiredException> { client.findBeatmapWithId("token", "5") }
     }
 
     @Test

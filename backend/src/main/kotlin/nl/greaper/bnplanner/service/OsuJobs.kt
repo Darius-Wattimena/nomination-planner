@@ -1,9 +1,11 @@
 package nl.greaper.bnplanner.service
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import jakarta.annotation.PreDestroy
 import org.springframework.stereotype.Service
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Calls to osu! that take a while run here one after the other, the rate limit of the osu! client keeps them apart.
@@ -64,5 +66,12 @@ class OsuJobs(
     /** Waits until everything that is queued is done */
     fun finish() {
         executor.submit {}.get()
+    }
+
+    /** What is still queued is left for the syncs after the restart */
+    @PreDestroy
+    fun stop() {
+        executor.shutdownNow()
+        executor.awaitTermination(5, TimeUnit.SECONDS)
     }
 }

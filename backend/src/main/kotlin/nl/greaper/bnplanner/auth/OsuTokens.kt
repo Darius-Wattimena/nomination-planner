@@ -52,5 +52,8 @@ class OsuLogin(
 class LoginExpiredException : RuntimeException("The osu! login expired")
 
 class OsuUnavailableException(
-    cause: Throwable,
-) : RuntimeException("Could not reach osu!", cause)
+    message: String,
+    cause: Throwable?,
+) : RuntimeException(message, cause) {
+    constructor(cause: Throwable) : this("Could not reach osu!", cause)
+}

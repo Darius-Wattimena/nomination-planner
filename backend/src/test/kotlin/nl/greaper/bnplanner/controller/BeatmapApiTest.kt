@@ -229,6 +229,25 @@ class BeatmapApiTest : ApiTest() {
         assertProblem(add("""{"osuId":"1","gamemodes":["osu"]}"""), 404, "Not Found", "osu! doesn't know beatmap 1")
     }
 
+    @Test
+    fun `Should tell osu is unavailable when it fails to answer about a beatmap`() {
+        save("2")
+        FakeOsu.respond("GET /api/v2/beatmapsets/1", "{}", 500)
+        FakeOsu.respond("GET /api/v2/beatmapsets/2", "{}", 502)
+
+        val unavailable = "osu! can not be reached right now"
+        assertProblem(add("""{"osuId":"1","gamemodes":["osu"]}"""), 503, "Service Unavailable", unavailable)
+        assertProblem(call(As.EDITOR, "POST", "/v2/beatmap/2/sync"), 503, "Service Unavailable", unavailable)
+        assertEquals(listOf("2"), beatmaps.list().map { it.osuId })
+    }
+
+    @Test
+    fun `Should log out when osu no longer accepts the token for a beatmap`() {
+        FakeOsu.respond("GET /api/v2/beatmapsets/1", "{}", 401)
+
+        assertProblem(add("""{"osuId":"1","gamemodes":["osu"]}"""), 401, "Unauthorized", "Please log in again")
+    }
+
     // Nominators
 
     private fun patch(

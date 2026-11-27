@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.mock.web.MockHttpServletRequest
+import org.springframework.mock.web.MockHttpSession
 import org.springframework.security.authentication.TestingAuthenticationToken
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient
 import org.springframework.security.oauth2.core.OAuth2AccessToken
@@ -101,6 +102,13 @@ class OsuLoginStoreTest {
 
         assertEquals("osu", flow.resolve(request, "osu")!!.attributes["registration_id"])
         assertEquals("/beatmaps", request.session!!.getAttribute(LoginFlow.RETURN_TO))
+        // Anybody can start logging in, so the session is only kept for a short while
+        assertEquals(600, request.session.maxInactiveInterval)
+
+        // Someone logged in already stays logged in as long as they would
+        val loggedIn = MockHttpServletRequest("GET", "/beatmaps").apply { session = MockHttpSession().apply { maxInactiveInterval = 1234 } }
+        flow.resolve(loggedIn, "osu")
+        assertEquals(1234, loggedIn.session.maxInactiveInterval)
         assertThrows<IllegalArgumentException> { flow.resolve(MockHttpServletRequest("GET", "/other"), "unknown") }
     }
 }

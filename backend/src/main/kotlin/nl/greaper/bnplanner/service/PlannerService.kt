@@ -10,8 +10,8 @@ import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.beatmap.Beatmap
 import nl.greaper.bnplanner.model.beatmap.BeatmapGamemode
-import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.service.UserService.Companion.MISSING_USER_ID
+import nl.greaper.bnplanner.util.isInProgress
 import org.springframework.stereotype.Service
 
 @Service
@@ -27,7 +27,7 @@ class PlannerService(
         // Null when it is no longer on the planner or no longer in progress
         val changed =
             beatmapDataSource.changes
-                .findSince(versions.beatmaps)
+                .findSince(versions.beatmaps, forPlanner = true)
                 .associateWith { id -> beatmapDataSource.findById(id)?.takeIf { it.isInProgress() } }
         val beatmaps = changed.values.filterNotNull()
         val removed = changed.filterValues { it == null }.keys.toList()
@@ -54,8 +54,6 @@ class PlannerService(
             removed = emptyList(),
         )
     }
-
-    private fun Beatmap.isInProgress(): Boolean = status != BeatmapStatus.Ranked && status != BeatmapStatus.Graved
 
     private fun User.canNominate(): Boolean = gamemodes.any { it.role != Role.Mapper }
 

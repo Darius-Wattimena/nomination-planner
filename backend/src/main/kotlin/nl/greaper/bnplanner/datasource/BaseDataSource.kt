@@ -17,5 +17,5 @@ abstract class BaseDataSource<T : Any>(
 
     fun list(): List<T> = collection.find().toList().map { fromDocument(it) }
 
-    fun insertOne(value: T) = collection.insertOne(toDocument(value))
+    protected fun insertOne(value: T) = collection.insertOne(toDocument(value))
 }

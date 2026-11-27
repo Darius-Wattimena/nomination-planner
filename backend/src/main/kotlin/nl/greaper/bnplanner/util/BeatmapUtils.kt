@@ -3,7 +3,11 @@ package nl.greaper.bnplanner.util
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.beatmap.Beatmap
 import nl.greaper.bnplanner.model.beatmap.BeatmapGamemode
+import nl.greaper.bnplanner.model.beatmap.BeatmapPage
 import nl.greaper.bnplanner.model.osu.BeatmapSet
+
+/** Neither ranked nor in the graveyard, so it is shown on the planner */
+fun Beatmap.isInProgress(): Boolean = status in BeatmapPage.PENDING.statuses
 
 fun BeatmapGamemode.hasAnyNomination(): Boolean = this.nominators.any { nominator -> nominator.hasNominated }
 

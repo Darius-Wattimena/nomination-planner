@@ -28,6 +28,7 @@ import org.springframework.security.authentication.TestingAuthenticationToken
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import org.springframework.web.util.UriComponentsBuilder
 import java.net.URLDecoder
+import java.util.Base64
 import java.util.Date
 
 /** Logging in with osu!, and staying logged in through the session */
@@ -131,6 +132,24 @@ class LoginApiTest : ApiTest() {
         // osu! doesn't tell which scopes it gave
         assertEquals(emptyList<String>(), stored["scopes"])
         assertTrue(TestMongo.documents("sessions").isNotEmpty())
+    }
+
+    /** How long the session of the browser would still be kept */
+    private fun sessionSecondsLeft(response: MockHttpServletResponse): Long {
+        val id = String(Base64.getDecoder().decode(response.getCookie(SESSION_COOKIE)!!.value))
+        val expireAt = TestMongo.documents("sessions").single { it["_id"] == id }["expireAt"] as Date
+        return (expireAt.time - System.currentTimeMillis()) / 1000
+    }
+
+    @Test
+    fun `Should only keep the session of someone logging in for a short while until they logged in`() {
+        osuKnows("5", "New BN")
+        val start = startLogin()
+        assertTrue(sessionSecondsLeft(start) in 500..600, "${sessionSecondsLeft(start)}")
+
+        val loggedIn = finishLogin(start, "code" to "made-up-code")
+        assertEquals(302, loggedIn.status)
+        assertTrue(sessionSecondsLeft(loggedIn) > 29L * 24 * 60 * 60, "${sessionSecondsLeft(loggedIn)}")
     }
 
     @ParameterizedTest

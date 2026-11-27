@@ -10,6 +10,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import nl.greaper.bnplanner.model.PageLimit
 import nl.greaper.bnplanner.model.beatmap.Beatmap
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus.Companion.toPriorityStatus
+import nl.greaper.bnplanner.util.isInProgress
 import org.bson.Document
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
@@ -60,9 +61,9 @@ class BeatmapDataSource(
         load()
     }
 
-    /** Read everything from the database again */
+    /** Read everything from the database again, only tests do so after the start */
     @Synchronized
-    fun load() {
+    internal fun load() {
         val migration = database.getCollection(MIGRATIONS).find(Filters.eq("_id", COLLECTION)).first()
         val oldIsOutdated = migration?.getBoolean("oldIsOutdated", false) == true
         usesOld = !oldIsOutdated && (keepOld || migration == null)
@@ -90,7 +91,8 @@ class BeatmapDataSource(
         log.info { "Loaded ${beatmaps.size} beatmaps (old collection = $usesOld)" }
     }
 
-    fun list(): List<Beatmap> = beatmaps.values.toList()
+    /** Only for tests, the planner always wants some of them */
+    internal fun list(): List<Beatmap> = beatmaps.values.toList()
 
     fun findById(id: String): Beatmap? = beatmaps[id]
 
@@ -120,13 +122,14 @@ class BeatmapDataSource(
         return findAll(filter, from, from + limit)
     }
 
+    /** Only for tests, adding a beatmap uses insertIfMissing */
     @Synchronized
-    fun insertOne(beatmap: Beatmap) {
+    internal fun insertOne(beatmap: Beatmap) {
         check(!beatmaps.containsKey(beatmap.osuId)) { "Beatmap ${beatmap.osuId} already exists" }
         update(beatmap)
     }
 
-    fun insertMany(beatmaps: List<Beatmap>) = beatmaps.forEach { insertOne(it) }
+    internal fun insertMany(beatmaps: List<Beatmap>) = beatmaps.forEach { insertOne(it) }
 
     /** Null when it was added, otherwise the beatmap someone else added first */
     @Synchronized
@@ -141,6 +144,7 @@ class BeatmapDataSource(
     @Synchronized
     fun update(beatmap: Beatmap) {
         val normalized = StoredBeatmap.normalize(beatmap)
+        val before = beatmaps[normalized.osuId]
 
         if (usesOld) {
             val document = StoredBeatmap.toOldDocument(normalized)
@@ -150,7 +154,7 @@ class BeatmapDataSource(
         val document = StoredBeatmap.toDocument(normalized)
         collection().replaceOne(Filters.eq("_id", document["_id"]), document, ReplaceOptions().upsert(true))
         beatmaps[normalized.osuId] = normalized
-        changes.mark(normalized.osuId)
+        changes.mark(normalized.osuId, forPlanner = before?.isInProgress() == true || normalized.isInProgress())
     }
 
     /**
@@ -178,10 +182,10 @@ class BeatmapDataSource(
 
         collection().deleteOne(Filters.eq("_id", StoredBeatmap.toStoredId(id)))
 
-        val isDeleted = beatmaps.remove(id) != null
-        changes.mark(id)
+        val deleted = beatmaps.remove(id)
+        changes.mark(id, forPlanner = deleted?.isInProgress() == true)
 
-        return isDeleted
+        return deleted != null
     }
 
     /**

@@ -1,5 +1,6 @@
 package nl.greaper.bnplanner.auth
 
+import nl.greaper.bnplanner.client.OsuWait
 import nl.greaper.bnplanner.service.UserService
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest
@@ -21,7 +22,7 @@ class OsuUserService(
     override fun loadUser(request: OAuth2UserRequest): OAuth2User {
         val osuId = osu.loadUser(request)!!.name
         val user =
-            userService.forceFindUserById(request.accessToken.tokenValue, osuId, logEventToDiscord = false)
+            userService.forceFindUserById(request.accessToken.tokenValue, osuId, logEventToDiscord = false, wait = OsuWait.REQUEST)
                 // Use what we know when osu! is unavailable
                 ?: userService.findUserById(osuId)
                 ?: throw OAuth2AuthenticationException(OAuth2Error("unknown_user"), "osu! did not tell who logged in")

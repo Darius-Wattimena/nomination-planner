@@ -1,11 +1,13 @@
 package nl.greaper.bnplanner.client
 
+import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.support.FakeOsu
 import nl.greaper.bnplanner.support.Planner
 import nl.greaper.bnplanner.util.Sleeper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.doReturn
@@ -106,6 +108,44 @@ class OsuRateLimitTest {
             }
         }
         assertEquals(listOf(4_000L), sleeps)
+    }
+
+    @Test
+    fun `Should give up instead of keeping someone waiting long`() {
+        val limit = OsuRateLimit(250, sleeper) { now }
+        val answers = mutableListOf<() -> String>({ throw tooManyRequests("2") }, { throw tooManyRequests("4") }, { "done" })
+
+        // Waiting 2 seconds is fine, but not 6 in total
+        val ex = assertThrows<OsuUnavailableException> { limit.call("call", 5_000) { answers.removeAt(0)() } }
+        assertTrue(ex.cause is HttpClientErrorException.TooManyRequests)
+        assertEquals(listOf(2_000L), sleeps)
+
+        // Others wait as long as osu! asked, the turn that was given up is not wasted
+        assertEquals("done", limit.call("background") { answers.removeAt(0)() })
+        assertEquals(listOf(2_000L, 4_000L), sleeps)
+    }
+
+    @Test
+    fun `Should give up right away when everyone has to wait long`() {
+        // Another thread is still waiting, as time doesn't pass
+        val limit = OsuRateLimit(0, { sleeps += it }) { now }
+        var refused = false
+        var calls = 0
+
+        limit.call("background") {
+            calls++
+            if (!refused) {
+                refused = true
+                throw tooManyRequests("60")
+            }
+        }
+        sleeps.clear()
+
+        val ex = assertThrows<OsuUnavailableException> { limit.call("call", OsuWait.REQUEST.maxMillis) { calls++ } }
+        assertNull(ex.cause)
+        assertEquals(emptyList<Long>(), sleeps)
+        assertEquals(2, calls)
+        assertEquals(Long.MAX_VALUE, OsuWait.BACKGROUND.maxMillis)
     }
 
     @Test

@@ -1,5 +1,6 @@
 package nl.greaper.bnplanner.service
 
+import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
@@ -7,6 +8,7 @@ import nl.greaper.bnplanner.model.UserGamemode
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
+import nl.greaper.bnplanner.model.osu.Me
 import nl.greaper.bnplanner.support.FakeOsu
 import nl.greaper.bnplanner.support.Planner
 import nl.greaper.bnplanner.support.Planner.Companion.TOKEN
@@ -17,6 +19,9 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.mock
 
 class UserServiceTest {
     private val planner = Planner()
@@ -154,6 +159,34 @@ class UserServiceTest {
     fun `Should not save interests of an unknown user`() {
         assertNull(service.saveInterests("99", setOf(Gamemode.osu)))
         assertEquals(emptyList<User>(), planner.users.list())
+    }
+
+    @Test
+    fun `Should keep the interests someone chose while osu was asked about them`() {
+        planner.users.saveUser(User("5", "Old", emptyList()))
+        planner.users.saveUser(User("6", "Old", emptyList()))
+        lateinit var racing: UserService
+        val osu =
+            mock<OsuHttpClient> {
+                on { findUserWithId(any(), any(), any()) } doAnswer { call ->
+                    val id = call.getArgument<String>(1)
+                    racing.saveInterests(id, setOf(Gamemode.taiko))
+                    Me(id, "BN", emptyList()).takeIf { id == "5" }
+                }
+            }
+        racing = UserService(planner.users, osu, null)
+
+        assertEquals(User("5", "BN", emptyList(), interests = listOf(Gamemode.taiko)), racing.forceFindUserById(TOKEN, "5"))
+        assertEquals(listOf(Gamemode.taiko), racing.forceFindUserById(TOKEN, "6")!!.interests)
+        assertEquals(
+            listOf(Gamemode.taiko, Gamemode.taiko),
+            listOf("5", "6").map {
+                planner.users
+                    .findUser(it)!!
+                    .interests!!
+                    .single()
+            },
+        )
     }
 
     @Test

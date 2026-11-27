@@ -157,10 +157,7 @@ class DiscordConfig(
             val guildId = event.guild!!.id
             val channelId = event.channel.id
 
-            val existingListener =
-                dataSource
-                    .findByGuildId(guildId)
-                    .find { it.channelId == channelId }
+            val existingListener = dataSource.findByGuildIdAndChannelId(guildId, channelId)
 
             val newListener =
                 DiscordEventListener(

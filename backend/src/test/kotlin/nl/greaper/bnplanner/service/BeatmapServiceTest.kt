@@ -1,6 +1,8 @@
 package nl.greaper.bnplanner.service
 
+import nl.greaper.bnplanner.auth.LoginExpiredException
 import nl.greaper.bnplanner.auth.OsuLogin
+import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.User
@@ -479,8 +481,37 @@ class BeatmapServiceTest {
         FakeOsu.respond("GET /api/v2/users/44?key=id", "{}", status = 503)
         FakeOsu.beatmap("1", title = "New", nominations = "[${nomination("44", "osu")}]")
         val beatmap = beatmap("1", mode(Gamemode.osu, "44", "0", firstNominated = true))
+        planner.save(beatmap)
 
-        assertEquals(beatmap, sync(beatmap))
+        assertThrows<OsuUnavailableException> { service.syncBeatmap(TOKEN, beatmap) }
+        assertThrows<OsuUnavailableException> { service.syncBeatmap(TOKEN, "1") }
+        assertEquals(beatmap, planner.stored())
+    }
+
+    @Test
+    fun `Should tell when osu fails to answer about a beatmap`() {
+        planner.save(beatmap())
+        FakeOsu.respond("GET /api/v2/beatmapsets/1", "{}", status = 500)
+        FakeOsu.respond("GET /api/v2/beatmapsets/2", "{}", status = 401)
+
+        assertThrows<OsuUnavailableException> { service.syncBeatmap(TOKEN, "1") }
+        FakeOsu.respond("GET /api/v2/beatmapsets/3", "{}", status = 503)
+        assertThrows<OsuUnavailableException> { service.addBeatmap(LOGIN, NewBeatmap("3", listOf(Gamemode.osu))) }
+        assertThrows<LoginExpiredException> { service.addBeatmap(LOGIN, NewBeatmap("2", listOf(Gamemode.osu))) }
+        assertEquals(beatmap(), planner.stored())
+        assertEquals(listOf("1"), planner.beatmaps.list().map { it.osuId })
+    }
+
+    @Test
+    fun `Should not keep someone waiting long for osu`() {
+        users("5")
+        planner.save(beatmap())
+        FakeOsu.beatmap("1", nominations = "[${nomination("5", "osu")}]")
+        // osu! asks to wait longer than someone would
+        FakeOsu.refuse("GET /api/v2/beatmapsets/1", 1, retryAfter = "6")
+
+        assertThrows<OsuUnavailableException> { service.syncBeatmap(TOKEN, "1") }
+        assertEquals(beatmap(), planner.stored())
     }
 
     @Test
@@ -727,7 +758,9 @@ class BeatmapServiceTest {
         service.updateBeatmapStatus(unknown, "1", BeatmapStatus.Reset)
         service.updateBeatmapNote(unknown, "1", "note")
         service.deleteBeatmap(unknown, "1")
-        service.logBeatmapAdded(unknown, beatmap())
+        planner.user("10")
+        FakeOsu.beatmap("2")
+        service.addBeatmap(unknown, NewBeatmap("2", listOf(Gamemode.osu)))
 
         assertEquals(5, planner.discord.sent.size)
         assertTrue(planner.discord.sent.all { it.editor == null })

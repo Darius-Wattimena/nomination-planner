@@ -11,7 +11,7 @@ class SyncService(
     private val beatmapService: BeatmapService,
     private val jobs: OsuJobs,
 ) {
-    val log = KotlinLogging.logger { }
+    private val log = KotlinLogging.logger { }
 
     data class Queued(
         val queued: Int,

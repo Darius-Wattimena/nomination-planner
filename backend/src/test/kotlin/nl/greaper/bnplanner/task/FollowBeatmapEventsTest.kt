@@ -154,6 +154,20 @@ class FollowBeatmapEventsTest {
     }
 
     @Test
+    fun `Should sync only after following the events, so those don't overwrite how the beatmaps are now`() {
+        planner.save(beatmap("1"))
+        followed.saveLastId(FollowBeatmapEvents.NAME, 1)
+        (1..FollowBeatmapEvents.MAX_PAGES).forEach { FakeOsu.beatmapsetEvents(it, page(event(1000L - it, "qualify", "1"))) }
+        // Loved by now
+        FakeOsu.beatmap("1", ranked = 4)
+
+        assertEquals(1, follower.follow())
+        planner.osuJobs.finish()
+
+        assertEquals(BeatmapStatus.Graved, planner.stored("1").status)
+    }
+
+    @Test
     fun `Should ask osu which gamemode is the main one after a hybrid is nominated`() {
         planner.user("20", "Nominator", nominator(Gamemode.osu))
         planner.save(beatmap("1", mode(Gamemode.osu), mode(Gamemode.taiko)))

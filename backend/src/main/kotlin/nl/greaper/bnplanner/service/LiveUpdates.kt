@@ -1,5 +1,6 @@
 package nl.greaper.bnplanner.service
 
+import jakarta.annotation.PreDestroy
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
 import nl.greaper.bnplanner.datasource.UserDataSource
 import nl.greaper.bnplanner.model.PlannerUpdate
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Service
 import org.springframework.web.context.request.async.DeferredResult
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -58,8 +60,18 @@ class LiveUpdates(
     /** Several changes at once, like a sync, are sent together */
     private fun changed() {
         if (isWakeScheduled.compareAndSet(false, true)) {
-            executor.schedule({ wake() }, 50, TimeUnit.MILLISECONDS)
+            try {
+                executor.schedule({ wake() }, 50, TimeUnit.MILLISECONDS)
+            } catch (ex: RejectedExecutionException) {
+                // Stopping, those waiting get an answer once they time out
+            }
         }
+    }
+
+    @PreDestroy
+    fun stop() {
+        executor.shutdownNow()
+        executor.awaitTermination(5, TimeUnit.SECONDS)
     }
 
     private fun wake() {

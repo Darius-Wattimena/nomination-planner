@@ -36,11 +36,8 @@ configurations.matching { it.name.startsWith("ktlint") }.configureEach {
 dependencies {
     val springBoot = platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
     implementation(springBoot)
-    annotationProcessor(springBoot)
     testImplementation(springBoot)
     providedRuntime(springBoot)
-
-    annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 
     // Spring
     implementation("org.springframework.boot:spring-boot-starter-security")

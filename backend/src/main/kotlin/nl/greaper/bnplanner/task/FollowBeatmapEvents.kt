@@ -5,7 +5,6 @@ import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
 import nl.greaper.bnplanner.datasource.FollowedDataSource
 import nl.greaper.bnplanner.model.beatmap.Beatmap
-import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.model.osu.BeatmapsetEvent
 import nl.greaper.bnplanner.model.osu.BeatmapsetEventType
 import nl.greaper.bnplanner.service.BeatmapService
@@ -14,6 +13,7 @@ import nl.greaper.bnplanner.service.OsuService
 import nl.greaper.bnplanner.util.Backoff
 import nl.greaper.bnplanner.util.EventPages
 import nl.greaper.bnplanner.util.Sleeper
+import nl.greaper.bnplanner.util.isInProgress
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -72,28 +72,27 @@ class FollowBeatmapEvents(
         }
 
         val found = pages.findNewer(last) { index -> osuClient.findBeatmapsetEvents(token, index + 1).events }
+        val changedCount =
+            found.events.count { event ->
+                val changed = beatmapService.applyOsuEvent(token, event)
+                followed.saveLastId(NAME, event.id)
+
+                if (changed != null && isMainGamemodeUnknown(changed, event)) {
+                    // Only osu! knows which gamemode needs two nominations, see findMainGamemodes
+                    jobs.syncBeatmaps(listOf(changed.osuId))
+                }
+
+                changed != null
+            }
 
         if (!found.complete) {
-            // osu! knows how the beatmaps are now
-            val inProgress =
-                beatmapDataSource
-                    .findAll { it.status != BeatmapStatus.Ranked && it.status != BeatmapStatus.Graved }
-                    .map { it.osuId }
+            // osu! knows how the beatmaps are now. Only afterwards, so the older events don't overwrite what the syncs find.
+            val inProgress = beatmapDataSource.findAll { it.isInProgress() }.map { it.osuId }
             log.warn { "Too many beatmap events of osu! after event $last to read, syncing ${inProgress.size} beatmaps instead" }
             jobs.syncBeatmaps(inProgress)
         }
 
-        return found.events.count { event ->
-            val changed = beatmapService.applyOsuEvent(token, event)
-            followed.saveLastId(NAME, event.id)
-
-            if (changed != null && isMainGamemodeUnknown(changed, event)) {
-                // Only osu! knows which gamemode needs two nominations, see findMainGamemodes
-                jobs.syncBeatmaps(listOf(changed.osuId))
-            }
-
-            changed != null
-        }
+        return changedCount
     }
 
     private fun isMainGamemodeUnknown(

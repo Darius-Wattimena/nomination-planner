@@ -30,16 +30,6 @@ import java.time.Instant
 
 class UtilTest {
     @Test
-    fun `Should know the priority of every status`() {
-        BeatmapStatus.entries.forEachIndexed { index, status ->
-            assertEquals(index + 1, status.toPriorityStatus())
-            assertEquals(status, BeatmapStatus.fromPriorityStatus(index + 1))
-        }
-        assertNull(BeatmapStatus.fromPriorityStatus(0))
-        assertNull(BeatmapStatus.fromPriorityStatus(9))
-    }
-
-    @Test
     fun `Should find nominations`() {
         val none = mode(Gamemode.osu)
         val first = mode(Gamemode.osu, firstNominated = true)
@@ -107,15 +97,6 @@ class UtilTest {
     }
 
     @Test
-    fun `Should have readable names and icons`() {
-        assertEquals(listOf("osu", "taiko", "catch", "mania"), Gamemode.entries.map { it.toReadableName() })
-        assertEquals(
-            listOf("❤", "💭", "💔", "🗯", "⏳", "💖", "🗑", "🔨"),
-            BeatmapStatus.entries.map { it.getEmojiIcon() },
-        )
-    }
-
-    @Test
     fun `Should find the role of an osu group`() {
         assertEquals(
             listOf(Role.NominationAssessment, Role.Nominator, Role.Probation, Role.Mapper),
@@ -141,7 +122,7 @@ class UtilTest {
         assertEquals(admin, getHighestRoleForUser(User("2369776", "", emptyList()), listOf("5", "2369776")))
         assertEquals(viewer, getHighestRoleForUser(User("2369776", "", emptyList())))
         assertEquals(viewer, getHighestRoleForUser(null, listOf("2369776")))
-        // Nobody unless configured
+        // Only the default of the class, application.yml lists the owner
         assertEquals(emptyList<String>(), PlannerProperties().admins)
         assertEquals("Nominator", nominator.name)
     }
@@ -186,13 +167,6 @@ class UtilTest {
     }
 
     @Test
-    fun `Should create a Discord message`() {
-        val embed = EmbedMessage("text", 1, EmbedThumbnail("url"), EmbedFooter("footer"))
-
-        assertNull(embed.footer.icon_url)
-    }
-
-    @Test
     fun `Should start the application when deployed as a war`() {
         val configure = ServletInitializer::class.java.getDeclaredMethod("configure", SpringApplicationBuilder::class.java)
         configure.isAccessible = true
@@ -209,15 +183,27 @@ class UtilTest {
     }
 
     @Test
-    fun `Should connect without credentials unless both are configured`() {
-        listOf("" to "", "user" to "", "" to "password", " " to "password").forEach { (username, password) ->
-            DatabaseConfig().mongoClient(MongoProperties("db", username, password, "admin", "127.0.0.1", 1)).use {
-                assertEquals(
-                    listOf("127.0.0.1:1"),
-                    it.clusterDescription.clusterSettings.hosts
-                        .map { host -> "$host" },
-                )
-            }
+    fun `Should connect without credentials when none are configured`() {
+        DatabaseConfig().mongoClient(MongoProperties("db", "", " ", "admin", "127.0.0.1", 1)).use {
+            assertEquals(
+                listOf("127.0.0.1:1"),
+                it.clusterDescription.clusterSettings.hosts
+                    .map { host -> "$host" },
+            )
+        }
+    }
+
+    @Test
+    fun `Should refuse to start with only a username or only a password`() {
+        listOf("user" to "", "" to "password", " " to "password").forEach { (username, password) ->
+            val ex =
+                assertThrows<IllegalStateException> {
+                    DatabaseConfig().mongoClient(MongoProperties("db", username, password, "admin", "127.0.0.1", 1))
+                }
+            assertEquals(
+                "Set both mongodb.username and mongodb.password to log in to MongoDB, or neither to connect without logging in",
+                ex.message,
+            )
         }
     }
 

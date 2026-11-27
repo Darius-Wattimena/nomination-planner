@@ -65,4 +65,16 @@ class UserDataSource(
         collection.replaceOne(Filters.eq("_id", user.osuId), toDocument(user), ReplaceOptions().upsert(true))
         addInMemoryUser(user)
     }
+
+    /**
+     * Change the current version of a user, nobody else can change them in between. So this has to be quick.
+     *
+     * @param change gets null for someone unknown, returns null when nothing has to be saved
+     * @return the saved user, null when nothing was saved
+     */
+    @Synchronized
+    fun <T : User?> modifyUser(
+        osuId: String,
+        change: (current: User?) -> T,
+    ): T = change(users[osuId]).also { if (it != null) saveUser(it) }
 }

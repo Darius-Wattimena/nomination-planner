@@ -8,9 +8,15 @@ import nl.greaper.bnplanner.auth.OsuTokens
 import nl.greaper.bnplanner.auth.OsuUserService
 import nl.greaper.bnplanner.service.AuthService
 import nl.greaper.bnplanner.service.UserService
+import org.bson.Document
+import org.mongodb.spring.session.AbstractMongoSessionConverter
+import org.mongodb.spring.session.JdkMongoSessionConverter
+import org.mongodb.spring.session.MongoSession
 import org.mongodb.spring.session.config.annotation.web.http.EnableMongoHttpSession
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.serializer.support.DeserializingConverter
+import org.springframework.core.serializer.support.SerializingConverter
 import org.springframework.data.mongodb.core.MongoTemplate
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder
@@ -22,6 +28,7 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod
 import org.springframework.session.web.http.CookieSerializer
 import org.springframework.session.web.http.DefaultCookieSerializer
+import java.time.Duration
 
 /** Logging in with osu!, staying logged in through a session kept in MongoDB */
 @Configuration
@@ -77,6 +84,25 @@ class LoginConfig {
         userService: UserService,
         authService: AuthService,
     ) = LoginFlow(registrations, config, userService, authService)
+
+    /**
+     * Stores when a session expires using how long it is kept right now, otherwise a change of that (see LoginFlow) only counts once
+     * the session is used again
+     */
+    @Bean
+    fun sessionConverter(): AbstractMongoSessionConverter =
+        object : JdkMongoSessionConverter(
+            SerializingConverter(),
+            DeserializingConverter(LoginConfig::class.java.classLoader),
+            Duration.ofSeconds(SESSION_SECONDS.toLong()),
+        ) {
+            override fun convert(session: MongoSession): Document {
+                // Works out when it expires again
+                val accessed = session.lastAccessedTime
+                session.lastAccessedTime = accessed
+                return super.convert(session)
+            }
+        }
 
     /** Only used by the sessions */
     @Bean

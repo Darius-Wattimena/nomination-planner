@@ -2,6 +2,7 @@ package nl.greaper.bnplanner.auth
 
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import nl.greaper.bnplanner.config.LoginConfig
 import nl.greaper.bnplanner.config.LoginProperties
 import nl.greaper.bnplanner.service.AuthService
 import nl.greaper.bnplanner.service.UserService
@@ -28,6 +29,9 @@ class LoginFlow(
     AuthenticationFailureHandler {
     companion object {
         const val RETURN_TO = "loginReturnTo"
+
+        /** How long a session started by logging in is kept until it is logged in, anybody can start one */
+        const val LOGIN_SECONDS = 10 * 60
     }
 
     private val resolver = DefaultOAuth2AuthorizationRequestResolver(registrations, "/oauth2/authorization")
@@ -46,7 +50,14 @@ class LoginFlow(
 
         // Only a page of the website, never somewhere else
         val page = returnTo?.takeIf { it.startsWith("/") && !it.startsWith("//") && !it.contains('\\') } ?: "/"
-        request.session.setAttribute(RETURN_TO, page)
+        val isNew = request.getSession(false) == null
+        val session = request.session
+        session.setAttribute(RETURN_TO, page)
+
+        // Only kept as long as someone logged in is when they finish logging in. One of someone logged in already stays as it is.
+        if (isNew) {
+            session.maxInactiveInterval = LOGIN_SECONDS
+        }
     }
 
     override fun onAuthenticationSuccess(
@@ -57,8 +68,10 @@ class LoginFlow(
         authService.logLogin(userService.findUserById(authentication.name))
 
         // Not there when logging in didn't start at the planner, like a callback of an earlier attempt
-        val page = request.session.getAttribute(RETURN_TO) as? String ?: "/"
-        request.session.removeAttribute(RETURN_TO)
+        val session = request.session
+        session.maxInactiveInterval = LoginConfig.SESSION_SECONDS
+        val page = session.getAttribute(RETURN_TO) as? String ?: "/"
+        session.removeAttribute(RETURN_TO)
         response.sendRedirect(config.websiteUrl.trimEnd('/') + page)
     }
 

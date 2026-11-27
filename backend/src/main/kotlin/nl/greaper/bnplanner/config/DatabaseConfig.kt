@@ -15,8 +15,13 @@ class DatabaseConfig {
 
     @Bean
     fun mongoClient(config: MongoProperties): MongoClient {
+        val hasCredentials = config.username.isNotBlank()
+        check(hasCredentials == config.password.isNotBlank()) {
+            "Set both mongodb.username and mongodb.password to log in to MongoDB, or neither to connect without logging in"
+        }
+
         val uri =
-            if (config.username.isNotBlank() && config.password.isNotBlank()) {
+            if (hasCredentials) {
                 val encodedUsername = URLEncoder.encode(config.username, encoding)
                 val encodedPassword = URLEncoder.encode(config.password, encoding)
                 val encodedAuthDb = URLEncoder.encode(config.authDb, encoding)
