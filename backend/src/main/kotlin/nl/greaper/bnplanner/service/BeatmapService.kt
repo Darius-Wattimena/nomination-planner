@@ -14,6 +14,7 @@ import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.PageLimit
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.beatmap.Beatmap
+import nl.greaper.bnplanner.model.beatmap.BeatmapFilter
 import nl.greaper.bnplanner.model.beatmap.BeatmapGamemode
 import nl.greaper.bnplanner.model.beatmap.BeatmapNominator
 import nl.greaper.bnplanner.model.beatmap.BeatmapPage
@@ -29,7 +30,6 @@ import nl.greaper.bnplanner.model.osu.BeatmapSet
 import nl.greaper.bnplanner.model.osu.BeatmapsetEvent
 import nl.greaper.bnplanner.model.osu.BeatmapsetEventType
 import nl.greaper.bnplanner.service.UserService.Companion.MISSING_USER_ID
-import nl.greaper.bnplanner.util.Sleeper
 import nl.greaper.bnplanner.util.findMainGamemodes
 import nl.greaper.bnplanner.util.getEmojiIcon
 import nl.greaper.bnplanner.util.hasAnyNomination
@@ -45,99 +45,74 @@ class BeatmapService(
     private val userService: UserService,
     private val osuHttpClient: OsuHttpClient,
     private val discordClient: DiscordClient?,
-    private val sleeper: Sleeper = Sleeper.THREAD,
 ) {
     val log = KotlinLogging.logger { }
 
+    /** How adding a beatmap went */
+    sealed interface AddResult {
+        data class Added(
+            val beatmap: ExposedBeatmap,
+        ) : AddResult
+
+        data object AlreadyOnPlanner : AddResult
+
+        data object UnknownToOsu : AddResult
+    }
+
     fun findBeatmap(id: String): Beatmap? = dataSource.findById(id)
 
-    fun findBeatmapsByNominator(nominatorId: String): List<Beatmap> {
-        val filter =
-            setupFilter(
-                nominators = setOf(nominatorId),
-                page = null,
-            )
-
-        return dataSource.findAll(filter)
-    }
+    /** On every page */
+    fun findBeatmapsByNominator(nominatorId: String): List<Beatmap> =
+        dataSource.findAll { beatmap -> beatmap.gamemodes.any { gamemode -> gamemode.nominators.any { it.nominatorId == nominatorId } } }
 
     fun findExposedBeatmap(id: String): ExposedBeatmap? = dataSource.findById(id)?.toExposedBeatmap()
 
+    /** @return false when the beatmap is not on the planner */
     fun deleteBeatmap(
         login: OsuLogin,
         osuId: String,
-    ) {
-        val databaseBeatmap = dataSource.findById(osuId) ?: return
-        if (dataSource.deleteById(osuId)) {
-            logBeatmapDelete(login, databaseBeatmap)
+    ): Boolean {
+        val databaseBeatmap = dataSource.findById(osuId) ?: return false
+
+        // Someone else may have deleted it in the meantime
+        if (!dataSource.deleteById(osuId)) {
+            return false
         }
+
+        logBeatmapDelete(login, databaseBeatmap)
+        return true
     }
 
-    fun countBeatmaps(
-        search: String?,
-        artist: String?,
-        title: String?,
-        mapper: String?,
-        status: Set<BeatmapStatus>,
-        nominators: Set<String>,
-        page: BeatmapPage,
-        gamemodes: Set<Gamemode>,
-        missingNominator: Set<Gamemode>,
-    ): Int = dataSource.count(setupFilter(artist, title, mapper, status, nominators, page, gamemodes, missingNominator, search))
+    fun countBeatmaps(filter: BeatmapFilter): Int = dataSource.count(setupFilter(filter))
 
-    fun findBeatmapsIds(
-        search: String?,
-        artist: String?,
-        title: String?,
-        mapper: String?,
-        status: Set<BeatmapStatus>,
-        nominators: Set<String>,
-        page: BeatmapPage,
-        gamemodes: Set<Gamemode>,
-        missingNominator: Set<Gamemode>,
-    ): Set<String> {
-        val filter = setupFilter(artist, title, mapper, status, nominators, page, gamemodes, missingNominator, search)
+    fun findBeatmaps(
+        filter: BeatmapFilter,
+        pageNumber: Int,
+        pageLimit: PageLimit,
+    ): List<ExposedBeatmap> = dataSource.findAll(setupFilter(filter), pageNumber, pageLimit).map { it.toExposedBeatmap() }
+
+    /** The ids of the beatmaps in progress with one of these statuses, or of all of them when there are none */
+    fun findPendingIds(statuses: Set<BeatmapStatus>): Set<String> {
+        val wanted = statuses.ifEmpty { BeatmapPage.PENDING.statuses }
 
         return dataSource
-            .findAll(filter)
+            .findAll { it.status in wanted }
             .map { it.osuId }
             .toSet()
     }
 
-    fun findBeatmaps(
-        search: String?,
-        artist: String?,
-        title: String?,
-        mapper: String?,
-        status: Set<BeatmapStatus>,
-        nominators: Set<String>,
-        page: BeatmapPage,
-        pageNumber: Int,
-        pageLimit: PageLimit,
-        gamemodes: Set<Gamemode>,
-        missingNominator: Set<Gamemode>,
-    ): List<ExposedBeatmap> =
-        dataSource
-            .findAll(
-                setupFilter(artist, title, mapper, status, nominators, page, gamemodes, missingNominator, search),
-                pageNumber,
-                pageLimit,
-            ).mapNotNull { it.toExposedBeatmap() }
-
     fun addBeatmap(
         login: OsuLogin,
         input: NewBeatmap,
-    ): ExposedBeatmap? {
+    ): AddResult {
         val addDate = Instant.now()
 
-        val databaseBeatmap = dataSource.findById(input.osuId)
-
-        // Only request a beatmap from the api if we don't have it
-        if (databaseBeatmap != null) {
-            return databaseBeatmap.toExposedBeatmap()
+        // Only ask osu! for a beatmap that isn't on the planner yet
+        if (dataSource.findById(input.osuId) != null) {
+            return AddResult.AlreadyOnPlanner
         }
 
-        val osuBeatmap = osuHttpClient.findBeatmapWithId(login.accessToken, input.osuId) ?: return null
+        val osuBeatmap = osuHttpClient.findBeatmapWithId(login.accessToken, input.osuId) ?: return AddResult.UnknownToOsu
 
         val preparedBeatmapGamemodes =
             input.gamemodes.map {
@@ -148,22 +123,14 @@ class BeatmapService(
                             BeatmapNominator(MISSING_USER_ID, false),
                             BeatmapNominator(MISSING_USER_ID, false),
                         ),
-                    isReady = false,
                 )
             }
 
         val databaseUser = userService.findUserById(osuBeatmap.user_id)
 
         if (databaseUser == null || databaseUser.restricted == true) {
-            // Sleep the thread if we need to find the user as well to avoid the call being blocked
-            sleeper.sleep(1_000)
-            val mapper = userService.forceFindUserById(login.accessToken, osuBeatmap.user_id) ?: databaseUser
-
-            if (mapper == null) {
-                // A beatmap without a known mapper would never be shown
-                log.warn { "Could not add beatmap as the mapper could not be found (osuId: ${input.osuId})" }
-                return null
-            }
+            // Without a clear answer of osu!, the beatmap is shown with the mapper name osu! gave
+            userService.forceFindUserById(login.accessToken, osuBeatmap.user_id)
         }
 
         val newBeatmap =
@@ -183,10 +150,26 @@ class BeatmapService(
             )
 
         // Asking osu! takes a while, someone else may have added it in the meantime
-        dataSource.insertIfMissing(newBeatmap)?.let { return it.toExposedBeatmap() }
+        if (dataSource.insertIfMissing(newBeatmap) != null) {
+            return AddResult.AlreadyOnPlanner
+        }
 
         logBeatmapAdded(login, newBeatmap)
-        return newBeatmap.toExposedBeatmap()
+        return AddResult.Added(newBeatmap.toExposedBeatmap())
+    }
+
+    /**
+     * Sync a beatmap right away, with the osu! token of whoever asked for it
+     *
+     * @return the beatmap as it is now, null when it is not on the planner
+     */
+    fun syncBeatmap(
+        osuApiToken: String,
+        osuId: String,
+    ): ExposedBeatmap? {
+        val beatmap = findBeatmap(osuId) ?: return null
+        syncBeatmap(osuApiToken, beatmap)
+        return findExposedBeatmap(osuId)
     }
 
     fun syncBeatmap(
@@ -243,6 +226,11 @@ class BeatmapService(
                     BeatmapStatus.Qualified
                 }
 
+                // Loved, which a beatmap on the planner is never going to be ranked as
+                4 -> {
+                    BeatmapStatus.Graved
+                }
+
                 else -> {
                     if (osuBeatmap.currentNominations.isNotEmpty()) {
                         BeatmapStatus.Nominated
@@ -285,7 +273,6 @@ class BeatmapService(
                     BeatmapGamemode(
                         newGamemode,
                         listOf(newGamemodeFirst, newGamemodeSecond),
-                        false,
                     )
                 }
 
@@ -309,7 +296,7 @@ class BeatmapService(
                 val newFirst = newNominators[0]
                 val newSecond = newNominators.getOrNull(1)
 
-                val updatedNomiantorPair =
+                val updatedNominatorPair =
                     if (newSecond != null) {
                         // Both nominators can be updated
                         BeatmapNominator(newFirst, true) to BeatmapNominator(newSecond, true)
@@ -332,7 +319,7 @@ class BeatmapService(
                         }
                     }
 
-                beatmapGamemode.copy(nominators = updatedNomiantorPair.toList())
+                beatmapGamemode.copy(nominators = updatedNominatorPair.toList())
             }
 
         return beatmap.copy(
@@ -443,7 +430,7 @@ class BeatmapService(
         if (existing == null) {
             return beatmap.copy(
                 gamemodes =
-                    beatmap.gamemodes + BeatmapGamemode(gamemode, listOf(nominated, BeatmapNominator(MISSING_USER_ID, false)), false),
+                    beatmap.gamemodes + BeatmapGamemode(gamemode, listOf(nominated, BeatmapNominator(MISSING_USER_ID, false))),
             )
         }
 
@@ -498,8 +485,7 @@ class BeatmapService(
         val message =
             StringBuilder()
                 .append("${beatmap.status.getEmojiIcon()} **Updated status to ${beatmap.status.name}**$gamemodeText")
-                .append("\n**[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})**")
-                .append("\nMapped by [${beatmap.mapper}](https://osu.ppy.sh/users/${beatmap.mapperId})")
+                .append(describe(beatmap))
 
         discordClient?.send(
             description = message.toString(),
@@ -511,28 +497,16 @@ class BeatmapService(
         )
     }
 
-    fun setupFilter(
-        artist: String? = null,
-        title: String? = null,
-        mapper: String? = null,
-        status: Set<BeatmapStatus> = emptySet(),
-        nominators: Set<String> = emptySet(),
-        page: BeatmapPage?,
-        gamemodes: Set<Gamemode> = emptySet(),
-        missingNominator: Set<Gamemode> = emptySet(),
-        search: String? = null,
-    ): (Beatmap) -> Boolean {
-        val statuses = page?.let { findStatuses(it, status) } ?: BeatmapStatus.entries.toSet()
+    private fun setupFilter(filter: BeatmapFilter): (Beatmap) -> Boolean {
+        val search = filter.search.orEmpty()
+        val nominators = filter.nominators.orEmpty()
+        val gamemodes = filter.gamemodes.orEmpty()
 
         return { beatmap ->
-            beatmap.status in statuses &&
-                beatmap.artist.contains(artist.orEmpty(), true) &&
-                beatmap.title.contains(title.orEmpty(), true) &&
-                beatmap.mapper.contains(mapper.orEmpty(), true) &&
-                listOf(beatmap.artist, beatmap.title, beatmap.mapper).any { it.contains(search.orEmpty(), true) } &&
+            beatmap.status in filter.page.statuses &&
+                listOf(beatmap.artist, beatmap.title, beatmap.mapper).any { it.contains(search, true) } &&
                 isEmptyOrAny(nominators, beatmap.gamemodes.flatMap { it.nominators }.map { it.nominatorId }) &&
-                isEmptyOrAny(gamemodes, beatmap.gamemodes.map { it.gamemode }) &&
-                isEmptyOrAny(missingNominator, beatmap.gamemodes.filter { it.isMissingNominator() }.map { it.gamemode })
+                isEmptyOrAny(gamemodes, beatmap.gamemodes.map { it.gamemode })
         }
     }
 
@@ -540,23 +514,6 @@ class BeatmapService(
         wanted: Set<T>,
         found: List<T>,
     ): Boolean = wanted.isEmpty() || found.any { it in wanted }
-
-    private fun BeatmapGamemode.isMissingNominator(): Boolean = nominators.any { it.nominatorId == MISSING_USER_ID }
-
-    /** The wanted statuses of a page, or all of them when there are none */
-    private fun findStatuses(
-        page: BeatmapPage,
-        wanted: Set<BeatmapStatus>,
-    ): Set<BeatmapStatus> {
-        val ofPage =
-            when (page) {
-                BeatmapPage.PENDING -> BeatmapStatus.entries - BeatmapStatus.Ranked - BeatmapStatus.Graved
-                BeatmapPage.RANKED -> listOf(BeatmapStatus.Ranked)
-                BeatmapPage.GRAVEYARD -> listOf(BeatmapStatus.Graved)
-            }.toSet()
-
-        return ofPage.intersect(wanted).ifEmpty { ofPage }
-    }
 
     fun updateBeatmapNote(
         login: OsuLogin,
@@ -649,50 +606,30 @@ class BeatmapService(
         }
     }
 
-    fun updateBeatmapGamemode(
+    /** A gamemode that is not part of the beatmap yet is added, with missing nominators. Null removes the gamemode. */
+    private fun updateBeatmapGamemode(
         beatmap: Beatmap,
         gamemode: Gamemode,
         new: (old: BeatmapGamemode) -> BeatmapGamemode?,
-    ): Beatmap? {
-        val updatingGamemode = beatmap.gamemodes.find { it.gamemode == gamemode }
-
-        if (updatingGamemode == null) {
-            val newBeatmapGamemode =
-                BeatmapGamemode(
-                    gamemode = gamemode,
-                    nominators =
-                        listOf(
-                            BeatmapNominator(MISSING_USER_ID, false),
-                            BeatmapNominator(MISSING_USER_ID, false),
-                        ),
-                    isReady = false,
-                )
-            return updateBeatmapGamemode(beatmap, newBeatmapGamemode, new)
-        }
-
-        return updateBeatmapGamemode(beatmap, updatingGamemode, new)
-    }
-
-    fun updateBeatmapGamemode(
-        beatmap: Beatmap,
-        updatingGamemode: BeatmapGamemode,
-        new: (old: BeatmapGamemode) -> BeatmapGamemode?,
     ): Beatmap {
+        val updatingGamemode =
+            beatmap.gamemodes.find { it.gamemode == gamemode }
+                ?: BeatmapGamemode(gamemode, listOf(BeatmapNominator(MISSING_USER_ID, false), BeatmapNominator(MISSING_USER_ID, false)))
         val newGamemode = new(updatingGamemode)
 
-        // Only take the updated gamemode if the new gamemode isn't null
-        val updatedGamemodes =
-            if (newGamemode == null) {
-                beatmap.gamemodes - updatingGamemode
-            } else {
-                beatmap.gamemodes - updatingGamemode + newGamemode
-            }
+        // The updated gamemode moves to the end
+        val otherGamemodes = beatmap.gamemodes - updatingGamemode
 
         return beatmap.copy(
-            gamemodes = updatedGamemodes,
+            gamemodes = if (newGamemode == null) otherGamemodes else otherGamemodes + newGamemode,
             dateUpdated = Instant.now(),
         )
     }
+
+    /** The beatmap and its mapper, as shown below every message about it */
+    private fun describe(beatmap: Beatmap): String =
+        "\n**[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})**" +
+            "\nMapped by [${beatmap.mapper}](https://osu.ppy.sh/users/${beatmap.mapperId})"
 
     fun logBeatmapAdded(
         login: OsuLogin,
@@ -706,8 +643,7 @@ class BeatmapService(
             StringBuilder()
                 .append("$CREATED_BEATMAP_ICON **Created**")
                 .append("\nGamemodes: $gamemodes")
-                .append("\n**[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})**")
-                .append("\nMapped by [${beatmap.mapper}](https://osu.ppy.sh/users/${beatmap.mapperId})")
+                .append(describe(beatmap))
 
         discordClient?.sendBeatmapUpdate(
             description = message.toString(),
@@ -728,9 +664,8 @@ class BeatmapService(
 
         val message =
             StringBuilder()
-                .append("$DELETED_BEATMAP_ICON **Deleted")
-                .append("\n[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})**")
-                .append("\nMapped by [${beatmap.mapper}](https://osu.ppy.sh/users/${beatmap.mapperId})")
+                .append("$DELETED_BEATMAP_ICON **Deleted**")
+                .append(describe(beatmap))
 
         discordClient?.sendBeatmapUpdate(
             description = message.toString(),
@@ -753,14 +688,15 @@ class BeatmapService(
             if (beatmap.note.isBlank()) {
                 "$CHANGE_BEATMAP_NOTE_ICON **Removed note**"
             } else {
-                "$CHANGE_BEATMAP_NOTE_ICON **Updated note**\n```${beatmap.note.replace("""\n  +""".toRegex(), "\n")}```"
+                // A ``` in the note itself would end the code block, a zero width space in between keeps it as text
+                val note = beatmap.note.replace("""\n  +""".toRegex(), "\n").replace("```", "`\u200B`\u200B`")
+                "$CHANGE_BEATMAP_NOTE_ICON **Updated note**\n```$note```"
             }
 
         val message =
             StringBuilder()
                 .append(noteText)
-                .append("\n**[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})**")
-                .append("\nMapped by [${beatmap.mapper}](https://osu.ppy.sh/users/${beatmap.mapperId})")
+                .append(describe(beatmap))
 
         discordClient?.sendBeatmapUpdate(
             description = message.toString(),
@@ -781,9 +717,8 @@ class BeatmapService(
 
         val message =
             StringBuilder()
-                .append("${beatmap.status.getEmojiIcon()} **Updated status to ${beatmap.status.name}")
-                .append("\n[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})**")
-                .append("\nMapped by [${beatmap.mapper}](https://osu.ppy.sh/users/${beatmap.mapperId})")
+                .append("${beatmap.status.getEmojiIcon()} **Updated status to ${beatmap.status.name}**")
+                .append(describe(beatmap))
 
         discordClient?.sendBeatmapUpdate(
             description = message.toString(),
@@ -866,8 +801,8 @@ class BeatmapService(
         val message =
             StringBuilder()
                 .append(nominatorChangesText)
-                .append("\n**[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})**")
-                .append("\nMapped by [${beatmap.mapper}](https://osu.ppy.sh/users/${beatmap.mapperId}) [$beatmapGamemodeMessagePart]")
+                .append(describe(beatmap))
+                .append(" [$beatmapGamemodeMessagePart]")
 
         discordClient?.sendBeatmapUpdate(
             description = message.toString(),
@@ -891,8 +826,9 @@ class BeatmapService(
         return gamemode
     }
 
-    private fun Beatmap.toExposedBeatmap(): ExposedBeatmap? {
-        val mapper = userService.findUserById(mapperId) ?: return null
+    private fun Beatmap.toExposedBeatmap(): ExposedBeatmap {
+        // Shown with the name osu! gave, until the planner knows the mapper
+        val mapper = userService.findUserById(mapperId) ?: User(mapperId, this.mapper, emptyList())
         val preparedGamemodes =
             gamemodes.map { entry ->
                 val gamemodeNominators =
@@ -905,7 +841,6 @@ class BeatmapService(
                 ExposedBeatmapGamemode(
                     gamemode = entry.gamemode,
                     nominators = gamemodeNominators,
-                    isReady = entry.isReady,
                 )
             }
 

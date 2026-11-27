@@ -18,7 +18,6 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.skyscreamer.jsonassert.JSONAssert
 import org.skyscreamer.jsonassert.JSONCompareMode
-import org.springframework.http.HttpMethod
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClientException
 import java.time.Instant
@@ -40,7 +39,7 @@ class OsuHttpClientRequestTest {
         JSONAssert.assertEquals(expectedBody, request.body, JSONCompareMode.STRICT)
     }
 
-    private val tokenResponse = AuthToken("Bearer", 86400, "made-up-access", "made-up-refresh")
+    private val tokenResponse = AuthToken("Bearer", 86400, "made-up-access")
 
     @Test
     fun `Should use osu by default`() {
@@ -58,15 +57,6 @@ class OsuHttpClientRequestTest {
         assertEquals(listOf("GET /api/v2/users/5?key=id"), FakeOsu.calls())
         assertEquals("Bearer token", FakeOsu.requests.single().header("Authorization"))
         assertEquals("", FakeOsu.requests.single().body)
-    }
-
-    @Test
-    fun `Should not request users that are always restricted`() {
-        listOf("3071175", "2697284", "6694242").forEach {
-            FakeOsu.user(it, "Someone")
-            assertNull(client.findUserWithId("token", it))
-        }
-        assertEquals(emptyList<String>(), FakeOsu.calls())
     }
 
     @Test
@@ -138,14 +128,6 @@ class OsuHttpClientRequestTest {
         FakeOsu.respond("GET /api/v2/beatmapsets/8", "{}")
 
         listOf("4", "5", "6", "7", "8").forEach { assertNull(client.findBeatmapWithId("token", it)) }
-    }
-
-    @Test
-    fun `Should be able to send a body`() {
-        FakeOsu.respond("POST /api/v2/path", "answer")
-
-        assertEquals("answer", client.request("/path", HttpMethod.POST, "token", "body").body)
-        assertEquals("body", FakeOsu.requests.single().body)
     }
 
     @Test

@@ -24,9 +24,13 @@ class PlannerService(
         val token = tokens.create()
         val versions = tokens.parse(since) ?: return findAll(token)
 
-        val changed = beatmapDataSource.changes.findSince(versions.beatmaps)
-        val (inProgress, removed) = changed.partition { id -> beatmapDataSource.findById(id)?.isInProgress() == true }
-        val beatmaps = inProgress.mapNotNull { beatmapDataSource.findById(it) }
+        // Null when it is no longer on the planner or no longer in progress
+        val changed =
+            beatmapDataSource.changes
+                .findSince(versions.beatmaps)
+                .associateWith { id -> beatmapDataSource.findById(id)?.takeIf { it.isInProgress() } }
+        val beatmaps = changed.values.filterNotNull()
+        val removed = changed.filterValues { it == null }.keys.toList()
         val changedUsers = userDataSource.changes.findSince(versions.users)
 
         return PlannerUpdate(

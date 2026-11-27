@@ -244,7 +244,7 @@ class DiscordBotTest {
         confidential: Boolean,
         gamemodes: List<Gamemode>,
         thumbnail: String = "https://a.ppy.sh/1",
-        footer: EmbedFooter = EmbedFooter("Aiess"),
+        footer: EmbedFooter = EmbedFooter("osu!"),
     ): List<String?> {
         discord.messages.clear()
         client.send("text", EmbedColor.BLUE, EmbedThumbnail(thumbnail), footer, confidential, gamemodes)
@@ -292,7 +292,7 @@ class DiscordBotTest {
         assertEquals("text", embed.getString("description"))
         assertEquals(3447003, embed.getInt("color"))
         assertEquals("https://a.ppy.sh/1", embed.getObject("thumbnail").getString("url"))
-        assertEquals("Aiess", embed.getObject("footer").getString("text"))
+        assertEquals("osu!", embed.getObject("footer").getString("text"))
         assertTrue(embed.getObject("footer").isNull("icon_url"))
 
         send(false, emptyList(), thumbnail = "", footer = EmbedFooter("", "https://a.ppy.sh/2"))
@@ -344,6 +344,35 @@ class DiscordBotTest {
         assertEquals(listOf("2"), send(false, emptyList()))
         assertEquals(listOf(listener("2")), source.getListeners())
         assertEquals(listOf(listener("2")), source.list())
+    }
+
+    @Test
+    fun `Should keep a listener when Discord doesn't know the channel right now`() {
+        source.create(listener("gone"))
+        source.create(DiscordEventListener("unavailable", "elsewhere", null))
+
+        // Not connected yet
+        discord.status = JDA.Status.CONNECTING_TO_WEBSOCKET
+        assertEquals(emptyList<String?>(), send(false, emptyList()))
+        assertEquals(2, source.getListeners().size)
+
+        // The server of the channel is unavailable, or removed the bot
+        discord.status = JDA.Status.CONNECTED
+        assertEquals(emptyList<String?>(), send(false, emptyList()))
+        assertEquals(listOf("elsewhere"), source.list().map { it.channelId })
+    }
+
+    @Test
+    fun `Should cut off a description that is too long for Discord`() {
+        source.create(listener())
+        discord.addChannel("1")
+
+        client.send("a".repeat(5000), EmbedColor.BLUE, EmbedThumbnail(""), EmbedFooter("footer"), false, emptyList())
+        client.send("b".repeat(4096), EmbedColor.BLUE, EmbedThumbnail(""), EmbedFooter("footer"), false, emptyList())
+
+        val descriptions = discord.messages.map { it.embed.getString("description") }
+        assertEquals("a".repeat(4095) + "…", descriptions[0])
+        assertEquals("b".repeat(4096), descriptions[1])
     }
 
     @Test

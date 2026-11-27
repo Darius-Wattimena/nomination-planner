@@ -32,6 +32,7 @@ class SecurityConfig(
     private val userService: UserService,
     private val loginFlow: LoginFlow,
     private val osuUserService: OsuUserService,
+    private val planner: PlannerProperties,
 ) {
     companion object {
         /** The header the website sends the token against cross-site requests in, it gets it from /v2/session */
@@ -74,7 +75,7 @@ class SecurityConfig(
                     .permitAll()
                     .anyRequest()
                     .authenticated()
-            }.addFilterAfter(SessionRolesFilter(userService), SecurityContextHolderFilter::class.java)
+            }.addFilterAfter(SessionRolesFilter(userService, planner.admins), SecurityContextHolderFilter::class.java)
             .build()
 
     @Bean

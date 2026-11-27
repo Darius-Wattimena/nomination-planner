@@ -38,8 +38,6 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.spy
-import org.mockito.kotlin.whenever
 import java.time.Instant
 
 class BeatmapServiceTest {
@@ -51,8 +49,6 @@ class BeatmapServiceTest {
 
     private val footer =
         "\n**[Artist 1 - Title 1](https://osu.ppy.sh/beatmapsets/1)**\nMapped by [Mapper](https://osu.ppy.sh/users/10)"
-    private val boldFooter =
-        "\n[Artist 1 - Title 1](https://osu.ppy.sh/beatmapsets/1)**\nMapped by [Mapper](https://osu.ppy.sh/users/10)"
 
     private fun update(
         description: String,
@@ -82,7 +78,7 @@ class BeatmapServiceTest {
         assertNull(service.findExposedBeatmap("1"))
 
         val bn = planner.user("5")
-        val beatmap = planner.save(beatmap("1", mode(Gamemode.osu, "5", "0", firstNominated = true, isReady = true), ranked = UPDATED))
+        val beatmap = planner.save(beatmap("1", mode(Gamemode.osu, "5", "0", firstNominated = true), ranked = UPDATED))
 
         assertEquals(beatmap, service.findBeatmap("1"))
         assertEquals(
@@ -98,7 +94,6 @@ class BeatmapServiceTest {
                         ExposedBeatmapGamemode(
                             Gamemode.osu,
                             listOf(ExposedBeatmapNominator(bn, true), ExposedBeatmapNominator(none, false)),
-                            true,
                         ),
                     ),
                 dateAdded = ADDED,
@@ -123,10 +118,10 @@ class BeatmapServiceTest {
     }
 
     @Test
-    fun `Should not find a beatmap of an unknown mapper`() {
-        planner.save(beatmap(mapperId = "unknown"))
+    fun `Should find a beatmap of an unknown mapper with the name osu gave`() {
+        planner.save(beatmap(mapperId = "unknown", mapper = "Gone"))
 
-        assertNull(service.findExposedBeatmap("1"))
+        assertEquals(User("unknown", "Gone", emptyList()), service.findExposedBeatmap("1")!!.mapper)
     }
 
     // Delete
@@ -135,18 +130,18 @@ class BeatmapServiceTest {
     fun `Should delete a beatmap`() {
         planner.save(beatmap("1", mode(Gamemode.osu), mode(Gamemode.mania)))
         planner.save(beatmap("2"))
-        service.deleteBeatmap(LOGIN, "1")
+        assertTrue(service.deleteBeatmap(LOGIN, "1"))
 
         assertEquals(listOf("2"), planner.beatmaps.list().map { it.osuId })
         assertEquals(
-            update("🐒 **Deleted$boldFooter", EmbedColor.RED, true, listOf(Gamemode.osu, Gamemode.mania)),
+            update("🐒 **Deleted**$footer", EmbedColor.RED, true, listOf(Gamemode.osu, Gamemode.mania)),
             planner.discord.single(),
         )
     }
 
     @Test
     fun `Should not report deleting an unknown beatmap`() {
-        service.deleteBeatmap(LOGIN, "1")
+        assertFalse(service.deleteBeatmap(LOGIN, "1"))
 
         assertEquals(emptyList<Sent>(), planner.discord.sent)
     }
@@ -158,7 +153,7 @@ class BeatmapServiceTest {
                 on { findById("1") } doReturn beatmap()
                 on { deleteById("1") } doReturn false
             }
-        BeatmapService(source, planner.userService, planner.osuClient, planner.discord).deleteBeatmap(LOGIN, "1")
+        assertFalse(BeatmapService(source, planner.userService, planner.osuClient, planner.discord).deleteBeatmap(LOGIN, "1"))
 
         assertEquals(emptyList<Sent>(), planner.discord.sent)
     }
@@ -168,7 +163,7 @@ class BeatmapServiceTest {
     @Test
     fun `Should add a beatmap`() {
         FakeOsu.beatmap("1")
-        val result = service.addBeatmap(LOGIN, NewBeatmap("1", listOf(Gamemode.fruits, Gamemode.osu)))!!
+        val result = added(NewBeatmap("1", listOf(Gamemode.fruits, Gamemode.osu)))
 
         val stored = planner.stored()
         assertRecent(stored.dateAdded)
@@ -182,37 +177,40 @@ class BeatmapServiceTest {
         assertEquals(result.dateAdded, result.dateUpdated)
         assertEquals(listOf("GET /api/v2/beatmapsets/1"), FakeOsu.calls())
         assertEquals("Bearer $TOKEN", FakeOsu.requests.single().header("Authorization"))
-        assertEquals(emptyList<Long>(), planner.sleeps)
         assertEquals(
             update("🌟 **Created**\nGamemodes: catch, osu$footer", EmbedColor.GREEN, true, listOf(Gamemode.fruits, Gamemode.osu)),
             planner.discord.single(),
         )
     }
 
+    private fun added(beatmap: NewBeatmap) = (service.addBeatmap(LOGIN, beatmap) as BeatmapService.AddResult.Added).beatmap
+
     @Test
-    fun `Should return the known beatmap when adding it again`() {
+    fun `Should not add a beatmap that is already on the planner`() {
         planner.save(beatmap(note = "known"))
 
-        assertEquals("known", service.addBeatmap(LOGIN, NewBeatmap("1", listOf(Gamemode.mania)))!!.note)
+        assertEquals(BeatmapService.AddResult.AlreadyOnPlanner, service.addBeatmap(LOGIN, NewBeatmap("1", listOf(Gamemode.mania))))
         assertEquals(listOf(mode(Gamemode.osu)), planner.stored().gamemodes)
         assertEquals(emptyList<String>(), FakeOsu.calls())
     }
 
     @Test
-    fun `Should return the beatmap someone else added in the meantime`() {
-        FakeOsu.beatmap("1", userId = "11", creator = "New")
-        FakeOsu.user("11", "New")
-        // Finding the unknown mapper takes a while
-        planner.duringSleep = { planner.save(beatmap(note = "first")) }
+    fun `Should not add a beatmap someone else added in the meantime`() {
+        FakeOsu.beatmap("1")
+        val source =
+            mock<BeatmapDataSource> {
+                on { findById("1") } doReturn null
+                on { insertIfMissing(any()) } doReturn beatmap(note = "first")
+            }
+        val service = BeatmapService(source, planner.userService, planner.osuClient, planner.discord)
 
-        assertEquals("first", service.addBeatmap(LOGIN, NewBeatmap("1", listOf(Gamemode.mania)))!!.note)
-        assertEquals("first", planner.stored().note)
-        assertTrue(planner.discord.sent.none { it.description.startsWith("🌟 **Created**") })
+        assertEquals(BeatmapService.AddResult.AlreadyOnPlanner, service.addBeatmap(LOGIN, NewBeatmap("1", listOf(Gamemode.mania))))
+        assertEquals(emptyList<Sent>(), planner.discord.sent)
     }
 
     @Test
     fun `Should not add a beatmap unknown to osu`() {
-        assertNull(service.addBeatmap(LOGIN, NewBeatmap("1", listOf(Gamemode.osu))))
+        assertEquals(BeatmapService.AddResult.UnknownToOsu, service.addBeatmap(LOGIN, NewBeatmap("1", listOf(Gamemode.osu))))
         assertEquals(emptyList<Beatmap>(), planner.beatmaps.list())
     }
 
@@ -221,9 +219,8 @@ class BeatmapServiceTest {
         FakeOsu.beatmap("1", userId = "11", creator = "New")
         FakeOsu.user("11", "New")
 
-        assertEquals("New", service.addBeatmap(LOGIN, NewBeatmap("1", listOf(Gamemode.osu)))!!.mapper.username)
+        assertEquals("New", added(NewBeatmap("1", listOf(Gamemode.osu))).mapper.username)
         assertEquals(listOf("GET /api/v2/beatmapsets/1", "GET /api/v2/users/11?key=id"), FakeOsu.calls())
-        assertEquals(listOf(1_000L), planner.sleeps)
         assertEquals("New", planner.users.findUser("11")!!.username)
         assertEquals(2, planner.discord.sent.size)
     }
@@ -236,9 +233,19 @@ class BeatmapServiceTest {
         FakeOsu.beatmap("2", userId = "12")
         FakeOsu.user("11", "Unrestricted")
 
-        assertEquals("Unrestricted", service.addBeatmap(LOGIN, NewBeatmap("1", emptyList()))!!.mapper.username)
-        assertEquals("Fine", service.addBeatmap(LOGIN, NewBeatmap("2", emptyList()))!!.mapper.username)
-        assertEquals(listOf(1_000L), planner.sleeps)
+        assertEquals("Unrestricted", added(NewBeatmap("1", listOf(Gamemode.osu))).mapper.username)
+        assertEquals("Fine", added(NewBeatmap("2", listOf(Gamemode.osu))).mapper.username)
+        assertEquals(1, FakeOsu.calls().count { it.startsWith("GET /api/v2/users") })
+    }
+
+    @Test
+    fun `Should add a beatmap with the mapper name of osu when the mapper can't be found`() {
+        FakeOsu.beatmap("1", userId = "11", creator = "New")
+        FakeOsu.respond("GET /api/v2/users/11?key=id", "{}", status = 503)
+
+        assertEquals(User("11", "New", emptyList()), added(NewBeatmap("1", listOf(Gamemode.osu))).mapper)
+        assertEquals(listOf("1"), planner.beatmaps.list().map { it.osuId })
+        assertNull(planner.users.findUser("11"))
     }
 
     // Sync
@@ -287,7 +294,7 @@ class BeatmapServiceTest {
     }
 
     @ParameterizedTest
-    @CsvSource("1,Ranked", "2,Ranked", "3,Qualified", "4,Unfinished", "0,Unfinished", "-1,Unfinished", "-2,Unfinished")
+    @CsvSource("1,Ranked", "2,Ranked", "3,Qualified", "4,Graved", "0,Unfinished", "-1,Unfinished", "-2,Unfinished")
     fun `Should update the status when syncing`(
         ranked: Int,
         expected: BeatmapStatus,
@@ -295,6 +302,38 @@ class BeatmapServiceTest {
         FakeOsu.beatmap("1", ranked = ranked)
 
         assertEquals(expected, sync(beatmap(status = BeatmapStatus.Unfinished)).status)
+    }
+
+    @Test
+    fun `Should grave a loved beatmap when syncing, also after nominations`() {
+        FakeOsu.beatmap("1", ranked = 4)
+
+        val loved =
+            sync(
+                beatmap("1", mode(Gamemode.osu, "5", "6", firstNominated = true, secondNominated = true), status = BeatmapStatus.Qualified),
+            )
+        assertEquals(BeatmapStatus.Graved, loved.status)
+        assertNull(loved.dateRanked)
+    }
+
+    @Test
+    fun `Should sync a beatmap right away`() {
+        users("5")
+        FakeOsu.beatmap("1", title = "Synced", nominations = "[${nomination("5", "osu")}]")
+        planner.save(beatmap())
+
+        val synced = service.syncBeatmap(TOKEN, "1")!!
+        assertEquals("Synced", synced.title)
+        assertEquals(BeatmapStatus.Nominated, synced.status)
+        assertEquals(
+            listOf("5", "0"),
+            synced.gamemodes
+                .single()
+                .nominators
+                .map { it.nominator.osuId },
+        )
+        assertNull(service.syncBeatmap(TOKEN, "2"))
+        assertEquals(listOf("GET /api/v2/beatmapsets/1"), FakeOsu.calls())
     }
 
     @Test
@@ -319,9 +358,9 @@ class BeatmapServiceTest {
             sync(beatmap("2", mode(Gamemode.osu, "5", "6", firstNominated = true, secondNominated = true))).status,
         )
         // Some nominators nominated it
-        val reset = sync(beatmap("3", mode(Gamemode.osu, "5", "6", firstNominated = true, isReady = true), mode(Gamemode.mania)))
+        val reset = sync(beatmap("3", mode(Gamemode.osu, "5", "6", firstNominated = true), mode(Gamemode.mania)))
         assertEquals(BeatmapStatus.Reset, reset.status)
-        assertEquals(listOf(mode(Gamemode.osu, "5", "6", isReady = true), mode(Gamemode.mania)), reset.gamemodes)
+        assertEquals(listOf(mode(Gamemode.osu, "5", "6"), mode(Gamemode.mania)), reset.gamemodes)
         // Only the main gamemode needs two nominations
         assertEquals(
             BeatmapStatus.Disqualified,
@@ -445,19 +484,6 @@ class BeatmapServiceTest {
     }
 
     @Test
-    fun `Should not add a beatmap when the mapper can't be found`() {
-        FakeOsu.beatmap("1", userId = "11")
-        FakeOsu.respond("GET /api/v2/users/11?key=id", "{}", status = 503)
-
-        assertNull(service.addBeatmap(LOGIN, NewBeatmap("1", listOf(Gamemode.osu))))
-        assertEquals(emptyList<Beatmap>(), planner.beatmaps.list())
-
-        // Already known as restricted
-        planner.users.saveUser(User("11", "RESTRICTED", emptyList(), restricted = true))
-        assertEquals("RESTRICTED", service.addBeatmap(LOGIN, NewBeatmap("1", listOf(Gamemode.osu)))!!.mapper.username)
-    }
-
-    @Test
     fun `Should leave out a gamemode the planner does not know when syncing`() {
         users("5")
         FakeOsu.beatmap("1", nominations = "[${nomination("5", "new-mode")},${nomination("5", "osu")}]")
@@ -477,6 +503,17 @@ class BeatmapServiceTest {
         assertEquals(
             // Only a line starting with at least two spaces is trimmed
             update("🗒 **Updated note**\n```first\nsecond\n third```$footer", EmbedColor.ORANGE, true),
+            planner.discord.single(),
+        )
+    }
+
+    @Test
+    fun `Should keep a code block in the note as text`() {
+        planner.save(beatmap())
+
+        service.updateBeatmapNote(LOGIN, "1", "a ```b``` c")
+        assertEquals(
+            update("🗒 **Updated note**\n```a `\u200B`\u200B`b`\u200B`\u200B` c```$footer", EmbedColor.ORANGE, true),
             planner.discord.single(),
         )
     }
@@ -526,7 +563,7 @@ class BeatmapServiceTest {
             assertNull(planner.stored().dateRanked)
         }
         assertRecent(planner.stored().dateUpdated)
-        assertEquals(update("$icon **Updated status to $status$boldFooter", EmbedColor.ORANGE, true), planner.discord.single())
+        assertEquals(update("$icon **Updated status to $status**$footer", EmbedColor.ORANGE, true), planner.discord.single())
     }
 
     @Test
@@ -536,7 +573,7 @@ class BeatmapServiceTest {
         assertTrue(service.updateBeatmapStatus(LOGIN, "1", BeatmapStatus.Pending))
         // No longer ranked
         assertNull(planner.stored().dateRanked)
-        assertEquals(update("⏳ **Updated status to Pending$boldFooter", EmbedColor.ORANGE, true), planner.discord.single())
+        assertEquals(update("⏳ **Updated status to Pending**$footer", EmbedColor.ORANGE, true), planner.discord.single())
     }
 
     @Test
@@ -583,10 +620,10 @@ class BeatmapServiceTest {
     @Test
     fun `Should update the first nominator`() {
         users("5", "6", "7")
-        planner.save(beatmap("1", mode(Gamemode.osu, "5", "6", firstNominated = true, secondNominated = true, isReady = true)))
+        planner.save(beatmap("1", mode(Gamemode.osu, "5", "6", firstNominated = true, secondNominated = true)))
         val result = updateNominator("5", "7")!!
 
-        assertEquals(listOf(mode(Gamemode.osu, "7", "6", secondNominated = true, isReady = true)), planner.stored().gamemodes)
+        assertEquals(listOf(mode(Gamemode.osu, "7", "6", secondNominated = true)), planner.stored().gamemodes)
         assertRecent(planner.stored().dateUpdated)
         assertEquals(listOf("7", "6"), result.gamemodes[0].nominators.map { it.nominator.osuId })
         assertEquals(update("${added("7")}\n${removed("5")}$footer [osu]", EmbedColor.BLUE, false), planner.discord.single())
@@ -666,17 +703,6 @@ class BeatmapServiceTest {
         updateNominator("5", "0")
 
         assertEquals(listOf(mode(Gamemode.mania), mode(Gamemode.osu, "0", "6")), planner.stored().gamemodes)
-    }
-
-    @Test
-    fun `Should not update a nominator when the gamemode could not be updated`() {
-        // Never the case at the moment, as a missing gamemode is added
-        planner.save(beatmap())
-        val service = spy(service)
-        doReturn(null).whenever(service).updateBeatmapGamemode(any(), any<Gamemode>(), any())
-
-        assertNull(service.updateBeatmapNominator(LOGIN, "1", Gamemode.osu, "0", "5"))
-        assertEquals(beatmap(), planner.stored())
     }
 
     @Test

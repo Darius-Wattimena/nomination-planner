@@ -41,3 +41,9 @@ data class LoginProperties(
     /** Only send the login cookie over https */
     val secureCookie: Boolean = false,
 )
+
+@ConfigurationProperties("planner")
+data class PlannerProperties(
+    /** The osu! ids of the users that may do everything on the planner, whatever their roles on osu! are */
+    val admins: List<String> = emptyList(),
+)

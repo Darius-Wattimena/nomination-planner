@@ -27,7 +27,7 @@ class BeatmapApiTest : ApiTest() {
         gamemodes: String =
             """[{"gamemode":"osu","nominators":[
             {"nominator":{"osuId":"0","username":"None","gamemodes":[]},"hasNominated":false},
-            {"nominator":{"osuId":"0","username":"None","gamemodes":[]},"hasNominated":false}],"isReady":false}]""",
+            {"nominator":{"osuId":"0","username":"None","gamemodes":[]},"hasNominated":false}]}]""",
     ) = """
         {"osuId":"$id","artist":"Artist $id","title":"Title $id","note":"",
         "mapper":{"osuId":"1","username":"Viewer","gamemodes":[{"gamemode":"osu","role":"Mapper"}]},
@@ -61,7 +61,7 @@ class BeatmapApiTest : ApiTest() {
         beatmaps.insertOne(
             beatmap(
                 "1",
-                mode(Gamemode.mania, "2", "3", firstNominated = true, isReady = true),
+                mode(Gamemode.mania, "2", "3", firstNominated = true),
                 mapperId = "1",
                 note = "Notes: \"é\"\nline",
                 status = BeatmapStatus.Ranked,
@@ -77,7 +77,7 @@ class BeatmapApiTest : ApiTest() {
                 """[{"gamemode":"mania","nominators":[
                 {"nominator":{"osuId":"2","username":"Editor","gamemodes":[{"gamemode":"osu","role":"Nominator"}]},"hasNominated":true},
                 {"nominator":{"osuId":"3","username":"Admin","gamemodes":[{"gamemode":"mania","role":"NominationAssessment"}]},
-                "hasNominated":false}],"isReady":true}]""",
+                "hasNominated":false}]}]""",
             ).replace("\"note\":\"\"", """"note":"Notes: \"é\"\nline""""),
         )
     }
@@ -125,7 +125,6 @@ class BeatmapApiTest : ApiTest() {
         save("3", BeatmapStatus.Qualified)
 
         get("/v2/beatmap/count?page=PENDING").assertJson("2")
-        get("/v2/beatmap/count?page=PENDING&status=Pending").assertJson("1")
         get("/v2/beatmap/count?page=GRAVEYARD").assertJson("0")
     }
 
@@ -144,32 +143,23 @@ class BeatmapApiTest : ApiTest() {
         beatmaps.insertOne(beatmap("3", mode(Gamemode.mania, "7", "0"), mapperId = "1", title = "どこ", status = BeatmapStatus.Qualified))
 
         assertEquals(setOf("1", "2"), findEverywhere("search=camellia"))
-        assertEquals(setOf("1"), findEverywhere("artist=camellia"))
-        assertEquals(setOf("1"), findEverywhere("title=ghost%20%26%20more"))
-        assertEquals(setOf("3"), findEverywhere("title=%E3%81%93"))
-        assertEquals(setOf("2"), findEverywhere("mapper=CAMELLIA"))
-        assertEquals(setOf("2"), findEverywhere("status=Nominated"))
-        assertEquals(setOf("2", "3"), findEverywhere("status=Nominated,Qualified"))
-        assertEquals(setOf("2", "3"), findEverywhere("status=Nominated&status=Qualified"))
+        assertEquals(setOf("1"), findEverywhere("search=ghost%20%26%20more"))
+        assertEquals(setOf("3"), findEverywhere("search=%E3%81%93"))
         assertEquals(setOf("1", "2"), findEverywhere("nominators=5"))
         assertEquals(setOf("2", "3"), findEverywhere("nominators=6,7"))
         assertEquals(setOf("2", "3"), findEverywhere("nominators=6&nominators=7"))
         assertEquals(setOf("1"), findEverywhere("gamemodes=osu"))
         assertEquals(setOf("1", "3"), findEverywhere("gamemodes=osu,mania"))
-        assertEquals(setOf("1"), findEverywhere("missingNominator=osu"))
-        assertEquals(setOf("1", "3"), findEverywhere("missingNominator=osu&missingNominator=mania"))
-        assertEquals(setOf("1"), findEverywhere("search=ghost&status=Pending&nominators=5&gamemodes=osu&missingNominator=osu"))
+        assertEquals(setOf("1"), findEverywhere("search=ghost&nominators=5&gamemodes=osu"))
         // Empty filters are no filters
-        assertEquals(
-            setOf("1", "2", "3"),
-            findEverywhere("search=&artist=&title=&mapper=&status=&nominators=&gamemodes=&missingNominator="),
-        )
+        assertEquals(setOf("1", "2", "3"), findEverywhere("search=&nominators=&gamemodes="))
+        // Filters the website doesn't use are ignored
+        assertEquals(setOf("1", "2", "3"), findEverywhere("status=Pending&artist=nobody&missingNominator=osu"))
     }
 
     @Test
     fun `Should only read enums in their exact case`() {
         assertEquals(400, get("/v2/beatmap/count?page=pending").status)
-        assertEquals(400, get("/v2/beatmap/count?page=PENDING&status=PENDING").status)
         assertEquals(400, get("/v2/beatmap/count?page=PENDING&gamemodes=OSU").status)
         assertEquals(400, get("/v2/beatmap/find/table?page=PENDING&pageNumber=1&pageLimit=ten").status)
     }
@@ -182,6 +172,7 @@ class BeatmapApiTest : ApiTest() {
     fun `Should add a beatmap`() {
         FakeOsu.beatmap("1", userId = "1")
         val response = add("""{"osuId":"1","gamemodes":["osu"]}""")
+        assertEquals(200, response.status, response.contentAsString)
 
         val added = JSONObject(response.contentAsString)
         assertRecent(Instant.parse(added.getString("dateAdded")))
@@ -200,17 +191,37 @@ class BeatmapApiTest : ApiTest() {
     fun `Should accept a numeric id and unknown details when adding`() {
         FakeOsu.beatmap("1", userId = "1")
 
-        assertEquals(200, add("""{"osuId":1,"gamemodes":[],"unknown":true}""").status)
+        assertEquals(200, add("""{"osuId":1,"gamemodes":["osu"],"unknown":true}""").status)
         assertNotNull(beatmaps.findById("1"))
     }
 
     @Test
-    fun `Should wait before finding an unknown mapper`() {
+    fun `Should find an unknown mapper when adding`() {
         FakeOsu.beatmap("1", userId = "77")
         FakeOsu.user("77", "New")
 
-        assertEquals(200, add("""{"osuId":"1","gamemodes":["osu"]}""").status)
-        assertEquals(listOf(1_000L), sleeper.sleeps)
+        assertEquals(
+            "New",
+            JSONObject(add("""{"osuId":"1","gamemodes":["osu"]}""").contentAsString).getJSONObject("mapper").getString("username"),
+        )
+        assertEquals(emptyList<Long>(), sleeper.sleeps)
+    }
+
+    @Test
+    fun `Should not add a beatmap that is already on the planner`() {
+        save("1")
+
+        assertProblem(add("""{"osuId":"1","gamemodes":["osu"]}"""), 409, "Conflict", "Beatmap 1 is already on the planner")
+        assertEquals(emptyList<String>(), FakeOsu.calls())
+    }
+
+    @Test
+    fun `Should only add a beatmap with an id of digits and a gamemode`() {
+        listOf("", "1a", "-1", " 1", "1.0").forEach {
+            assertBadRequest(add("""{"osuId":"$it","gamemodes":["osu"]}"""), "The id of a beatmap only has digits")
+        }
+        assertBadRequest(add("""{"osuId":"1","gamemodes":[]}"""), "A beatmap needs at least one gamemode")
+        assertEquals(emptyList<String>(), FakeOsu.calls())
     }
 
     @Test
@@ -251,6 +262,15 @@ class BeatmapApiTest : ApiTest() {
         assertProblem(patch("1/osu/nominator?old=0&new=1"), 409, "Conflict", "Someone else changed the nominators first")
     }
 
+    @Test
+    fun `Should only set a nominator the planner knows`() {
+        save("1")
+
+        assertBadRequest(patch("1/osu/nominator?old=0&new=99"), "User 99 is unknown to the planner")
+        assertBadRequest(patch("1/osu/nominator?old=0&new=-1"), "User -1 is unknown to the planner")
+        assertEquals(listOf("osu [0, 0]"), nominators(get("/v2/beatmap/1")))
+    }
+
     // Status
 
     @Test
@@ -271,6 +291,15 @@ class BeatmapApiTest : ApiTest() {
         patch("1/note", body = "New \"note\" é", contentType = "text/plain;charset=UTF-8").assertEmpty()
         assertEquals("New \"note\" é", beatmaps.findById("1")!!.note)
         assertProblem(patch("2/note", body = "note", contentType = "text/plain"), 404, "Not Found", "Beatmap 2 is not on the planner")
+    }
+
+    @Test
+    fun `Should refuse a note that is too long`() {
+        save("1")
+
+        patch("1/note", body = "a".repeat(2000), contentType = "text/plain").assertEmpty()
+        assertBadRequest(patch("1/note", body = "a".repeat(2001), contentType = "text/plain"), "A note has at most 2000 characters")
+        assertEquals(2000, beatmaps.findById("1")!!.note.length)
     }
 
     @Test
@@ -303,9 +332,23 @@ class BeatmapApiTest : ApiTest() {
     fun `Should delete a beatmap`() {
         save("1")
 
-        call(As.EDITOR, "DELETE", "/v2/beatmap/1/delete").assertEmpty()
+        call(As.ADMIN, "DELETE", "/v2/beatmap/1").assertEmpty(204)
         assertNull(beatmaps.findById("1"))
-        call(As.EDITOR, "DELETE", "/v2/beatmap/1/delete").assertEmpty()
+        assertProblem(call(As.ADMIN, "DELETE", "/v2/beatmap/1"), 404, "Not Found", "Beatmap 1 is not on the planner")
+    }
+
+    // Sync
+
+    @Test
+    fun `Should sync a beatmap`() {
+        save("1")
+        FakeOsu.beatmap("1", title = "Synced", ranked = 3)
+
+        call(As.EDITOR, "POST", "/v2/beatmap/1/sync").assertJson(
+            json("1", "Qualified").replace("Title 1", "Synced").replace("2024-02-02T11:12:13.456Z", "2024-05-06T07:08:09Z"),
+        )
+        assertEquals("Bearer ${As.EDITOR.accessToken}", FakeOsu.requests.single().header("Authorization"))
+        assertProblem(call(As.EDITOR, "POST", "/v2/beatmap/2/sync"), 404, "Not Found", "Beatmap 2 is not on the planner")
     }
 
     // Invalid requests
@@ -333,7 +376,7 @@ class BeatmapApiTest : ApiTest() {
 
     @Test
     fun `Should refuse missing parameters`() {
-        assertBadRequest(get("/v2/beatmap/find/table?pageNumber=1&pageLimit=TEN"), "Required parameter 'page' is not present.")
+        assertBadRequest(get("/v2/beatmap/find/table?pageNumber=1&pageLimit=TEN"), "A required parameter is not present.")
         assertBadRequest(
             get("/v2/beatmap/find/table?page=PENDING&pageLimit=TEN"),
             "Required parameter 'pageNumber' is not present.",
@@ -342,7 +385,7 @@ class BeatmapApiTest : ApiTest() {
             get("/v2/beatmap/find/table?page=PENDING&pageNumber=1"),
             "Required parameter 'pageLimit' is not present.",
         )
-        assertBadRequest(get("/v2/beatmap/count"), "Required parameter 'page' is not present.")
+        assertBadRequest(get("/v2/beatmap/count"), "A required parameter is not present.")
         assertBadRequest(patch("1/osu/nominator?old=0"), "Required parameter 'new' is not present.")
         assertBadRequest(patch("1/status", As.ADMIN), "Required parameter 'new' is not present.")
     }
@@ -357,7 +400,7 @@ class BeatmapApiTest : ApiTest() {
             get("/v2/beatmap/find/table?page=PENDING&pageNumber=a&pageLimit=TEN"),
             "Failed to convert 'pageNumber' with value: 'a'",
         )
-        assertBadRequest(get("/v2/beatmap/count?page=PENDING&status=Other"), "Failed to convert 'status' with value: 'Other'")
+        assertBadRequest(get("/v2/beatmap/count?page=PENDING&gamemodes=Other"), "Failed to convert 'gamemodes' with value: 'Other'")
         assertBadRequest(
             get("/v2/beatmap/find/table?page=PENDING&pageNumber=1&pageLimit=HUNDRED"),
             "Failed to convert 'pageLimit' with value: 'HUNDRED'",

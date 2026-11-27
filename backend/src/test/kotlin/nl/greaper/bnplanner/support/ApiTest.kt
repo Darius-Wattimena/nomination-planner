@@ -71,7 +71,7 @@ abstract class ApiTest {
         VIEWER("1"),
         EDITOR("2"),
         ADMIN("3"),
-        DEVELOPER("2369776"),
+        LISTED_ADMIN("2369776"),
         ;
 
         /** The osu! token the planner got for them when they logged in */
@@ -92,7 +92,7 @@ abstract class ApiTest {
                 As.VIEWER to User("1", "Viewer", listOf(UserGamemode(Gamemode.osu, Role.Mapper))),
                 As.EDITOR to User("2", "Editor", listOf(UserGamemode(Gamemode.osu, Role.Nominator))),
                 As.ADMIN to User("3", "Admin", listOf(UserGamemode(Gamemode.mania, Role.NominationAssessment))),
-                As.DEVELOPER to User("2369776", "Developer", emptyList()),
+                As.LISTED_ADMIN to User("2369776", "Developer", emptyList()),
             )
 
         @JvmStatic
@@ -101,9 +101,9 @@ abstract class ApiTest {
             registry.add("mongodb.host") { TestMongo.host }
             registry.add("mongodb.port") { TestMongo.port }
             registry.add("mongodb.db") { TestMongo.DATABASE }
-            registry.add("osu.baseUrl") { FakeOsu.url }
-            registry.add("osu.clientId") { "14229" }
-            registry.add("osu.clientSecret") { "made-up-secret" }
+            registry.add("osu.base-url") { FakeOsu.url }
+            registry.add("osu.client-id") { "14229" }
+            registry.add("osu.client-secret") { "made-up-secret" }
         }
     }
 
@@ -252,11 +252,5 @@ abstract class ApiTest {
     fun MockHttpServletResponse.assertEmpty(status: Int = 200) {
         assertEquals(status, this.status)
         assertEquals("", contentAsString)
-    }
-
-    /** What every exception that isn't expected turns into */
-    fun MockHttpServletResponse.assertUnableToHandle() {
-        assertEquals(500, status)
-        assertEquals("Unable to handle request", contentAsString)
     }
 }

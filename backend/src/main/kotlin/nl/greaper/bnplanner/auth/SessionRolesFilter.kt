@@ -17,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter
  */
 class SessionRolesFilter(
     private val userService: UserService,
+    private val admins: List<String>,
 ) : OncePerRequestFilter() {
     override fun doFilterInternal(
         request: HttpServletRequest,
@@ -27,7 +28,7 @@ class SessionRolesFilter(
 
         if (login is OAuth2AuthenticationToken) {
             val user = userService.findUserById(login.name)
-            val roles = getHighestRoleForUser(user).roles.map { SimpleGrantedAuthority("ROLE_$it") }
+            val roles = getHighestRoleForUser(user, admins).roles.map { SimpleGrantedAuthority("ROLE_$it") }
 
             // A new context, changing the one of the session would store the roles in it
             val context = SecurityContextHolder.createEmptyContext()

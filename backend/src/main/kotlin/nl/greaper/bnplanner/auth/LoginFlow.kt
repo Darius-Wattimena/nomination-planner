@@ -56,8 +56,8 @@ class LoginFlow(
     ) {
         authService.logLogin(userService.findUserById(authentication.name))
 
-        // Always there, as logging in started with remembering the page
-        val page = request.session.getAttribute(RETURN_TO) as String
+        // Not there when logging in didn't start at the planner, like a callback of an earlier attempt
+        val page = request.session.getAttribute(RETURN_TO) as? String ?: "/"
         request.session.removeAttribute(RETURN_TO)
         response.sendRedirect(config.websiteUrl.trimEnd('/') + page)
     }

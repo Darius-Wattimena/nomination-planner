@@ -6,22 +6,22 @@ spring.config.import: "optional:file:/etc/bnplanner/secrets.yml"
 # Not running on Kubernetes, the health check only needs the status
 management.endpoint.health.probes.enabled: false
 
-server.compression.enabled: true
-
 mongodb:
   host: localhost
+  # Not used with a username and password, which connect through the srv record of the host instead
   port: 27017
+  # With a username and password, the database that user is defined in, which can be another one than the planner uses
   auth-db: admin
   username: ""
   password: ""
   db: bnplanner
 
 osu:
-  clientId: ""
-  clientSecret: ""
+  client-id: ""
+  client-secret: ""
   # Where osu! sends someone back to after logging in, the same as set at osu! for the OAuth application.
   # Empty for /login/oauth2/code/osu on the address the backend is reached on.
-  redirectUri: ""
+  redirect-uri: ""
   # At least this long between two calls to osu!. When osu! answers "too many requests", everything waits as long as osu! asks.
   min-request-interval-millis: 250
 
@@ -36,6 +36,9 @@ beatmaps.keep-old: true
 
 # How long the website may wait for a change before it gets an empty answer, below the timeout of a proxy in between
 planner.wait-millis: 25000
+
+# The osu! ids of the users that may do everything on the planner, whatever their roles on osu! are
+planner.admins: "2369776"
 
 # Syncs the beatmaps in progress with osu! on its own, a few every minute. Needs a client id and secret.
 osu.background-sync:

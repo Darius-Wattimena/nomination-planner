@@ -8,6 +8,7 @@ import nl.greaper.bnplanner.support.Planner.Companion.beatmap
 import nl.greaper.bnplanner.support.Planner.Companion.nominator
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.web.context.request.async.DeferredResult
@@ -55,6 +56,8 @@ class LiveUpdatesTest {
         planner.beatmaps.update(beatmap("1", status = BeatmapStatus.Ranked))
         assertEquals(listOf("1"), first.await()!!.removed)
         assertEquals(listOf("1"), second.await()!!.removed)
+        // Built once for everyone waiting since the same change
+        assertSame(first.result, second.result)
 
         val users = live.wait(tokens.create())
         planner.user("5", "BN", nominator(Gamemode.osu))

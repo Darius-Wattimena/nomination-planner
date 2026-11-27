@@ -68,6 +68,8 @@ class UserService(
      * Find an osu user via the API and save them in the database for later use
      *
      * Returns null, leaving what we know about the user as is, when osu! gave no clear answer
+     *
+     * @param logEventToDiscord false to only log it here, like for a login or every user of a user sync
      */
     fun forceFindUserById(
         osuApiToken: String,
@@ -90,14 +92,16 @@ class UserService(
             dataSource.saveUser(restrictedUser)
             log.info { "[CREATE] Added restricted user (osuId = $osuId)" }
 
-            discordClient?.send(
-                description = "Could not find user with id $osuId, created restricted user",
-                color = EmbedColor.ORANGE,
-                thumbnail = EmbedThumbnail("https://a.ppy.sh/$osuId"),
-                footer = EmbedFooter("Nomination Planner"),
-                confidential = true,
-                gamemodes = listOf(),
-            )
+            if (logEventToDiscord) {
+                discordClient?.send(
+                    description = "Could not find user with id $osuId, created restricted user",
+                    color = EmbedColor.ORANGE,
+                    thumbnail = EmbedThumbnail("https://a.ppy.sh/$osuId"),
+                    footer = EmbedFooter("Nomination Planner"),
+                    confidential = true,
+                    gamemodes = listOf(),
+                )
+            }
 
             return restrictedUser
         }
@@ -106,17 +110,20 @@ class UserService(
 
         dataSource.saveUser(newUser)
 
-        if (logEventToDiscord) {
-            log.info { "[CREATE] Added user ${newUser.username} (osuId = $osuId)" }
-            discordClient?.send(
-                description = "Created user $osuId, with username: ${newUser.username}",
-                color = EmbedColor.BLUE,
-                thumbnail = EmbedThumbnail("https://a.ppy.sh/$osuId"),
-                footer = EmbedFooter("Nomination Planner"),
-                confidential = true,
-                gamemodes = listOf(),
-            )
+        if (!logEventToDiscord) {
+            log.debug { "[CREATE] Added user ${newUser.username} (osuId = $osuId)" }
+            return newUser
         }
+
+        log.info { "[CREATE] Added user ${newUser.username} (osuId = $osuId)" }
+        discordClient?.send(
+            description = "Created user $osuId, with username: ${newUser.username}",
+            color = EmbedColor.BLUE,
+            thumbnail = EmbedThumbnail("https://a.ppy.sh/$osuId"),
+            footer = EmbedFooter("Nomination Planner"),
+            confidential = true,
+            gamemodes = listOf(),
+        )
 
         return newUser
     }
@@ -223,8 +230,6 @@ class UserService(
     }
 
     fun findUserById(osuId: String): User? {
-        if (osuId == "-1" || osuId == "-2") return null
-
         if (osuId == MISSING_USER_ID) {
             return User(
                 MISSING_USER_ID,

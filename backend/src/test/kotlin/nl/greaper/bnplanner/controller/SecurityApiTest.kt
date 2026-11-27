@@ -32,11 +32,11 @@ class SecurityApiTest : ApiTest() {
             "ADMIN  | POST   | /v2/admin/sync/beatmaps/pending?background=true              | ",
             "VIEWER | GET    | /v2/profile/1/pairing                                        | ",
             "VIEWER | PUT    | /v2/profile/me/interests                                     | []",
-            "EDITOR | POST   | /v2/beatmap/add              | {\"osuId\":\"1\",\"gamemodes\":[]}",
+            "EDITOR | POST   | /v2/beatmap/add          | {\"osuId\":\"1\",\"gamemodes\":[\"osu\"]}",
             "EDITOR | PATCH  | /v2/beatmap/1/osu/nominator?old=0&new=1                      | ",
             "EDITOR | PATCH  | /v2/beatmap/1/note                                           | note",
-            "EDITOR | DELETE | /v2/beatmap/1/delete                                         | ",
-            "EDITOR | POST   | /v2/admin/sync/beatmaps/single?id=1                          | ",
+            "ADMIN  | DELETE | /v2/beatmap/1                                                | ",
+            "EDITOR | POST   | /v2/beatmap/1/sync                                           | ",
             "ADMIN  | PATCH  | /v2/beatmap/1/status?new=Pending                             | ",
             "ADMIN  | POST   | /v2/admin/sync/users/ids                                     | []",
             "ADMIN  | POST   | /v2/admin/sync/beatmaps/pending                              | ",
@@ -50,10 +50,10 @@ class SecurityApiTest : ApiTest() {
     ) {
         val allowed =
             when (required) {
-                As.VIEWER -> setOf(As.VIEWER, As.EDITOR, As.ADMIN, As.DEVELOPER)
-                As.EDITOR -> setOf(As.EDITOR, As.ADMIN, As.DEVELOPER)
-                As.ADMIN -> setOf(As.ADMIN, As.DEVELOPER)
-                else -> setOf(As.DEVELOPER)
+                As.VIEWER -> setOf(As.VIEWER, As.EDITOR, As.ADMIN, As.LISTED_ADMIN)
+                As.EDITOR -> setOf(As.EDITOR, As.ADMIN, As.LISTED_ADMIN)
+                As.ADMIN -> setOf(As.ADMIN, As.LISTED_ADMIN)
+                else -> setOf(As.LISTED_ADMIN)
             }
         val contentType = if (uri.endsWith("note")) "text/plain" else body?.let { "application/json" }
 
@@ -144,7 +144,7 @@ class SecurityApiTest : ApiTest() {
     fun `Should report an unexpected error to the developer`() {
         val response = context.getBean(DefaultExceptionHandler::class.java).exception(IllegalStateException("made up"))
         assertEquals(500, response.statusCode.value())
-        assertEquals("Unable to handle request", response.body)
+        assertEquals("Unable to handle request", response.body!!.detail)
         val sent = discord.single()
         assertTrue(sent.description.startsWith("**ERROR:**\n```\n${IllegalStateException::class.java.name}: made up"))
         assertTrue(sent.description.endsWith("\n```"))

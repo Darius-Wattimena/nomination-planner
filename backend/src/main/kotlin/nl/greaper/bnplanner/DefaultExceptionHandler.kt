@@ -8,12 +8,17 @@ import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpStatusCode
 import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.AccessDeniedException
+import org.springframework.validation.FieldError
+import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.context.request.WebRequest
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler
 
 @RestControllerAdvice
@@ -49,9 +54,29 @@ class DefaultExceptionHandler(
             .body(ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, "osu! can not be reached right now"))
     }
 
+    /** Tells which parameter of a filter is missing or wrong, like for any other parameter */
+    override fun handleMethodArgumentNotValid(
+        ex: MethodArgumentNotValidException,
+        headers: HttpHeaders,
+        status: HttpStatusCode,
+        request: WebRequest,
+    ): ResponseEntity<Any>? {
+        ex.body.detail =
+            ex.bindingResult.allErrors.joinToString(" ") { error ->
+                if (error is FieldError) {
+                    "Failed to convert '${error.field}' with value: '${error.rejectedValue}'"
+                } else {
+                    // The filter can't be made without it
+                    "A required parameter is not present."
+                }
+            }
+
+        return super.handleMethodArgumentNotValid(ex, headers, status, request)
+    }
+
     /** Something that went wrong in the planner itself, the developer hears about it */
     @ExceptionHandler
-    fun exception(ex: Exception): ResponseEntity<String> {
+    fun exception(ex: Exception): ResponseEntity<ProblemDetail> {
         discordClient?.send(
             "**ERROR:**\n" +
                 "```\n${ex.stackTraceToString().take(1600)}\n```",
@@ -64,6 +89,8 @@ class DefaultExceptionHandler(
 
         log.error(ex) { "Unhandled exception occurred" }
 
-        return ResponseEntity("Unable to handle request", HttpStatus.INTERNAL_SERVER_ERROR)
+        return ResponseEntity
+            .status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to handle request"))
     }
 }

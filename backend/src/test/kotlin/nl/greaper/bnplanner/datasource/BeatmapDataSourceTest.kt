@@ -40,7 +40,7 @@ class BeatmapDataSourceTest {
     private val complete =
         beatmap(
             "1",
-            mode(Gamemode.fruits, "5", "0", firstNominated = true, isReady = true),
+            mode(Gamemode.fruits, "5", "0", firstNominated = true),
             mode(Gamemode.osu, "0", "-2"),
             mode(Gamemode.taiko),
             status = BeatmapStatus.Disqualified,
@@ -66,7 +66,7 @@ class BeatmapDataSourceTest {
                 """
                 {"_id": 1, "artist": "Artist 1", "title": "Title 1", "mapper": 10, "mapperName": "Mapper", "status": 3,
                 "modes": [
-                    {"mode": "fruits", "by": [{"user": 5, "done": true}], "ready": true},
+                    {"mode": "fruits", "by": [{"user": 5, "done": true}]},
                     {"mode": "osu", "by": [{"user": 0}, {"user": -2}]},
                     {"mode": "taiko", "by": []}],
                 "added": {"${'$'}date": "2024-01-01T10:00:00Z"}, "updated": {"${'$'}date": "2024-02-02T11:12:13.456Z"},
@@ -87,7 +87,7 @@ class BeatmapDataSourceTest {
                 {"_id": "1", "artist": "Artist 1", "title": "Title 1", "note": "note", "mapper": "Mapper", "mapperId": "10",
                 "status": 3,
                 "gamemodes": [{"gamemode": "fruits", "nominators": [
-                    {"nominatorId": "5", "hasNominated": true}, {"nominatorId": "0", "hasNominated": false}], "isReady": true}],
+                    {"nominatorId": "5", "hasNominated": true}, {"nominatorId": "0", "hasNominated": false}], "isReady": false}],
                 "dateAdded": {"${'$'}date": "2024-01-01T10:00:00Z"},
                 "dateUpdated": {"${'$'}date": "2024-02-02T11:12:13.456Z"},
                 "dateRanked": {"${'$'}date": "2024-03-03T00:00:00Z"}, "mainGamemodes": ["fruits", "osu"]}
@@ -121,6 +121,28 @@ class BeatmapDataSourceTest {
 
         assertEquals(maps.toSet(), open().list().toSet())
         assertEquals(maps.toSet(), open(keepOld = false).list().toSet())
+    }
+
+    @Test
+    fun `Should only insert a beatmap that is missing`() {
+        assertNull(source.insertIfMissing(beatmap("1", note = "first")))
+        assertEquals("first", source.insertIfMissing(beatmap("1", note = "second"))!!.note)
+        assertEquals("first", source.findById("1")!!.note)
+    }
+
+    @Test
+    fun `Should still read beatmaps that were marked as ready`() {
+        source.migrate()
+        TestMongo.insert(
+            COLLECTION,
+            """
+            {"_id": 7, "artist": "Artist 7", "title": "Title 7", "mapper": 10, "mapperName": "Mapper", "status": 5,
+            "modes": [{"mode": "osu", "by": [], "ready": true}],
+            "added": {"${'$'}date": "2024-01-01T10:00:00Z"}, "updated": {"${'$'}date": "2024-02-02T11:12:13.456Z"}}
+            """,
+        )
+
+        assertEquals(beatmap("7"), open(keepOld = false).findById("7"))
     }
 
     @Test

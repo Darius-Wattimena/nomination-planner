@@ -15,8 +15,8 @@ import org.springframework.stereotype.Component
 import java.util.concurrent.TimeUnit
 
 /**
- * Follows who joins or leaves the BN, probationary BN and NAT on osu! (https://osu.ppy.sh/groups/history), and their gamemodes.
- * Takes the place of Aiess.
+ * Follows who joins or leaves the BN, probationary BN and NAT on osu! (https://osu.ppy.sh/groups/history), and their gamemodes,
+ * so the planner knows who can nominate without a sync of the users.
  */
 @Component
 @ConditionalOnProperty(name = ["osu.follow-groups.enabled"], havingValue = "true")

@@ -5,21 +5,24 @@ import nl.greaper.bnplanner.auth.OsuLogin
 import nl.greaper.bnplanner.auth.RolePermission
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.PageLimit
-import nl.greaper.bnplanner.model.beatmap.BeatmapGamemode
-import nl.greaper.bnplanner.model.beatmap.BeatmapPage
+import nl.greaper.bnplanner.model.beatmap.BeatmapFilter
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.model.beatmap.ExposedBeatmap
 import nl.greaper.bnplanner.model.beatmap.NewBeatmap
 import nl.greaper.bnplanner.service.BeatmapService
+import nl.greaper.bnplanner.service.BeatmapService.AddResult
+import nl.greaper.bnplanner.service.UserService
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 
@@ -27,8 +30,15 @@ import org.springframework.web.server.ResponseStatusException
 @RequestMapping("/v2/beatmap")
 class BeatmapController(
     val service: BeatmapService,
+    val userService: UserService,
 ) {
+    companion object {
+        const val MAX_NOTE_LENGTH = 2000
+    }
+
     private fun notOnPlanner(id: String) = ResponseStatusException(HttpStatus.NOT_FOUND, "Beatmap $id is not on the planner")
+
+    private fun badRequest(detail: String) = ResponseStatusException(HttpStatus.BAD_REQUEST, detail)
 
     @GetMapping("/{id}")
     @RolesAllowed(RolePermission.VIEWER)
@@ -39,65 +49,47 @@ class BeatmapController(
     @GetMapping("/count")
     @RolesAllowed(RolePermission.VIEWER)
     fun countBeatmaps(
-        @RequestParam page: BeatmapPage,
-        @RequestParam(required = false) search: String?,
-        @RequestParam(required = false) artist: String?,
-        @RequestParam(required = false) title: String?,
-        @RequestParam(required = false) mapper: String?,
-        @RequestParam(required = false) status: Set<BeatmapStatus>?,
-        @RequestParam(required = false) nominators: Set<String>?,
-        @RequestParam(required = false) gamemodes: Set<Gamemode>?,
-        @RequestParam(required = false) missingNominator: Set<Gamemode>?,
-    ): Int =
-        service.countBeatmaps(
-            search = search,
-            artist = artist,
-            title = title,
-            mapper = mapper,
-            status = status ?: emptySet(),
-            nominators = nominators ?: emptySet(),
-            page = page,
-            gamemodes = gamemodes ?: emptySet(),
-            missingNominator = missingNominator ?: emptySet(),
-        )
+        @ModelAttribute filter: BeatmapFilter,
+    ): Int = service.countBeatmaps(filter)
 
     @GetMapping("/find/table")
     @RolesAllowed(RolePermission.VIEWER)
     fun findBeatmapsTable(
-        @RequestParam page: BeatmapPage,
+        @ModelAttribute filter: BeatmapFilter,
         @RequestParam pageNumber: Int,
         @RequestParam pageLimit: PageLimit,
-        @RequestParam(required = false) search: String?,
-        @RequestParam(required = false) artist: String?,
-        @RequestParam(required = false) title: String?,
-        @RequestParam(required = false) mapper: String?,
-        @RequestParam(required = false) status: Set<BeatmapStatus>?,
-        @RequestParam(required = false) nominators: Set<String>?,
-        @RequestParam(required = false) gamemodes: Set<Gamemode>?,
-        @RequestParam(required = false) missingNominator: Set<Gamemode>?,
-    ): List<ExposedBeatmap> =
-        service.findBeatmaps(
-            search = search,
-            artist = artist,
-            title = title,
-            mapper = mapper,
-            status = status ?: emptySet(),
-            nominators = nominators ?: emptySet(),
-            page = page,
-            pageNumber = pageNumber,
-            pageLimit = pageLimit,
-            gamemodes = gamemodes ?: emptySet(),
-            missingNominator = missingNominator ?: emptySet(),
-        )
+    ): List<ExposedBeatmap> = service.findBeatmaps(filter, pageNumber, pageLimit)
 
     @PostMapping("/add")
     @RolesAllowed(RolePermission.EDITOR)
     fun addBeatmap(
         login: OsuLogin,
         @RequestBody newBeatmap: NewBeatmap,
-    ): ExposedBeatmap =
-        service.addBeatmap(login, newBeatmap)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "osu! doesn't know beatmap ${newBeatmap.osuId}")
+    ): ExposedBeatmap {
+        val id = newBeatmap.osuId
+
+        if (!id.matches(Regex("[0-9]+"))) {
+            throw badRequest("The id of a beatmap only has digits")
+        }
+
+        if (newBeatmap.gamemodes.isEmpty()) {
+            throw badRequest("A beatmap needs at least one gamemode")
+        }
+
+        return when (val result = service.addBeatmap(login, newBeatmap)) {
+            is AddResult.Added -> result.beatmap
+            AddResult.AlreadyOnPlanner -> throw ResponseStatusException(HttpStatus.CONFLICT, "Beatmap $id is already on the planner")
+            AddResult.UnknownToOsu -> throw ResponseStatusException(HttpStatus.NOT_FOUND, "osu! doesn't know beatmap $id")
+        }
+    }
+
+    /** Sync a beatmap with osu! right away */
+    @PostMapping("/{id}/sync")
+    @RolesAllowed(RolePermission.EDITOR)
+    fun syncBeatmap(
+        login: OsuLogin,
+        @PathVariable("id") id: String,
+    ): ExposedBeatmap = service.syncBeatmap(login.accessToken, id) ?: throw notOnPlanner(id)
 
     @PatchMapping("/{id}/{mode}/nominator")
     @RolesAllowed(RolePermission.EDITOR)
@@ -107,13 +99,19 @@ class BeatmapController(
         @RequestParam new: String,
         @PathVariable("id") id: String,
         @PathVariable("mode") mode: Gamemode,
-    ): ExposedBeatmap =
-        service.updateBeatmapNominator(login, id, mode, old, new)
+    ): ExposedBeatmap {
+        // The planner also knows the missing nominator
+        if (userService.findUserById(new) == null) {
+            throw badRequest("User $new is unknown to the planner")
+        }
+
+        return service.updateBeatmapNominator(login, id, mode, old, new)
             ?: throw if (service.findBeatmap(id) == null) {
                 notOnPlanner(id)
             } else {
                 ResponseStatusException(HttpStatus.CONFLICT, "Someone else changed the nominators first")
             }
+    }
 
     @PatchMapping("/{id}/status")
     @RolesAllowed(RolePermission.ADMIN)
@@ -133,15 +131,22 @@ class BeatmapController(
         @RequestBody(required = false) body: String?,
         @PathVariable("id") id: String,
     ) {
-        if (!service.updateBeatmapNote(login, id, body ?: "")) throw notOnPlanner(id)
+        val note = body.orEmpty()
+
+        if (note.length > MAX_NOTE_LENGTH) {
+            throw badRequest("A note has at most $MAX_NOTE_LENGTH characters")
+        }
+
+        if (!service.updateBeatmapNote(login, id, note)) throw notOnPlanner(id)
     }
 
-    @DeleteMapping("/{id}/delete")
-    @RolesAllowed(RolePermission.EDITOR)
+    @DeleteMapping("/{id}")
+    @RolesAllowed(RolePermission.ADMIN)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteBeatmap(
         login: OsuLogin,
         @PathVariable("id") id: String,
     ) {
-        service.deleteBeatmap(login, id)
+        if (!service.deleteBeatmap(login, id)) throw notOnPlanner(id)
     }
 }

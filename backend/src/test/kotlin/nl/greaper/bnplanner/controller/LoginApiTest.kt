@@ -3,6 +3,7 @@ package nl.greaper.bnplanner.controller
 import com.mongodb.client.model.Filters
 import com.mongodb.client.model.Updates
 import jakarta.servlet.http.Cookie
+import nl.greaper.bnplanner.auth.LoginFlow
 import nl.greaper.bnplanner.config.SecurityConfig
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
@@ -21,7 +22,9 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
+import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
+import org.springframework.security.authentication.TestingAuthenticationToken
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import org.springframework.web.util.UriComponentsBuilder
 import java.net.URLDecoder
@@ -158,6 +161,17 @@ class LoginApiTest : ApiTest() {
     }
 
     @Test
+    fun `Should go back to the start when the page to go back to is gone`() {
+        val response = MockHttpServletResponse()
+        context
+            .getBean(
+                LoginFlow::class.java,
+            ).onAuthenticationSuccess(MockHttpServletRequest(), response, TestingAuthenticationToken("1", null))
+
+        assertEquals("http://localhost:3000/", response.redirectedUrl)
+    }
+
+    @Test
     fun `Should log in a known user when osu can not tell more about them`() {
         osuKnows("2", "Editor", groups = null)
         val response = finishLogin(startLogin(), "code" to "code")
@@ -230,10 +244,11 @@ class LoginApiTest : ApiTest() {
 
     @Test
     fun `Should use the roles someone has right now`() {
-        assertEquals(200, call(As.EDITOR, "DELETE", "/v2/beatmap/1/delete").status)
+        // Allowed, but not on the planner
+        assertEquals(404, call(As.EDITOR, "POST", "/v2/beatmap/1/sync").status)
 
         users.addInMemoryUser(User("2", "Editor", listOf(UserGamemode(Gamemode.osu, Role.Mapper))))
-        assertEquals(403, call(As.EDITOR, "DELETE", "/v2/beatmap/1/delete").status)
+        assertEquals(403, call(As.EDITOR, "POST", "/v2/beatmap/1/sync").status)
         assertEquals(
             "Mapper",
             JSONObject(call(As.EDITOR, "GET", "/v2/session").contentAsString).getJSONObject("permission").getString("osuRole"),
@@ -255,7 +270,7 @@ class LoginApiTest : ApiTest() {
         val request = { token: String? ->
             mvc
                 .perform(
-                    MockMvcRequestBuilders.delete("/v2/beatmap/1/delete").cookie(session.cookie).apply {
+                    MockMvcRequestBuilders.post("/v2/beatmap/1/sync").cookie(session.cookie).apply {
                         token?.let { header(SecurityConfig.CSRF_HEADER, it) }
                     },
                 ).andReturn()
@@ -264,7 +279,8 @@ class LoginApiTest : ApiTest() {
 
         assertEquals(403, request(null))
         assertEquals(403, request("made-up"))
-        assertEquals(200, request(session.csrfToken))
+        // Allowed, but not on the planner
+        assertEquals(404, request(session.csrfToken))
         // Reading needs no token
         assertEquals(
             200,

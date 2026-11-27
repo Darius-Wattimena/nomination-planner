@@ -2,7 +2,9 @@ package nl.greaper.bnplanner.service
 
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.PageLimit
+import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.beatmap.Beatmap
+import nl.greaper.bnplanner.model.beatmap.BeatmapFilter
 import nl.greaper.bnplanner.model.beatmap.BeatmapPage
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.support.Planner
@@ -21,35 +23,13 @@ class BeatmapFilterTest {
 
     private fun find(
         search: String? = null,
-        artist: String? = null,
-        title: String? = null,
-        mapper: String? = null,
-        status: Set<BeatmapStatus> = emptySet(),
-        nominators: Set<String> = emptySet(),
+        nominators: Set<String>? = null,
         page: BeatmapPage = BeatmapPage.PENDING,
-        gamemodes: Set<Gamemode> = emptySet(),
-        missingNominator: Set<Gamemode> = emptySet(),
+        gamemodes: Set<Gamemode>? = null,
     ): Set<String> {
-        val ids = service.findBeatmapsIds(search, artist, title, mapper, status, nominators, page, gamemodes, missingNominator)
-        val count = service.countBeatmaps(search, artist, title, mapper, status, nominators, page, gamemodes, missingNominator)
-        assertEquals(ids.size, count)
-
-        planner.user("10")
-        val table =
-            service.findBeatmaps(
-                search,
-                artist,
-                title,
-                mapper,
-                status,
-                nominators,
-                page,
-                1,
-                PageLimit.FIFTY,
-                gamemodes,
-                missingNominator,
-            )
-        assertEquals(ids, table.map { it.osuId }.toSet())
+        val filter = BeatmapFilter(page, search, nominators, gamemodes)
+        val ids = service.findBeatmaps(filter, 1, PageLimit.FIFTY).map { it.osuId }.toSet()
+        assertEquals(ids.size, service.countBeatmaps(filter))
 
         return ids
     }
@@ -66,52 +46,25 @@ class BeatmapFilterTest {
     }
 
     @Test
-    fun `Should find the requested statuses of a page`() {
+    fun `Should find the ids of beatmaps in progress with the requested statuses`() {
         saveEveryStatus()
 
-        assertEquals(setOf("Qualified", "Reset"), find(status = setOf(BeatmapStatus.Qualified, BeatmapStatus.Reset)))
-        assertEquals(setOf("Ranked"), find(status = setOf(BeatmapStatus.Ranked), page = BeatmapPage.RANKED))
-        assertEquals(setOf("Graved"), find(status = setOf(BeatmapStatus.Graved), page = BeatmapPage.GRAVEYARD))
+        assertEquals(setOf("Qualified", "Reset"), service.findPendingIds(setOf(BeatmapStatus.Qualified, BeatmapStatus.Reset)))
+        assertEquals(setOf("Qualified", "Nominated", "Disqualified", "Reset", "Pending", "Unfinished"), service.findPendingIds(emptySet()))
     }
 
     @Test
-    fun `Should find the whole page when none of the requested statuses are part of it`() {
-        saveEveryStatus()
-
-        assertEquals(
-            setOf("Qualified", "Nominated", "Disqualified", "Reset", "Pending", "Unfinished"),
-            find(status = setOf(BeatmapStatus.Ranked, BeatmapStatus.Graved)),
-        )
-        assertEquals(setOf("Ranked"), find(status = setOf(BeatmapStatus.Pending, BeatmapStatus.Graved), page = BeatmapPage.RANKED))
-        assertEquals(setOf("Graved"), find(status = setOf(BeatmapStatus.Pending, BeatmapStatus.Ranked), page = BeatmapPage.GRAVEYARD))
-    }
-
-    @Test
-    fun `Should leave out statuses of another page`() {
-        saveEveryStatus()
-
-        val pendingAndRanked = setOf(BeatmapStatus.Pending, BeatmapStatus.Ranked)
-        assertEquals(setOf("Pending"), find(status = pendingAndRanked))
-        assertEquals(setOf("Ranked"), find(status = pendingAndRanked, page = BeatmapPage.RANKED))
-        assertEquals(setOf("Graved"), find(status = pendingAndRanked + BeatmapStatus.Graved, page = BeatmapPage.GRAVEYARD))
-    }
-
-    @Test
-    fun `Should find on artist, title and mapper`() {
+    fun `Should search on artist, title and mapper`() {
         save(
             beatmap("1", artist = "Camellia", title = "Ghost", mapper = "Someone"),
             beatmap("2", artist = "Someone", title = "camellia flower", mapper = "Mapper"),
             beatmap("3", artist = "xi", title = "Blue", mapper = "Camellia fan"),
         )
 
-        assertEquals(setOf("1"), find(artist = "CAMELL"))
-        assertEquals(setOf("2"), find(title = "Camellia"))
-        assertEquals(setOf("3"), find(mapper = "camellia"))
         assertEquals(setOf("1", "2", "3"), find(search = "cAMELLIA"))
         assertEquals(setOf("1", "2"), find(search = "someone"))
-        assertEquals(setOf("1"), find(artist = "a", title = "ghost", mapper = "one", search = "ghost"))
-        assertEquals(emptySet<String>(), find(artist = "Camellia", title = "Blue"))
-        assertEquals(setOf("1", "2", "3"), find(artist = "", search = ""))
+        assertEquals(setOf("3"), find(search = "blue"))
+        assertEquals(setOf("1", "2", "3"), find(search = ""))
     }
 
     @Test
@@ -122,21 +75,17 @@ class BeatmapFilterTest {
             beatmap("3", title = "C:\\path \$1.*^|{}"),
             beatmap("4", title = "どこ"),
             beatmap("5", title = "ÀÉ"),
+            beatmap("6", title = "\\Ea.c"),
         )
 
-        assertEquals(setOf("1"), find(title = "what? (feat. [A+B])"))
+        assertEquals(setOf("1"), find(search = "what? (feat. [A+B])"))
         assertEquals(setOf("3"), find(search = "c:\\PATH \$1.*^|{}"))
-        assertEquals(setOf("3"), find(title = ".*"))
-        assertEquals(setOf("4"), find(title = "こ"))
-        assertEquals(setOf("5"), find(title = "ÀÉ"))
-    }
-
-    @Test
-    fun `Should use text containing the end of a regex quote literally`() {
-        save(beatmap("1", title = "abc"), beatmap("2", title = "\\Ea.c"))
-
-        assertEquals(emptySet<String>(), find(title = "\\Ea.c\\Q"))
-        assertEquals(setOf("2"), find(title = "\\Ea.c"))
+        assertEquals(setOf("3"), find(search = ".*"))
+        assertEquals(setOf("4"), find(search = "こ"))
+        assertEquals(setOf("5"), find(search = "ÀÉ"))
+        // The end of a regex quote
+        assertEquals(emptySet<String>(), find(search = "\\Ea.c\\Q"))
+        assertEquals(setOf("6"), find(search = "\\Ea.c"))
     }
 
     @Test
@@ -152,6 +101,7 @@ class BeatmapFilterTest {
         assertEquals(setOf("1", "3"), find(nominators = setOf("5", "8")))
         assertEquals(setOf("2", "3"), find(nominators = setOf("0")))
         assertEquals(emptySet<String>(), find(nominators = setOf("9")))
+        assertEquals(setOf("1", "2", "3"), find(nominators = emptySet(), gamemodes = emptySet()))
         assertEquals(setOf("1", "2"), find(gamemodes = setOf(Gamemode.osu)))
         assertEquals(setOf("2", "3"), find(gamemodes = setOf(Gamemode.taiko, Gamemode.mania)))
         assertEquals(setOf("2"), find(gamemodes = setOf(Gamemode.osu), nominators = setOf("7")))
@@ -159,51 +109,17 @@ class BeatmapFilterTest {
     }
 
     @Test
-    fun `Should find on missing nominators`() {
-        save(
-            beatmap("1", mode(Gamemode.osu, "5", "6")),
-            beatmap("2", mode(Gamemode.osu, "5", "0")),
-            beatmap("3", mode(Gamemode.mania, "0", "8")),
-            beatmap("4", mode(Gamemode.taiko, "0", "0")),
-        )
-
-        assertEquals(setOf("2"), find(missingNominator = setOf(Gamemode.osu)))
-        assertEquals(setOf("2", "3"), find(missingNominator = setOf(Gamemode.osu, Gamemode.mania)))
-        assertEquals(setOf("4"), find(missingNominator = setOf(Gamemode.taiko)))
-        assertEquals(emptySet<String>(), find(missingNominator = setOf(Gamemode.fruits)))
-    }
-
-    @Test
-    fun `Should leave out missing nominators of another gamemode`() {
-        save(beatmap("1", mode(Gamemode.osu, "5", "6"), mode(Gamemode.taiko, "7", "0")))
-
-        assertEquals(emptySet<String>(), find(missingNominator = setOf(Gamemode.osu)))
-        assertEquals(setOf("1"), find(missingNominator = setOf(Gamemode.taiko)))
-    }
-
-    @Test
     fun `Should combine every filter`() {
-        val match = beatmap("1", mode(Gamemode.osu, "5", "0"), artist = "a", title = "t", mapper = "m", status = BeatmapStatus.Nominated)
+        val match = beatmap("1", mode(Gamemode.osu, "5", "0"), title = "unique", status = BeatmapStatus.Nominated)
         save(
             match,
-            match.copy(osuId = "2", status = BeatmapStatus.Pending),
-            match.copy(osuId = "3", artist = "other"),
+            match.copy(osuId = "2", status = BeatmapStatus.Ranked),
+            match.copy(osuId = "3", title = "other"),
             match.copy(osuId = "4", gamemodes = listOf(mode(Gamemode.osu, "6", "0"))),
+            match.copy(osuId = "5", gamemodes = listOf(mode(Gamemode.mania, "5", "0"))),
         )
 
-        assertEquals(
-            setOf("1"),
-            find(
-                search = "T",
-                artist = "A",
-                title = "T",
-                mapper = "M",
-                status = setOf(BeatmapStatus.Nominated),
-                nominators = setOf("5"),
-                gamemodes = setOf(Gamemode.osu),
-                missingNominator = setOf(Gamemode.osu),
-            ),
-        )
+        assertEquals(setOf("1"), find(search = "UNIQ", nominators = setOf("5"), gamemodes = setOf(Gamemode.osu)))
     }
 
     @Test
@@ -219,14 +135,6 @@ class BeatmapFilterTest {
     }
 
     @Test
-    fun `Should ignore the status when there is no page`() {
-        saveEveryStatus()
-
-        val filter = service.setupFilter(status = setOf(BeatmapStatus.Pending), page = null)
-        assertEquals(BeatmapStatus.entries.size, planner.beatmaps.count(filter))
-    }
-
-    @Test
     fun `Should sort and limit what is found`() {
         planner.user("10")
         (1..25).forEach { save(beatmap("$it", updated = UPDATED.minusSeconds(it.toLong()))) }
@@ -235,37 +143,21 @@ class BeatmapFilterTest {
             number: Int,
             limit: PageLimit,
         ) = service
-            .findBeatmaps(null, null, null, null, emptySet(), emptySet(), BeatmapPage.PENDING, number, limit, emptySet(), emptySet())
+            .findBeatmaps(BeatmapFilter(BeatmapPage.PENDING), number, limit)
             .map { it.osuId.toInt() }
 
         assertEquals((21..25).toList(), table(3, PageLimit.TEN))
     }
 
     @Test
-    fun `Should leave out beatmaps of unknown mappers, while still counting them`() {
+    fun `Should show beatmaps of unknown mappers with the name osu gave`() {
         planner.user("10")
-        save(beatmap("1"), beatmap("2", mapperId = "unknown"))
+        save(beatmap("1"), beatmap("2", mapperId = "unknown", mapper = "Gone"))
 
-        val found =
-            service
-                .findBeatmaps(
-                    null,
-                    null,
-                    null,
-                    null,
-                    emptySet(),
-                    emptySet(),
-                    BeatmapPage.PENDING,
-                    1,
-                    PageLimit.FIFTY,
-                    emptySet(),
-                    emptySet(),
-                ).map { it.osuId }
+        val found = service.findBeatmaps(BeatmapFilter(BeatmapPage.PENDING), 1, PageLimit.FIFTY).associate { it.osuId to it.mapper }
 
-        assertEquals(listOf("1"), found)
-        assertEquals(
-            2,
-            service.countBeatmaps(null, null, null, null, emptySet(), emptySet(), BeatmapPage.PENDING, emptySet(), emptySet()),
-        )
+        assertEquals(setOf("1", "2"), found.keys)
+        assertEquals("User 10", found["1"]!!.username)
+        assertEquals(User("unknown", "Gone", emptyList()), found["2"])
     }
 }

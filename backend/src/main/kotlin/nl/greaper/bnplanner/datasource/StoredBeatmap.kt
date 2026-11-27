@@ -48,15 +48,8 @@ object StoredBeatmap {
 
     private fun toDocument(gamemode: BeatmapGamemode): Document {
         val missing = BeatmapNominator(MISSING_USER_ID, false)
-        val document =
-            Document("mode", gamemode.gamemode.name)
-                .append("by", gamemode.nominators.dropLastWhile { it == missing }.map { toDocument(it) })
-
-        if (gamemode.isReady) {
-            document.append("ready", true)
-        }
-
-        return document
+        return Document("mode", gamemode.gamemode.name)
+            .append("by", gamemode.nominators.dropLastWhile { it == missing }.map { toDocument(it) })
     }
 
     private fun toDocument(nominator: BeatmapNominator): Document {
@@ -94,7 +87,6 @@ object StoredBeatmap {
                         .getList("by", Document::class.java)
                         .map { BeatmapNominator(it["user"].toString(), it.getBoolean("done", false)) },
                 ),
-            isReady = document.getBoolean("ready", false),
         )
 
     /** Read how beatmaps were stored before */
@@ -123,7 +115,6 @@ object StoredBeatmap {
                 document
                     .getList("nominators", Document::class.java)
                     .map { BeatmapNominator(it["nominatorId"].toString(), it.getBoolean("hasNominated", false)) },
-            isReady = document.getBoolean("isReady", false),
         )
 
     fun toOldDocument(beatmap: Beatmap): Document =
@@ -145,7 +136,9 @@ object StoredBeatmap {
             .append(
                 "nominators",
                 gamemode.nominators.map { Document("nominatorId", it.nominatorId).append("hasNominated", it.hasNominated) },
-            ).append("isReady", gamemode.isReady)
+            )
+            // Not used anymore, but the previous version needs it
+            .append("isReady", false)
 
     private fun findStatus(document: Document): BeatmapStatus =
         requireNotNull(BeatmapStatus.fromPriorityStatus((document["status"] as Number).toInt())) { "Unknown status" }

@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Follows the nominations, qualifications, ranks, resets and disqualifications on osu! (https://osu.ppy.sh/beatmapsets/events)
- * of the beatmaps on the planner. Takes the place of Aiess.
+ * of the beatmaps on the planner, so the planner shows them within a minute.
  */
 @Component
 @ConditionalOnProperty(name = ["osu.follow-events.enabled"], havingValue = "true")
@@ -80,7 +80,7 @@ class FollowBeatmapEvents(
                     .findAll { it.status != BeatmapStatus.Ranked && it.status != BeatmapStatus.Graved }
                     .map { it.osuId }
             log.warn { "Too many beatmap events of osu! after event $last to read, syncing ${inProgress.size} beatmaps instead" }
-            jobs.syncBeatmaps(token, inProgress)
+            jobs.syncBeatmaps(inProgress)
         }
 
         return found.events.count { event ->
@@ -89,7 +89,7 @@ class FollowBeatmapEvents(
 
             if (changed != null && isMainGamemodeUnknown(changed, event)) {
                 // Only osu! knows which gamemode needs two nominations, see findMainGamemodes
-                jobs.syncBeatmaps(token, listOf(changed.osuId))
+                jobs.syncBeatmaps(listOf(changed.osuId))
             }
 
             changed != null

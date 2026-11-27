@@ -12,7 +12,6 @@ data class RolePermission(
     override fun getName(): String = osuRole.name
 
     companion object {
-        const val DEVELOPER = "DEVELOPER"
         const val ADMIN = "ADMIN"
         const val EDITOR = "EDITOR"
         const val VIEWER = "VIEWER"

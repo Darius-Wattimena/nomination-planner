@@ -21,7 +21,6 @@ data class ExposedBeatmap(
 data class ExposedBeatmapGamemode(
     val gamemode: Gamemode,
     val nominators: List<ExposedBeatmapNominator>,
-    val isReady: Boolean,
 )
 
 data class ExposedBeatmapNominator(

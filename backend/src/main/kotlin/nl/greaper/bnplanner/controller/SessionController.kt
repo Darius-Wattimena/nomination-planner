@@ -1,6 +1,7 @@
 package nl.greaper.bnplanner.controller
 
 import nl.greaper.bnplanner.auth.RolePermission
+import nl.greaper.bnplanner.config.PlannerProperties
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.service.UserService
 import nl.greaper.bnplanner.util.getHighestRoleForUser
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/v2/session")
 class SessionController(
     private val userService: UserService,
+    private val planner: PlannerProperties,
 ) {
     data class Session(
         val user: User,
@@ -32,6 +34,6 @@ class SessionController(
         // Known, as someone the planner doesn't know is not logged in
         val user = login?.let { userService.findUserById(it.name)!! } ?: return ResponseEntity.noContent().build()
 
-        return ResponseEntity.ok(Session(user, getHighestRoleForUser(user), csrf.token))
+        return ResponseEntity.ok(Session(user, getHighestRoleForUser(user, planner.admins), csrf.token))
     }
 }

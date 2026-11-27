@@ -88,9 +88,14 @@ class UserServiceTest {
     fun `Should save a user osu does not know as restricted`() {
         val expected = User("5", "RESTRICTED", emptyList(), restricted = true)
 
-        assertEquals(expected, force(log = false))
+        assertEquals(expected, force())
         assertEquals(listOf(expected), planner.users.list())
         assertEquals(sent("Could not find user with id 5, created restricted user", EmbedColor.ORANGE), planner.discord.single())
+
+        // Only logged
+        planner.discord.sent.clear()
+        assertEquals(expected, force(log = false))
+        assertEquals(emptyList<Sent>(), planner.discord.sent)
     }
 
     @Test

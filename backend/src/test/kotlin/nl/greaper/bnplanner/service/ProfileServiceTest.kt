@@ -58,7 +58,7 @@ class ProfileServiceTest {
         assertEquals(emptyList<ProfileStatisticsPairInfo>(), pairing("0"))
     }
 
-    private fun gamemode(vararg nominators: String) = BeatmapGamemode(Gamemode.osu, nominators.map { BeatmapNominator(it, false) }, false)
+    private fun gamemode(vararg nominators: String) = BeatmapGamemode(Gamemode.osu, nominators.map { BeatmapNominator(it, false) })
 
     @Test
     fun `Should not pair with anybody on a single nominator`() {

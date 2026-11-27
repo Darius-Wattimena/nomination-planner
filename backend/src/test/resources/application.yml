@@ -11,9 +11,9 @@ mongodb:
   db: bnplanner
 
 osu:
-  clientId: "1"
-  clientSecret: ""
-  redirectUri: ""
+  client-id: "1"
+  client-secret: ""
+  redirect-uri: ""
   min-request-interval-millis: 0
 
 login:
@@ -22,6 +22,7 @@ login:
 beatmaps.keep-old: true
 
 planner.wait-millis: 400
+planner.admins: "2369776"
 
 osu.background-sync:
   enabled: false

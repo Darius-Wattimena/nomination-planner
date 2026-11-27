@@ -38,9 +38,18 @@ class FakeJda {
 
     private val channels = mutableMapOf<String, TextChannel>()
 
+    /** The servers the bot is in, which are available */
+    val guilds = mutableSetOf("guild")
+    var status = JDA.Status.CONNECTED
+
     val jda: JDA =
         Mockito.mock(JDA::class.java) {
-            if (it.method.name == "getTextChannelById") channels[it.arguments[0].toString()] else Mockito.RETURNS_DEFAULTS.answer(it)
+            when (it.method.name) {
+                "getTextChannelById" -> channels[it.arguments[0].toString()]
+                "getGuildById" -> Mockito.mock(Guild::class.java).takeIf { _ -> it.arguments[0].toString() in guilds }
+                "getStatus" -> status
+                else -> Mockito.RETURNS_DEFAULTS.answer(it)
+            }
         }
 
     /** Return an action doing something once it is queued */

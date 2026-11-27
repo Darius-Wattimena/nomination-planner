@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Keeps the beatmaps in progress up to date with osu!, a few at a time, the ones that were checked longest ago first.
- * Takes the place of Aiess until there is something that tells the planner about changes.
+ * A safety net for anything the followed beatmap events miss.
  */
 @Component
 @ConditionalOnProperty(name = ["osu.background-sync.enabled"], havingValue = "true")
@@ -27,8 +27,8 @@ class BackgroundSync(
 
     @Scheduled(fixedDelay = 60_000, initialDelay = 60_000)
     fun sync(): List<String> {
-        // Also the planner's own login with osu!, so it works without anybody using the planner
-        val token = osuService.findClientToken() ?: return emptyList()
+        // The syncs use the planner's own login with osu!, nothing works without it
+        osuService.findClientToken() ?: return emptyList()
         val next =
             beatmapDataSource
                 .findAll { it.status != BeatmapStatus.Ranked && it.status != BeatmapStatus.Graved }
@@ -37,7 +37,7 @@ class BackgroundSync(
                 .map { it.osuId }
 
         next.forEach { checked[it] = Instant.now() }
-        jobs.syncBeatmaps(token, next)
+        jobs.syncBeatmaps(next)
 
         return next
     }

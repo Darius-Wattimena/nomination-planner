@@ -9,9 +9,7 @@ import nl.greaper.bnplanner.model.osu.BeatmapsetEvents
 import nl.greaper.bnplanner.model.osu.GroupHistory
 import nl.greaper.bnplanner.model.osu.Me
 import nl.greaper.bnplanner.util.Sleeper
-import nl.greaper.bnplanner.util.shouldSkipUser
 import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.http.client.SimpleClientHttpRequestFactory
@@ -81,10 +79,25 @@ class OsuHttpClient(
         }
     }
 
+    /** Ask the api of osu! something on behalf of whoever the token belongs to */
     fun get(
         uri: String,
         osuApiToken: String,
-    ): ResponseEntity<String> = request(uri, HttpMethod.GET, osuApiToken)
+    ): ResponseEntity<String> {
+        val requestUri = "${config.baseUrl}/api/v2$uri"
+
+        return rateLimit.call("GET $requestUri") {
+            log.debug { "GET ==> $requestUri" }
+
+            // Never share headers between calls, as they would use the token of each other
+            rest
+                .get()
+                .uri(requestUri)
+                .headers { it.setBearerAuth(osuApiToken) }
+                .retrieve()
+                .toEntity<String>()
+        }
+    }
 
     fun findBeatmapWithId(
         osuApiToken: String,
@@ -107,12 +120,8 @@ class OsuHttpClient(
     fun findUserWithId(
         osuApiToken: String,
         osuId: String,
-    ): Me? {
-        if (shouldSkipUser(osuId)) {
-            return null
-        }
-
-        return try {
+    ): Me? =
+        try {
             val response = get("/users/$osuId?key=id", osuApiToken)
             objectMapper.readValue<Me>(response.body ?: "")
         } catch (ex: HttpClientErrorException.NotFound) {
@@ -121,7 +130,6 @@ class OsuHttpClient(
         } catch (ex: Exception) {
             throw OsuRequestException("Unable to get a user from the osu api, using id $osuId", ex)
         }
-    }
 
     /**
      * A page of the events of all beatmap sets, newest first, as shown on https://osu.ppy.sh/beatmapsets/events
@@ -152,7 +160,7 @@ class OsuHttpClient(
 
         val body =
             rateLimit.call("GET $uri") {
-                log.info { "GET ==> $uri" }
+                log.debug { "GET ==> $uri" }
                 rest
                     .get()
                     .uri(uri)
@@ -162,32 +170,6 @@ class OsuHttpClient(
             }
 
         return objectMapper.readValue<GroupHistory>(body ?: "")
-    }
-
-    internal fun request(
-        uri: String,
-        method: HttpMethod,
-        authToken: String,
-        body: String = "",
-    ): ResponseEntity<String> {
-        val requestUri = "${config.baseUrl}/api/v2$uri"
-
-        return rateLimit.call("$method $requestUri") {
-            log.info { "$method ==> $requestUri" }
-
-            // Never share headers between calls, as they would use the token of each other
-            val request =
-                rest
-                    .method(method)
-                    .uri(requestUri)
-                    .headers { it.setBearerAuth(authToken) }
-
-            if (body != "") {
-                request.body(body)
-            }
-
-            request.retrieve().toEntity<String>()
-        }
     }
 }
 

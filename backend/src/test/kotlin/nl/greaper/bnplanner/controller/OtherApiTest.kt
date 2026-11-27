@@ -63,12 +63,12 @@ class OtherApiTest : ApiTest() {
 
     // Admin
 
-    private fun assertSynced(
+    private fun assertQueued(
         amount: Int,
         response: MockHttpServletResponse,
     ) {
-        val duration = JSONObject(response.contentAsString).getLong("duration")
-        response.assertJson("""{"duration":$duration,"totalSynced":$amount}""")
+        response.assertJson("""{"queued":$amount}""")
+        jobs.finish()
     }
 
     private fun sync(
@@ -92,13 +92,26 @@ class OtherApiTest : ApiTest() {
 
     @Test
     fun `Should sync pending beatmaps in the background`() {
+        FakeOsu.token("own")
         saveEveryStatus()
 
-        assertSynced(2, sync(As.ADMIN, "beatmaps/pending?status=Qualified,Reset"))
-        jobs.finish()
+        assertQueued(2, sync(As.ADMIN, "beatmaps/pending?status=Qualified,Reset"))
         assertEquals(setOf("1", "4"), synced())
         get("/v2/admin/sync/waiting", As.ADMIN).assertJson("0")
+        assertEquals(true, FakeOsu.requests.filter { it.uri.startsWith("/api") }.all { it.header("Authorization") == "Bearer own" })
+        assertQueued(6, sync(As.ADMIN, "beatmaps/pending?status="))
+        assertQueued(6, sync(As.ADMIN, "beatmaps/pending"))
+    }
+
+    @Test
+    fun `Should refuse to sync beatmaps of a status that is not pending`() {
+        val response = sync(As.ADMIN, "beatmaps/pending?status=Qualified,Ranked,Graved")
+
+        assertEquals(400, response.status)
+        assertEquals("application/problem+json", response.contentType)
+        assertEquals("Not a status of a beatmap in progress: Ranked, Graved", JSONObject(response.contentAsString).getString("detail"))
         assertEquals(400, sync(As.ADMIN, "beatmaps/pending?status=Other").status)
+        get("/v2/admin/sync/waiting", As.ADMIN).assertJson("0")
     }
 
     // Live updates
@@ -136,25 +149,18 @@ class OtherApiTest : ApiTest() {
     }
 
     @Test
-    fun `Should sync a single beatmap`() {
-        saveEveryStatus()
-
-        assertSynced(1, sync(As.EDITOR, "beatmaps/single?id=5"))
-        assertEquals(setOf("5"), synced())
-        assertEquals(400, sync(As.EDITOR, "beatmaps/single?id=a").status)
-        assertEquals(400, sync(As.EDITOR, "beatmaps/single").status)
-    }
-
-    @Test
     fun `Should sync some users`() {
+        FakeOsu.token("own")
         listOf("1", "4").forEach { FakeOsu.user(it, "Synced $it") }
 
-        assertSynced(2, sync(As.ADMIN, "users/ids", """["1","4"]"""))
+        assertQueued(1, sync(As.ADMIN, "users/ids", """["1","4"]"""))
         assertEquals(listOf("Viewer", "Synced 4"), listOf("1", "4").map { users.findUser(it)!!.username })
-        assertSynced(1, sync(As.ADMIN, "users/ids?force=false", """["1"]"""))
+        assertQueued(0, sync(As.ADMIN, "users/ids?force=false", """["1"]"""))
         assertEquals("Viewer", users.findUser("1")!!.username)
-        assertSynced(1, sync(As.ADMIN, "users/ids?force=true", "[1]"))
+        assertQueued(1, sync(As.ADMIN, "users/ids?force=true", "[1]"))
         assertEquals("Synced 1", users.findUser("1")!!.username)
         assertEquals(400, sync(As.ADMIN, "users/ids").status)
+        // Only logged, not sent to Discord
+        assertEquals(emptyList<Any>(), discord.sent)
     }
 }

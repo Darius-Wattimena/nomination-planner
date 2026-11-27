@@ -37,26 +37,16 @@ class Planner(
 
     val discord = RecordingDiscord()
     private val discordClient: DiscordClient? = discord.takeIf { withDiscord }
-    val sleeps = mutableListOf<Long>()
-
-    /** Happens while the planner waits, like someone else making a change in the meantime */
-    var duringSleep: () -> Unit = {}
-    private val sleeper =
-        Sleeper {
-            sleeps += it
-            duringSleep()
-        }
-
     val beatmaps = BeatmapDataSource(TestMongo.database, true)
     val users = UserDataSource(TestMongo.database)
 
     val osuClient = osuClient()
     val userService = UserService(users, osuClient, discordClient)
-    val beatmapService = BeatmapService(beatmaps, userService, osuClient, discordClient, sleeper)
+    val beatmapService = BeatmapService(beatmaps, userService, osuClient, discordClient)
     val osuService = OsuService(osuClient)
     val authService = AuthService(discordClient)
-    val osuJobs = OsuJobs(beatmapService, sleeper)
-    val syncService = SyncService(userService, beatmapService, osuJobs, sleeper)
+    val osuJobs = OsuJobs(beatmapService, userService, osuService)
+    val syncService = SyncService(userService, beatmapService, osuJobs)
     val profileService = ProfileService(beatmapService, userService)
 
     fun user(
@@ -94,8 +84,7 @@ class Planner(
             second: String = "0",
             firstNominated: Boolean = false,
             secondNominated: Boolean = false,
-            isReady: Boolean = false,
-        ) = BeatmapGamemode(gamemode, listOf(BeatmapNominator(first, firstNominated), BeatmapNominator(second, secondNominated)), isReady)
+        ) = BeatmapGamemode(gamemode, listOf(BeatmapNominator(first, firstNominated), BeatmapNominator(second, secondNominated)))
 
         fun beatmap(
             id: String = "1",

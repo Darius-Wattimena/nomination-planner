@@ -4,8 +4,8 @@ import nl.greaper.bnplanner.ServletInitializer
 import nl.greaper.bnplanner.auth.RolePermission
 import nl.greaper.bnplanner.config.DatabaseConfig
 import nl.greaper.bnplanner.config.MongoProperties
+import nl.greaper.bnplanner.config.PlannerProperties
 import nl.greaper.bnplanner.model.Gamemode
-import nl.greaper.bnplanner.model.PlannerEvent
 import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.UserGamemode
@@ -138,18 +138,12 @@ class UtilTest {
         assertEquals(RolePermission(Role.Probation, setOf("VIEWER", "EDITOR")), permission(Role.Mapper, Role.Probation))
         assertEquals(nominator, permission(Role.Probation, Role.Nominator))
         assertEquals(admin, permission(Role.Nominator, Role.NominationAssessment, Role.Mapper))
-        assertEquals(
-            RolePermission(Role.NominationAssessment, setOf("DEVELOPER", "ADMIN", "VIEWER", "EDITOR")),
-            getHighestRoleForUser(User("2369776", "", emptyList())),
-        )
+        assertEquals(admin, getHighestRoleForUser(User("2369776", "", emptyList()), listOf("5", "2369776")))
+        assertEquals(viewer, getHighestRoleForUser(User("2369776", "", emptyList())))
+        assertEquals(viewer, getHighestRoleForUser(null, listOf("2369776")))
+        // Nobody unless configured
+        assertEquals(emptyList<String>(), PlannerProperties().admins)
         assertEquals("Nominator", nominator.name)
-    }
-
-    @Test
-    fun `Should skip restricted users`() {
-        assertEquals(setOf("3071175", "2697284", "6694242"), RESTRICTED_IDS)
-        assertTrue(RESTRICTED_IDS.all { shouldSkipUser(it) })
-        assertFalse(shouldSkipUser("1"))
     }
 
     @Test
@@ -196,24 +190,6 @@ class UtilTest {
         val embed = EmbedMessage("text", 1, EmbedThumbnail("url"), EmbedFooter("footer"))
 
         assertNull(embed.footer.icon_url)
-    }
-
-    @Test
-    fun `Should know the planner events`() {
-        assertEquals(
-            listOf(
-                "BEATMAP_CREATE",
-                "BEATMAP_ADD_NOMINATOR",
-                "BEATMAP_REMOVE_NOMINATOR",
-                "BEATMAP_UPDATE_OSU_STATUS",
-                "BEATMAP_UPDATE_PLANNER_STATUS",
-                "BEATMAP_DELETE",
-                "USER_CREATE",
-                "USER_LOGIN",
-                "USER_UPDATE_GROUP",
-            ),
-            PlannerEvent.entries.map { it.name },
-        )
     }
 
     @Test

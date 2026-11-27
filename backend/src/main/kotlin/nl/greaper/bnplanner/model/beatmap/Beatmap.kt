@@ -22,7 +22,6 @@ data class Beatmap(
 data class BeatmapGamemode(
     val gamemode: Gamemode,
     val nominators: List<BeatmapNominator>,
-    val isReady: Boolean,
 )
 
 data class BeatmapNominator(

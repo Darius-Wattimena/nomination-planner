@@ -64,8 +64,10 @@ class LiveUpdates(
 
     private fun wake() {
         isWakeScheduled.set(false)
+        // Many wait since the same change
+        val updates = mutableMapOf<String, PlannerUpdate>()
         waiting.forEach { waiter ->
-            val update = service.find(waiter.since)
+            val update = updates.getOrPut(waiter.since) { service.find(waiter.since) }
 
             if (update.hasContent()) {
                 waiter.result.setResult(update)
