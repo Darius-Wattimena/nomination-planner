@@ -233,8 +233,11 @@ Resources:
           SourcePrefixListId: !Ref CloudFrontPrefixList
 
   # Only the origin address is in Route 53, Namecheap hands it over with NS records. Let's Encrypt checks a TXT record in it.
+  # Kept when the stack goes, as a new zone gets new name servers and the NS records at Namecheap would have to change
   OriginZone:
     Type: AWS::Route53::HostedZone
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Name: !Ref OriginDomain
       HostedZoneConfig:

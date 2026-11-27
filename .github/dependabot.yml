@@ -1,0 +1,7 @@
+# Keeps the pinned actions of the workflows up to date, as a pull request once a week
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
