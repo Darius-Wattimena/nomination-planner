@@ -155,7 +155,9 @@ class BeatmapServiceTest {
                 on { findById("1") } doReturn beatmap()
                 on { deleteById("1") } doReturn false
             }
-        assertFalse(BeatmapService(source, planner.userService, planner.osuClient, planner.discord).deleteBeatmap(LOGIN, "1"))
+        assertFalse(
+            BeatmapService(source, planner.userService, planner.osuClient, planner.discord, planner.events).deleteBeatmap(LOGIN, "1"),
+        )
 
         assertEquals(emptyList<Sent>(), planner.discord.sent)
     }
@@ -204,7 +206,7 @@ class BeatmapServiceTest {
                 on { findById("1") } doReturn null
                 on { insertIfMissing(any()) } doReturn beatmap(note = "first")
             }
-        val service = BeatmapService(source, planner.userService, planner.osuClient, planner.discord)
+        val service = BeatmapService(source, planner.userService, planner.osuClient, planner.discord, planner.events)
 
         assertEquals(BeatmapService.AddResult.AlreadyOnPlanner, service.addBeatmap(LOGIN, NewBeatmap("1", listOf(Gamemode.mania))))
         assertEquals(emptyList<Sent>(), planner.discord.sent)
@@ -324,7 +326,7 @@ class BeatmapServiceTest {
         FakeOsu.beatmap("1", title = "Synced", nominations = "[${nomination("5", "osu")}]")
         planner.save(beatmap())
 
-        val synced = service.syncBeatmap(TOKEN, "1")!!
+        val synced = service.syncBeatmap(LOGIN, "1")!!
         assertEquals("Synced", synced.title)
         assertEquals(BeatmapStatus.Nominated, synced.status)
         assertEquals(
@@ -334,7 +336,7 @@ class BeatmapServiceTest {
                 .nominators
                 .map { it.nominator.osuId },
         )
-        assertNull(service.syncBeatmap(TOKEN, "2"))
+        assertNull(service.syncBeatmap(LOGIN, "2"))
         assertEquals(listOf("GET /api/v2/beatmapsets/1"), FakeOsu.calls())
     }
 
@@ -484,7 +486,7 @@ class BeatmapServiceTest {
         planner.save(beatmap)
 
         assertThrows<OsuUnavailableException> { service.syncBeatmap(TOKEN, beatmap) }
-        assertThrows<OsuUnavailableException> { service.syncBeatmap(TOKEN, "1") }
+        assertThrows<OsuUnavailableException> { service.syncBeatmap(LOGIN, "1") }
         assertEquals(beatmap, planner.stored())
     }
 
@@ -494,7 +496,7 @@ class BeatmapServiceTest {
         FakeOsu.respond("GET /api/v2/beatmapsets/1", "{}", status = 500)
         FakeOsu.respond("GET /api/v2/beatmapsets/2", "{}", status = 401)
 
-        assertThrows<OsuUnavailableException> { service.syncBeatmap(TOKEN, "1") }
+        assertThrows<OsuUnavailableException> { service.syncBeatmap(LOGIN, "1") }
         FakeOsu.respond("GET /api/v2/beatmapsets/3", "{}", status = 503)
         assertThrows<OsuUnavailableException> { service.addBeatmap(LOGIN, NewBeatmap("3", listOf(Gamemode.osu))) }
         assertThrows<LoginExpiredException> { service.addBeatmap(LOGIN, NewBeatmap("2", listOf(Gamemode.osu))) }
@@ -510,7 +512,7 @@ class BeatmapServiceTest {
         // osu! asks to wait longer than someone would
         FakeOsu.refuse("GET /api/v2/beatmapsets/1", 1, retryAfter = "6")
 
-        assertThrows<OsuUnavailableException> { service.syncBeatmap(TOKEN, "1") }
+        assertThrows<OsuUnavailableException> { service.syncBeatmap(LOGIN, "1") }
         assertEquals(beatmap(), planner.stored())
     }
 
