@@ -1,16 +1,18 @@
 import type {PointerEvent as ReactPointerEvent} from "react";
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {Link as RouterLink} from "react-router";
-import {FaExpand, FaMagnifyingGlass, FaMinus, FaPlus, FaXmark} from "react-icons/fa6";
+import {FaBackwardStep, FaExpand, FaForwardStep, FaMagnifyingGlass, FaMinus, FaPause, FaPlay, FaPlus, FaXmark} from "react-icons/fa6";
 import {GAMEMODE_NAMES, GAMEMODES} from "../Constants";
 import {Gamemode} from "../models/Types";
 import ModeIcon from "../ui/ModeIcon";
 import {Avatar} from "../ui/Person";
 import {Table} from "./Columns";
 import type {Camera, Network, Point, Size, Star} from "./sky";
-import {findStars, fit, isVisible, layout, pan, partnersOf, placeNames, radius, shares, starScale, strongestLinks, toScreen, zoomAt} from "./sky";
+import {findStars, firstTogether, fit, isVisible, layout, newPairs, pairKey, pan, partnersOf, placeNames, radius, shares, starScale, steps, strongestLinks, timeline, toScreen, upTo, zoomAt} from "./sky";
 import type {Link} from "./stats";
+import {useScope} from "./useScope";
 import {displayName} from "../utils/users";
+import "./boardsSky.css";
 
 const CLASSES: Record<Gamemode, string> = {
   [Gamemode.Osu]: "in-osu",
@@ -23,6 +25,10 @@ const CLASSES: Record<Gamemode, string> = {
 const DRAG = 6
 /** Names of partners that are always shown */
 const NAMED_PARTNERS = 8
+/** How long a step of playing through the range is shown */
+const STEP_TIME = 900
+
+const DATE = new Intl.DateTimeFormat("en", {day: "numeric", month: "short", year: "numeric"})
 
 type Selection = {person: string} | {pair: [string, string]}
 
@@ -38,11 +44,54 @@ export default function Constellation({data}: {data: Network}) {
   const [selection, setSelection] = useState<Selection>()
   const [picked, setPicked] = useState<Gamemode>()
   const [search, setSearch] = useState("")
+  const [onlyNew, setOnlyNew] = useState(false)
+  // A step of playing through the range, the whole range when there is none
+  const [step, setStep] = useState<number>()
+  const [playing, setPlaying] = useState(false)
+  const [still] = useState(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false)
 
+  const {range, ofMode, scope, mode} = useScope()
+  // Pairs that ranked their first beatmap together in the range, which says nothing for all time
+  const first = useMemo(() => firstTogether(ofMode, mode), [ofMode, mode])
+  const fresh = useMemo(() => range.key === "all" ? new Set<string>() : newPairs(data.links, first, range), [data, first, range])
+  const isNew = (link: Link) => fresh.has(pairKey(link.a, link.b))
+  const freshLinks = useMemo(() => data.links.filter(it => fresh.has(pairKey(it.a, it.b))), [data, fresh])
+  const inFresh = useMemo(() => new Set(freshLinks.flatMap(it => [it.a, it.b])), [freshLinks])
+  const times = useMemo(() => timeline(scope, mode), [scope, mode])
+  const stepList = useMemo(() => steps(range), [range])
+  const last = stepList.length - 1
+  // Up to when the sky is shown, everything when not playing or at the last step
+  const until = step !== undefined && step < last ? stepList[step].end.getTime() : undefined
+  const period = range.label.startsWith("Last") ? `the ${range.label.toLowerCase().slice(5)}` : range.label === "This year" ? "this year" : range.label
+
+  // Laid out once for the whole range, so nobody moves while playing through it
   const points = useMemo(() => layout(data), [data])
   const byId = useMemo(() => new Map(data.people.map(it => [it.user.osuId, it])), [data])
   const most = Math.max(1, ...data.people.map(it => it.count))
   const strongest = Math.max(1, ...data.links.map(it => it.count))
+  const countOf = (star: Star) => until === undefined ? star.count : upTo(times.people.get(star.user.osuId), until)
+  const togetherOf = (link: Link) => until === undefined ? link.count : upTo(times.links.get(pairKey(link.a, link.b)), until)
+
+  // Playing shows the next step after a while, and stops at the end
+  useEffect(() => {
+    if (!playing) return
+    const timer = window.setTimeout(() => {
+      if (step === undefined || step >= last) setPlaying(false)
+      else setStep(step + 1)
+    }, STEP_TIME)
+    return () => window.clearTimeout(timer)
+  }, [playing, step, last])
+
+  function play() {
+    if (playing) return setPlaying(false)
+    if (step === undefined || step >= last) setStep(0)
+    setPlaying(true)
+  }
+
+  function goTo(next: number) {
+    setPlaying(false)
+    setStep(Math.max(0, Math.min(last, next)))
+  }
   const nameOf = (id: string) => {
     const user = byId.get(id)?.user
     return user ? displayName(user) : ""
@@ -149,17 +198,21 @@ export default function Constellation({data}: {data: Network}) {
   const focus = hovered ?? selected
   const partners = useMemo(() => focus ? partnersOf(data.links, focus) : [], [data, focus])
   const close = new Set(focus ? [focus, ...partners.map(it => it.id)] : pair ?? [])
-  const lit = (id: string) => close.size > 0 ? close.has(id) : !picked || !!byId.get(id)?.modes[picked]
+  const lit = (id: string) => close.size > 0 ? close.has(id) : (!onlyNew || inFresh.has(id)) && (!picked || !!byId.get(id)?.modes[picked])
   const pairLink = pair && data.links.find(it => (it.a === pair[0] && it.b === pair[1]) || (it.a === pair[1] && it.b === pair[0]))
 
   const scale = camera ? starScale(camera.zoom) : 1
   const screen = new Map(camera && size ? data.people.map(it => [it.user.osuId, toScreen(camera, size, points.get(it.user.osuId)!)]) : [])
-  const sizes = new Map(data.people.map(it => [it.user.osuId, radius(it.count, most) * scale]))
-  const visible = size ? data.people.filter(it => screen.has(it.user.osuId) && isVisible(screen.get(it.user.osuId)!, size)) : []
+  // While playing, only who ranked something by then
+  const shown = until === undefined ? data.people : data.people.filter(it => countOf(it) > 0)
+  const sizes = new Map(shown.map(it => [it.user.osuId, radius(countOf(it), most) * scale]))
+  const visible = size ? shown.filter(it => screen.has(it.user.osuId) && isVisible(screen.get(it.user.osuId)!, size)) : []
 
-  const drawn = new Set([...strongestLinks(data.links, data.people.length), ...partners.map(it => it.link), ...(pairLink ? [pairLink] : [])])
-  const lineLit = (link: Link) => focus ? link.a === focus || link.b === focus : pair ? link === pairLink : !picked || !!link.modes[picked]
+  const base = onlyNew ? freshLinks : [...strongestLinks(data.links, data.people.length), ...freshLinks.slice(0, 40)]
+  const drawn = new Set([...base, ...partners.map(it => it.link), ...(pairLink ? [pairLink] : [])])
+  const lineLit = (link: Link) => focus ? link.a === focus || link.b === focus : pair ? link === pairLink : (!onlyNew || isNew(link)) && (!picked || !!link.modes[picked])
   const lines = size ? Array.from(drawn).filter(link => {
+    if (until !== undefined && togetherOf(link) === 0) return false
     const a = screen.get(link.a), b = screen.get(link.b)
     return !!a && !!b && Math.max(a.x, b.x) > 0 && Math.min(a.x, b.x) < size.width && Math.max(a.y, b.y) > 0 && Math.min(a.y, b.y) < size.height
   }).sort((a, b) => Number(lineLit(a)) - Number(lineLit(b))) : []
@@ -169,7 +222,7 @@ export default function Constellation({data}: {data: Network}) {
   const order = picked ? [...visible.filter(it => it.modes[picked]), ...visible.filter(it => !it.modes[picked])] : visible
   const named = size ? placeNames(order, screen, sizes, size, always) : new Set<string>()
 
-  const present = GAMEMODES.filter(mode => data.people.some(it => it.modes[mode]))
+  const present = GAMEMODES.filter(own => data.people.some(it => it.modes[own]))
   const bridges = data.people.filter(it => shares(it).length > 1).length
   const found = findStars(data.people, search)
   const person = selected ? byId.get(selected) : undefined
@@ -178,7 +231,8 @@ export default function Constellation({data}: {data: Network}) {
   const searching = search.trim() !== ""
 
   const star = (it: Star) => {
-    const {user, count} = it
+    const {user} = it
+    const count = countOf(it)
     const point = screen.get(user.osuId)!
     const r = sizes.get(user.osuId)!
     const parts = shares(it)
@@ -221,7 +275,29 @@ export default function Constellation({data}: {data: Network}) {
             <span className="legend-dot"/><ModeIcon mode={mode}/>{GAMEMODE_NAMES[mode]}
           </button>
         ))}
+        {fresh.size > 0 &&
+          <button className="chip sky-new-toggle" aria-pressed={onlyNew} onClick={() => setOnlyNew(!onlyNew)}>
+            <span className="sky-new-line" aria-hidden/>Only new pairs ({fresh.size})
+          </button>
+        }
       </div>
+      {last > 0 &&
+        <div className="sky-time" role="group" aria-label="Play through time">
+          {!still &&
+            <button className="icon-button" aria-label={playing ? "Pause" : "Play through time"} title={playing ? "Pause" : "Play through time"} onClick={play}>
+              {playing ? <FaPause/> : <FaPlay/>}
+            </button>
+          }
+          <button className="icon-button" aria-label="Step back" title="Step back" disabled={step === 0} onClick={() => goTo((step ?? last) - 1)}><FaBackwardStep/></button>
+          <button className="icon-button" aria-label="Step forward" title="Step forward" disabled={step === undefined || step >= last} onClick={() => goTo((step ?? last) + 1)}><FaForwardStep/></button>
+          <input type="range" min={0} max={last} step={1} value={step ?? last} aria-label="Ranked up to" aria-valuetext={stepLabel(stepList[step ?? last].label)}
+                 onChange={event => goTo(Number(event.target.value))}/>
+          <span className="sky-time-label" aria-live={playing ? "off" : "polite"}>
+            {until === undefined ? `All of ${period}` : stepLabel(stepList[step!].label)}
+            <span className="muted"> · {shown.length} nominators, {until === undefined ? data.links.length : data.links.filter(it => togetherOf(it) > 0).length} pairs</span>
+          </span>
+        </div>
+      }
       <div className="sky">
         <div className="sky-frame" ref={frame}>
           <svg ref={svg} width={size?.width} height={size?.height} role="group" aria-label="Nominators grouped by mode and connected by the beatmaps they ranked together"
@@ -231,8 +307,8 @@ export default function Constellation({data}: {data: Network}) {
               const a = screen.get(link.a)!, b = screen.get(link.b)!
               const highlighted = lineLit(link)
               return <line key={`${link.a}-${link.b}`} className={`star-link ${CLASSES[link.mode]}`} data-faded={!highlighted || undefined}
-                           data-active={(focus || pair || picked) && highlighted || undefined}
-                           x1={a.x} y1={a.y} x2={b.x} y2={b.y} strokeWidth={(1 + 5 * link.count / strongest) * scale}/>
+                           data-active={(focus || pair || picked || onlyNew) && highlighted || undefined} data-new={isNew(link) || undefined}
+                           x1={a.x} y1={a.y} x2={b.x} y2={b.y} strokeWidth={(1 + 5 * togetherOf(link) / strongest) * scale}/>
             })}
             {visible.filter(it => !lit(it.user.osuId)).map(star)}
             {visible.filter(it => lit(it.user.osuId) && !always.has(it.user.osuId)).map(star)}
@@ -272,6 +348,14 @@ export default function Constellation({data}: {data: Network}) {
                 </div>
                 <button className="icon-button" aria-label="Show everyone again" title="Show everyone again" onClick={() => setSelection(undefined)}><FaXmark/></button>
               </header>
+              <dl className="sky-card">
+                <div><dt>Nominations</dt><dd>{person.count}</dd></div>
+                <div><dt>Partners</dt><dd>{selectedPartners.length}</dd></div>
+              </dl>
+              {selectedPartners.length > 0 &&
+                <p className="sky-top">Most with {selectedPartners.slice(0, 3).map(it => `${nameOf(it.id)} (${it.link.count})`).join(", ")}</p>
+              }
+              <RouterLink className="link" to={`/team?user=${person.user.osuId}`}>Open the profile</RouterLink>
               <h3>Ranked together with {selectedPartners.length}</h3>
               {selectedPartners.length === 0 && <p className="muted">Nobody else in this selection.</p>}
               <ul className="sky-list">
@@ -309,7 +393,26 @@ export default function Constellation({data}: {data: Network}) {
               <ol className="sky-list">
                 {data.links.slice(0, 10).map(it => (
                   <li key={`${it.a}-${it.b}`}>
-                    <button onClick={() => choosePair(it.a, it.b)}><span>{nameOf(it.a)} and {nameOf(it.b)}</span><span className="load-text">{it.count}</span></button>
+                    <button onClick={() => choosePair(it.a, it.b)}>
+                      <span>{nameOf(it.a)} and {nameOf(it.b)}{isNew(it) && <span className="sky-new-tag"> new</span>}</span><span className="load-text">{it.count}</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          }
+
+          {!searching && !selection && fresh.size > 0 &&
+            <section aria-label="New pairs this period">
+              <h3>New pairs this period</h3>
+              <p className="muted">First beatmap together in {period}</p>
+              <ol className="sky-list">
+                {freshLinks.slice(0, 10).map(it => (
+                  <li key={`${it.a}-${it.b}`}>
+                    <button onClick={() => choosePair(it.a, it.b)}>
+                      <span>{nameOf(it.a)} and {nameOf(it.b)}<span className="muted sky-since"> since {DATE.format(first.get(pairKey(it.a, it.b)))}</span></span>
+                      <span className="load-text">{it.count}</span>
+                    </button>
                   </li>
                 ))}
               </ol>
@@ -319,6 +422,7 @@ export default function Constellation({data}: {data: Network}) {
       </div>
       <p className="constellation-info muted">
         Scroll or pinch to zoom, drag to look around. Bigger is more ranked beatmaps, thicker is more together.
+        {fresh.size > 0 && " Dashed lines are pairs who ranked their first beatmap together in this period."}
         {bridges > 0 && ` ${bridges} ${bridges === 1 ? "person connects" : "people connect"} several modes and ${bridges === 1 ? "sits" : "sit"} in between them.`}
         {" "}Select someone to see who they ranked with.
       </p>
@@ -326,4 +430,9 @@ export default function Constellation({data}: {data: Network}) {
         [`${nameOf(it.a)} and ${nameOf(it.b)}`, modeNames(it.modes), it.count])}/>
     </figure>
   )
+}
+
+/** "Up to Nov 2026", "Up to the week of 3 Nov" */
+function stepLabel(label: string) {
+  return label.startsWith("Week") ? `Up to the ${label[0].toLowerCase()}${label.slice(1)}` : `Up to ${label}`
 }

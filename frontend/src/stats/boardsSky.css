@@ -1,0 +1,41 @@
+/* Leaderboards: who moved, everyone, and every mode */
+.sr-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.board-row.board-row-moves { grid-template-columns: 38px auto minmax(0, 1fr) auto auto; }
+.board-compared { margin: 0 0 8px; font-size: .86rem; }
+.board-move-cell { min-width: 2.5em; text-align: right; }
+.board-move { color: var(--muted); font-size: .86rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.board-move[data-move="up"] { color: var(--green); }
+.board-move[data-move="down"] { color: var(--red); }
+.board-move[data-move="new"] { color: var(--accent-text); }
+.board-own { margin-top: 8px; border-top: 2px dashed var(--line); }
+.board-more { display: block; min-height: 44px; margin-top: 4px; }
+.board-modes { margin-top: 24px; }
+.board-modes h3 { margin: 0 0 8px; font-size: .9375rem; }
+.board-modes-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 12px 24px; }
+.board-mode h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: .86rem; }
+.board-mode ol { margin: 0; padding: 0; list-style: none; }
+.board-mode li { display: grid; grid-template-columns: 1.5em minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 36px; border-bottom: 1px solid var(--line); font-size: .86rem; overflow-wrap: anywhere; }
+.board-mode li[data-self] { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.board-mode li a { color: var(--text); }
+.board-mode-place { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; }
+.board-mode .muted { margin: 0; font-size: .86rem; }
+
+/* Constellation: new pairs, playing through time and the selected person */
+.star-link[data-new] { stroke-dasharray: 6 4; stroke-opacity: .6; }
+.star-link[data-new][data-faded] { stroke-opacity: .08; }
+.star-link[data-new][data-active] { stroke-opacity: 1; }
+.sky-new-line { width: 18px; height: 0; border-top: 2px dashed currentColor; }
+.sky-new-tag { color: var(--accent-text); font-size: .78rem; font-weight: 600; }
+.sky-since { font-size: .78rem; }
+.sky-time { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-bottom: 12px; }
+.sky-time .icon-button { border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+.sky-time .icon-button:disabled { opacity: .4; }
+.sky-time input[type="range"] { flex: 1 1 160px; min-width: 0; min-height: 44px; accent-color: var(--accent); }
+.sky-time-label { flex: 1 1 100%; font-size: .86rem; font-variant-numeric: tabular-nums; }
+.sky-card { display: flex; gap: 24px; margin: 0; }
+.sky-card div { display: grid; }
+.sky-card dt { color: var(--muted); font-size: .78rem; }
+.sky-card dd { margin: 0; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sky-top { margin: 0; font-size: .86rem; overflow-wrap: anywhere; }
+@media (min-width: 861px) { .sky-time-label { flex: 0 1 auto; } }
+@media (prefers-reduced-motion: reduce) { .star-link { transition: none; } }

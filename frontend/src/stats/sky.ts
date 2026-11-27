@@ -1,7 +1,11 @@
 import {GAMEMODES} from "../Constants";
+import type {Beatmap} from "../models/Types";
 import {Gamemode} from "../models/Types";
+import type {Bucket, TimeRange} from "./range";
+import {buckets} from "./range";
 import type {Link, network} from "./stats";
-import {displayName} from "../utils/users";
+import {nominatorsOf, rankedDate} from "./stats";
+import {displayName, isMissing} from "../utils/users";
 
 export type Network = ReturnType<typeof network>
 export type Star = Network["people"][number]
@@ -208,4 +212,84 @@ export function findStars(people: Star[], text: string, limit = 6) {
     .filter(it => it.user.username.toLowerCase().includes(search))
     .sort((a, b) => Number(b.user.username.toLowerCase().startsWith(search)) - Number(a.user.username.toLowerCase().startsWith(search)) || b.count - a.count)
     .slice(0, limit)
+}
+
+/** The key of a pair, the same either way round, as in the network */
+export const pairKey = (a: string, b: string) => a < b ? `${a}-${b}` : `${b}-${a}`
+
+/** The pairs on a beatmap the way the network counts them: the two nominators of the same mode, once per beatmap */
+function pairsOn(map: Beatmap, only: Gamemode | undefined) {
+  const keys = new Set<string>()
+  map.gamemodes.filter(it => !only || it.gamemode === only).forEach(({nominators}) => {
+    const ids = Array.from(new Set(nominators.map(it => it.nominator).filter(it => !isMissing(it)).map(it => it.osuId)))
+    if (ids.length === 2) keys.add(pairKey(ids[0], ids[1]))
+  })
+  return keys
+}
+
+/** When every pair ranked their first beatmap together, over everything given */
+export function firstTogether(maps: Beatmap[], only: Gamemode | undefined): Map<string, number> {
+  const first = new Map<string, number>()
+  maps.forEach(map => {
+    const time = rankedDate(map)?.getTime()
+    if (time === undefined) return
+    pairsOn(map, only).forEach(key => {
+      const known = first.get(key)
+      if (known === undefined || time < known) first.set(key, time)
+    })
+  })
+  return first
+}
+
+/** The pairs whose first beatmap together was ranked in the range */
+export function newPairs(links: Link[], first: Map<string, number>, range: {from: Date, to: Date}): Set<string> {
+  return new Set(links.map(it => pairKey(it.a, it.b)).filter(key => {
+    const time = first.get(key)
+    return time !== undefined && time >= range.from.getTime() && time < range.to.getTime()
+  }))
+}
+
+export interface Timeline {
+  /** When each person ranked something, in order */
+  people: Map<string, number[]>
+  /** When each pair ranked something together, in order */
+  links: Map<string, number[]>
+}
+
+/** Every moment someone or a pair ranked something, to show the sky as it was at any time */
+export function timeline(maps: Beatmap[], only: Gamemode | undefined): Timeline {
+  const people = new Map<string, number[]>(), links = new Map<string, number[]>()
+  const push = (all: Map<string, number[]>, key: string, time: number) => {
+    const known = all.get(key)
+    if (known) known.push(time)
+    else all.set(key, [time])
+  }
+  maps.forEach(map => {
+    const time = rankedDate(map)?.getTime()
+    if (time === undefined) return
+    nominatorsOf(map, only).forEach(user => push(people, user.osuId, time))
+    pairsOn(map, only).forEach(key => push(links, key, time))
+  })
+  const sort = (all: Map<string, number[]>) => all.forEach(times => times.sort((a, b) => a - b))
+  sort(people)
+  sort(links)
+  return {people, links}
+}
+
+/** How many of these moments, in order, come before the end */
+export function upTo(times: number[] | undefined, end: number) {
+  if (!times) return 0
+  let low = 0, high = times.length
+  while (low < high) {
+    const middle = (low + high) >> 1
+    if (times[middle] < end) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
+/** The steps to play the range through: months from about 3 months, weeks for less */
+export function steps(range: TimeRange, now = new Date()): Bucket[] {
+  const days = (range.to.getTime() - range.from.getTime()) / 86_400_000
+  return buckets(range, days >= 89 ? "month" : "week", now)
 }

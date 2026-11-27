@@ -7,7 +7,8 @@ import {useRanked} from "../resources/ranked";
 import Columns, {Table} from "../stats/Columns";
 import {combinations, debuts, network, nominatorsOf, rankedDate, summarize} from "../stats/stats";
 import type {Unit} from "../stats/range";
-import {autoUnit, buckets, count, dailyAverage, inRange, parseRange, previous, resolve, unitFor, UNITS} from "../stats/range";
+import {useScope} from "../stats/useScope";
+import {autoUnit, buckets, count, dailyAverage, parseRange, unitFor, UNITS} from "../stats/range";
 import RangeControl from "../stats/RangeControl";
 import {Figures, Highlights, YearTable} from "../stats/Years";
 import Multiples from "../stats/Multiples";
@@ -55,19 +56,9 @@ export default function Statistics() {
     setParams(next, {replace: true})
   }
 
-  const ofMode = useMemo(() => (maps ?? []).filter(it => !mode || it.gamemodes.some(own => own.gamemode === mode)), [maps, mode])
-  const earliest = useMemo(() => ofMode.reduce<Date | undefined>((first, it) => {
-    const date = rankedDate(it)
-    return date && (!first || date < first) ? date : first
-  }, undefined), [ofMode])
-  const range = useMemo(() => resolve(key, earliest), [key, earliest])
+  // The same range, mode and beatmaps the tabs that compare with the period before use
+  const {range, before, ofMode, scope, previousScope} = useScope()
   const unit = unitFor(range, UNITS.find(it => it === params.get("unit")))
-  // Only compared when something was ranked by then
-  const before = useMemo(() => {
-    const it = previous(range)
-    return it && earliest && earliest < it.to ? it : undefined
-  }, [range, earliest])
-  const scope = useMemo(() => ofMode.filter(it => inRange(rankedDate(it), range)), [ofMode, range])
   // Worked out for the tab that shows it
   const stars = useMemo(() => tab === "constellation" ? network(scope, mode) : undefined, [tab, scope, mode])
   const list = useMemo(() => buckets(range, unit), [range, unit])
@@ -83,7 +74,7 @@ export default function Statistics() {
   const ranking = useMemo(() => tab === "leaderboards" ? boards(scores(scope, firsts, mode)) : undefined, [tab, scope, firsts, mode])
 
   const summary = summarize(scope, firsts, mode)
-  const earlier = before && summarize(ofMode.filter(it => inRange(rankedDate(it), before)), firsts, mode)
+  const earlier = previousScope && summarize(previousScope, firsts, mode)
   const hybrids = scope.filter(it => it.gamemodes.length > 1).length
   const undated = ofMode.filter(it => !rankedDate(it)).length
   const what = mode ? GAMEMODE_NAMES[mode] : "all modes"

@@ -3,7 +3,8 @@ import {Gamemode} from "../models/Types";
 import {beatmap, bn, mode} from "../test/builders";
 import {network} from "./stats";
 import type {Camera, Size} from "./sky";
-import {clampZoom, findStars, fit, isVisible, layout, MAX_ZOOM, MIN_ZOOM, pan, partnersOf, placeNames, starScale, strongestLinks, toScreen, toSky, zoomAt} from "./sky";
+import {clampZoom, findStars, firstTogether, fit, isVisible, layout, MAX_ZOOM, MIN_ZOOM, pan, partnersOf, placeNames, starScale, steps, strongestLinks, timeline, toScreen, toSky, upTo, zoomAt, newPairs, pairKey} from "./sky";
+import {resolve} from "./range";
 
 const {Osu, Mania} = Gamemode
 const SIZE: Size = {width: 800, height: 500}
@@ -132,5 +133,43 @@ describe("finding someone", () => {
   it("finds nobody without text", () => {
     expect(findStars(people, " ")).toEqual([])
     expect(findStars(people, "zzz")).toEqual([])
+  })
+})
+
+describe("new pairs and time", () => {
+  const at = (osuId: string, dateRanked: string, ...gamemodes: ReturnType<typeof mode>[]) => beatmap({osuId, dateRanked, gamemodes})
+  const maps = [
+    at("1", "2025-06-01T12:00:00", mode(Osu, bn("1"), bn("2"))),
+    at("2", "2026-02-10T12:00:00", mode(Osu, bn("1"), bn("2"))),
+    at("3", "2026-03-05T12:00:00", mode(Osu, bn("1"), bn("3"))),
+    // On two modes, still once
+    at("4", "2026-04-20T12:00:00", mode(Osu, bn("3"), bn("4")), mode(Mania, bn("3", Mania), bn("4", Mania)))
+  ]
+  const range = resolve("2026-01-01..2026-06-30")
+  const scope = maps.slice(1)
+
+  it("knows when a pair first ranked together, over all time", () => {
+    const first = firstTogether(maps, undefined)
+    expect(first.get(pairKey("2", "1"))).toBe(new Date("2025-06-01T12:00:00").getTime())
+    expect(first.get("3-4")).toBe(new Date("2026-04-20T12:00:00").getTime())
+    expect(Array.from(newPairs(network(scope, undefined).links, first, range)).sort()).toEqual(["1-3", "3-4"])
+  })
+
+  it("counts what was ranked by every step", () => {
+    const times = timeline(scope, undefined)
+    expect(times.links.get("3-4")).toHaveLength(1)
+    const list = steps(range)
+    expect(list.map(it => it.short)).toEqual(["Jan", "Feb", "Mar", "Apr", "May", "Jun"])
+    const people = (step: number) => ["1", "2", "3", "4"].filter(id => upTo(times.people.get(id), list[step].end.getTime()) > 0)
+    expect(people(0)).toEqual([])
+    expect(people(1)).toEqual(["1", "2"])
+    expect(people(2)).toEqual(["1", "2", "3"])
+    expect(people(5)).toEqual(["1", "2", "3", "4"])
+    expect(upTo(times.people.get("1"), list[5].end.getTime())).toBe(2)
+    expect(upTo(undefined, 1)).toBe(0)
+  })
+
+  it("steps by week for less than about 3 months", () => {
+    expect(steps(resolve("2026-03-02..2026-03-29")).map(it => it.short)).toEqual(["2 Mar", "9 Mar", "16 Mar", "23 Mar"])
   })
 })

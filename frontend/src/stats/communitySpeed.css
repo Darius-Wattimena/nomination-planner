@@ -1,0 +1,44 @@
+/* The community and speed tabs, on top of analytics.css */
+
+/* A band from the 25th to the 75th percentile with the median as a thick mark */
+.tr-slot { position: absolute; inset: 0; display: flex; justify-content: center; pointer-events: none; }
+.tr-band, .tr-middle { position: absolute; width: calc(100% - 2px); max-width: 24px; }
+.tr-band { border-radius: 3px; background: color-mix(in srgb, var(--series) 30%, transparent); }
+.tr-middle { height: 3px; translate: 0 50%; border-radius: 2px; background: var(--series); }
+.tr-slot[data-unfinished] > span { opacity: .55; }
+.tr-key-band, .tr-key-middle { display: inline-block; width: 14px; border-radius: 2px; }
+.tr-key-band { height: 11px; background: color-mix(in srgb, var(--series) 30%, transparent); }
+.tr-key-middle { height: 3px; background: var(--series); }
+
+/* Lines with dots, the second one dashed with square dots */
+.tr-paths path { stroke: var(--series); stroke-width: 2.5; }
+.tr-paths path[data-series="1"] { stroke: var(--series-2); stroke-dasharray: 5 4; }
+.tr-dot { position: absolute; left: 50%; z-index: 1; width: 8px; height: 8px; translate: -50% 50%; border-radius: 50%; background: var(--series); pointer-events: none; }
+.tr-dot[data-series="1"] { border-radius: 1px; background: var(--series-2); }
+.tr-dot[data-unfinished] { opacity: .55; }
+.tr-key-line { display: inline-block; width: 18px; height: 0; border-top: 3px solid var(--series); }
+.tr-key-line[data-series="1"] { border-top: 3px dashed var(--series-2); }
+
+/* Columns always full, split by mode with a thin line between the parts */
+.column-bar.tr-stack { display: flex; flex-direction: column-reverse; height: 100%; overflow: hidden; background: none; }
+.tr-stack > span { min-height: 0; background: var(--m); }
+.tr-stack > span + span { border-bottom: 1px solid var(--bg); }
+.tr-stack[data-unfinished] > span { opacity: .55; }
+
+/* Who joined, stopped and came back */
+.cs-people { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 24px 32px; }
+.cs-people h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 0; font-size: 1rem; }
+.cs-people h3 .cs-count { font: 700 1.5rem/1.15 var(--display); }
+.cs-people .delta { margin: 0 0 4px; }
+.cs-people > div > .muted { margin: 4px 0 8px; font-size: .86rem; }
+.cs-names { display: grid; margin: 0; padding: 0; list-style: none; }
+.cs-names li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.cs-names a { min-width: 0; overflow-wrap: anywhere; }
+.cs-names .muted { font-size: .86rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cs-people .link { margin-top: 8px; }
+
+/* A figure per mode */
+.cs-modes dt { display: flex; align-items: center; gap: 6px; }
+
+/* Small multiples of lines */
+.an-multiple .tr-dot { width: 6px; height: 6px; }

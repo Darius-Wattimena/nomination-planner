@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vitest";
 import {Gamemode} from "../models/Types";
 import {beatmap, mode} from "../test/builders";
-import {daysToRank, duration, extremes, medianOverTime, medianPerMode, speedHistogram, timed} from "./speed";
+import {daysToRank, duration, extremes, medianPerMode, modeTrends, percentile, singleVsHybrid, speedHistogram, spreadOverTime, timed, withinOverTime, withinShare} from "./speed";
 import {buckets, resolve} from "./range";
 
 const {Osu, Taiko} = Gamemode
@@ -29,15 +29,56 @@ const maps = [
   map("4", undefined, "2026-03-11T00:00:00Z")
 ]
 
+describe("percentile", () => {
+  it("interpolates between values", () => {
+    expect(percentile([], .5)).toBeUndefined()
+    expect(percentile([7], .25)).toBe(7)
+    expect(percentile([4, 1, 3, 2], .5)).toBe(2.5)
+    expect(percentile([1, 2, 3, 4, 5], .25)).toBe(2)
+    expect(percentile([1, 2, 3, 4, 5], .75)).toBe(4)
+    expect(percentile([0, 10], .25)).toBe(2.5)
+    expect(percentile([1, 2], 2)).toBe(2)
+  })
+})
+
 describe("speed", () => {
   it("keeps only beatmaps with a duration", () => {
     expect(timed(maps).map(it => it.days)).toEqual([3, 20, 100])
   })
 
-  it("has the median per month", () => {
+  it("has the median and middle half per month, a gap with too few beatmaps", () => {
     const now = new Date(2026, 3, 15)
     const line = buckets(resolve("2026", undefined, now), "month", now)
-    expect(medianOverTime(line, timed(maps)).map(it => it.value)).toEqual([12, 0, 100, 0])
+    expect(spreadOverTime(line, timed(maps), 2).map(it => it.median)).toEqual([12, undefined, undefined, undefined])
+    expect(spreadOverTime(line, timed(maps), 1).map(it => it.median)).toEqual([12, undefined, 100, undefined])
+    const january = spreadOverTime(line, timed(maps), 2)[0]
+    expect(january).toMatchObject({count: 2, p25: 7, median: 12, p75: 16, current: false})
+    // Fewer than 3 by default
+    expect(spreadOverTime(line, timed(maps))[0]).toMatchObject({count: 2, median: undefined, p25: undefined})
+  })
+
+  it("follows each mode per month", () => {
+    const now = new Date(2026, 3, 15)
+    const line = buckets(resolve("2026", undefined, now), "month", now)
+    const [osu, taiko] = modeTrends(line, timed(maps), undefined, 1)
+    expect(osu).toMatchObject({mode: Osu, count: 2, medians: [12, undefined, undefined, undefined], counts: [2, 0, 0, 0]})
+    expect(taiko.medians).toEqual([20, undefined, 100, undefined])
+    expect(modeTrends(line, timed(maps), Taiko)).toHaveLength(1)
+  })
+
+  it("compares one mode with more than one", () => {
+    expect(singleVsHybrid(timed(maps))).toEqual({single: {count: 2, days: 52}, hybrid: {count: 1, days: 20}})
+    expect(singleVsHybrid([]).hybrid).toEqual({count: 0, days: undefined})
+  })
+
+  it("has the share ranked within a week and a month", () => {
+    expect(withinShare(timed(maps), 7)).toBeCloseTo(1 / 3)
+    expect(withinShare(timed(maps), 30)).toBeCloseTo(2 / 3)
+    expect(withinShare([], 7)).toBeUndefined()
+    const now = new Date(2026, 3, 15)
+    const line = buckets(resolve("2026", undefined, now), "month", now)
+    expect(withinOverTime(line, timed(maps), 2)[0]).toMatchObject({count: 2, week: .5, month: 1})
+    expect(withinOverTime(line, timed(maps), 2)[2]).toMatchObject({count: 1, week: undefined, month: undefined})
   })
 
   it("puts the durations in buckets", () => {
