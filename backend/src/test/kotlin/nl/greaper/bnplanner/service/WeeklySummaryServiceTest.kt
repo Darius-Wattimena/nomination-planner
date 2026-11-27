@@ -32,7 +32,7 @@ class WeeklySummaryServiceTest {
 
     private val nothing =
         """
-        **Gone quiet (no change for 21 days or more)**
+        **Gone quiet (no change for 21 to 90 days)**
         Nothing has gone quiet.
 
         **Longest waiting for a second nominator**
@@ -54,9 +54,25 @@ class WeeklySummaryServiceTest {
 
         assertEquals(
             """
-            **Gone quiet (no change for 21 days or more)**
+            **Gone quiet (no change for 21 to 90 days)**
             - ${link("2")}, 40 days
             - ${link("1")}, 21 days
+            """.trimIndent(),
+            osu.substringBefore("\n\n"),
+        )
+    }
+
+    @Test
+    fun `Should leave out what nobody changed for 90 days, like the website`() {
+        planner.save(beatmap("1", updated = daysAgo(89)))
+        planner.save(beatmap("2", updated = daysAgo(90)))
+
+        val osu = service().summarize(NOW).getValue(Gamemode.osu)
+
+        assertEquals(
+            """
+            **Gone quiet (no change for 21 to 90 days)**
+            - ${link("1")}, 89 days
             """.trimIndent(),
             osu.substringBefore("\n\n"),
         )

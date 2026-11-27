@@ -189,7 +189,7 @@ export function ageWords(map: Beatmap, now = Date.now()) {
 
 /** The exact local date and time, for a title behind a short age */
 export function exactTime(value: string | number | undefined) {
-  return toDate(value)?.toLocaleString(undefined, {dateStyle: "long", timeStyle: "short"}) ?? ""
+  return toDate(value)?.toLocaleString("en-GB", {dateStyle: "long", timeStyle: "short"}) ?? ""
 }
 
 /** The longest waiting first */

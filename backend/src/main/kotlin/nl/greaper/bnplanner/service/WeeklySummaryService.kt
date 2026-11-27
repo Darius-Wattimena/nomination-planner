@@ -27,6 +27,9 @@ class WeeklySummaryService(
     companion object {
         /** The same as the website calls gone quiet */
         val QUIET: Duration = Duration.ofDays(21)
+
+        /** Left out, the same as the website leaves out beatmaps nobody changed for this long */
+        val OLD: Duration = Duration.ofDays(90)
         val WEEK: Duration = Duration.ofDays(7)
         const val MAX_QUIET_SHOWN = 10
         const val MAX_WAITING_SHOWN = 5
@@ -57,13 +60,22 @@ class WeeklySummaryService(
         now: Instant,
     ): String {
         // Qualified ones only wait for osu!
-        val open = beatmaps.findAll { it.isInProgress() && it.status != BeatmapStatus.Qualified && hasMode(it, gamemode) }
+        val open =
+            beatmaps.findAll {
+                it.isInProgress() && it.status != BeatmapStatus.Qualified && hasMode(it, gamemode) &&
+                    Duration.between(it.dateUpdated, now) < OLD
+            }
         val quiet = open.filter { Duration.between(it.dateUpdated, now) >= QUIET }.sortedBy { it.dateUpdated }
         val waiting = open.filter { waitsForSecondNominator(it, gamemode) }.sortedBy { it.dateUpdated }
         val weekAgo = now.minus(WEEK)
 
         return listOf(
-            section("Gone quiet (no change for ${QUIET.toDays()} days or more)", quiet, MAX_QUIET_SHOWN, "Nothing has gone quiet.") {
+            section(
+                "Gone quiet (no change for ${QUIET.toDays()} to ${OLD.toDays()} days)",
+                quiet,
+                MAX_QUIET_SHOWN,
+                "Nothing has gone quiet.",
+            ) {
                 "${link(it)}, ${days(it, now)}"
             },
             section("Longest waiting for a second nominator", waiting, MAX_WAITING_SHOWN, "Nobody is waiting for a second nominator.") {

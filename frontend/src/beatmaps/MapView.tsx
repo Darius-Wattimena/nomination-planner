@@ -138,7 +138,7 @@ function Details({beatmap, onClose, onChanged}: {beatmap: Beatmap, onClose: () =
       <div className="map-facts">
         <StatusBadge status={beatmap.status}/>
         <span className="with-avatar"><Avatar user={beatmap.mapper}/>{displayName(beatmap.mapper)}</span>
-        {ranked ? <span title={exactTime(beatmap.dateRanked)}>Ranked {ranked.toLocaleDateString()}</span> : age && <span title={exactTime(beatmap.dateUpdated)}>Last change {age}</span>}
+        {ranked ? <span title={exactTime(beatmap.dateRanked)}>Ranked {ranked.toLocaleDateString("en-GB", {dateStyle: "long"})}</span> : age && <span title={exactTime(beatmap.dateUpdated)}>Last change {age}</span>}
         <Links beatmap={beatmap}/>
       </div>
 

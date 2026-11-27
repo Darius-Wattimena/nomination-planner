@@ -95,7 +95,7 @@ export default function Archive({page}: {page: BeatmapPage}) {
                       <button className="map-open" onClick={() => open(it.osuId)}>{it.title}</button>
                       <em>Mapped by {displayName(it.mapper)}</em>
                     </span>
-                    <span className="map-foot"><Rings beatmap={it}/>{ranked && <span className="age">{ranked.toLocaleDateString()}</span>}</span>
+                    <span className="map-foot"><Rings beatmap={it}/>{ranked && <span className="age">{ranked.toLocaleDateString("en-GB", {dateStyle: "medium"})}</span>}</span>
                   </li>
                 )
               })}

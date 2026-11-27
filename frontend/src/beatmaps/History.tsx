@@ -10,7 +10,7 @@ import "./mapHistory.css";
 export default function History({id}: {id: string}) {
   const [opened, setOpened] = useState(false)
   const {data, loading, error, reload} = useQuery<BeatmapEvent[]>(opened ? Api.fetchBeatmapEvents(id) : undefined)
-  const start = new Date(HISTORY_START).toLocaleDateString(undefined, {dateStyle: "long"})
+  const start = new Date(HISTORY_START).toLocaleDateString("en-GB", {dateStyle: "long"})
 
   return (
     <details className="map-history" onToggle={event => {
