@@ -1,7 +1,6 @@
 package nl.greaper.bnplanner.client
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.util.Sleeper
 import org.springframework.web.client.HttpClientErrorException
 

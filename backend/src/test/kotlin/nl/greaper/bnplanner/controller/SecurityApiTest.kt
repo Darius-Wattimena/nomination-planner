@@ -144,7 +144,7 @@ class SecurityApiTest : ApiTest() {
     fun `Should report an unexpected error to the developer`() {
         val response = context.getBean(DefaultExceptionHandler::class.java).exception(IllegalStateException("made up"))
         assertEquals(500, response.statusCode.value())
-        assertEquals("Unable to handle request", response.body!!.detail)
+        assertEquals("Something went wrong on the planner. Try again later.", response.body!!.detail)
         val sent = discord.single()
         assertTrue(sent.description.startsWith("**ERROR:**\n```\n${IllegalStateException::class.java.name}: made up"))
         assertTrue(sent.description.endsWith("\n```"))

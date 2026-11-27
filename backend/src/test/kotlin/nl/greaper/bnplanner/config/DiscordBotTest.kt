@@ -67,7 +67,7 @@ class DiscordBotTest {
     fun `Should register a channel for all gamemodes`() {
         discord.slashCommand(source, subcommand = "register")
 
-        assertAnswer("**Registered listener at channel**\nGamemode = `all`", green)
+        assertAnswer("**Registered listener at channel**\nGame mode: all modes", green)
         assertEquals(listOf(listener()), source.list())
         assertEquals(listOf(listener()), source.getListeners())
     }
@@ -76,7 +76,7 @@ class DiscordBotTest {
     fun `Should register a channel for a gamemode`() {
         discord.slashCommand(source, subcommand = "register", gamemode = "Fruits")
 
-        assertAnswer("**Registered listener at channel**\nGamemode = `catch`", green)
+        assertAnswer("**Registered listener at channel**\nGame mode: `catch`", green)
         assertEquals(listOf(listener(gamemode = Gamemode.fruits)), source.list())
     }
 
@@ -86,7 +86,7 @@ class DiscordBotTest {
         source.create(listener())
         discord.slashCommand(source, subcommand = "register", gamemode = "mania")
 
-        assertAnswer("**Registered listener at channel**\nGamemode = `mania`", green)
+        assertAnswer("**Registered listener at channel**\nGame mode: `mania`", green)
         assertEquals(setOf(listener("2"), listener(gamemode = Gamemode.mania)), source.list().toSet())
     }
 
@@ -95,7 +95,7 @@ class DiscordBotTest {
         source.create(listener(confidential = true))
         discord.slashCommand(source, subcommand = "register")
 
-        assertAnswer("**Registered listener at channel**\nGamemode = `all`", green)
+        assertAnswer("**Registered listener at channel**\nGame mode: all modes", green)
         assertEquals(listOf(listener(confidential = true)), source.list())
     }
 
@@ -131,7 +131,7 @@ class DiscordBotTest {
     fun `Should refuse an unknown gamemode right away`() {
         discord.slashCommand(source, subcommand = "register", gamemode = "catch")
 
-        assertEquals(listOf("Unknown gamemode `catch`"), discord.replies)
+        assertEquals(listOf("Unknown game mode `catch`"), discord.replies)
         assertEquals(0, discord.deferred)
         assertEquals(emptyList<DiscordEventListener>(), source.list())
     }
@@ -213,7 +213,7 @@ class DiscordBotTest {
 
         val option = commands["register"]!!.getArray("options").getObject(0)
         assertEquals("gamemode", option.getString("name"))
-        assertEquals("The osu! gamemode the event is for", option.getString("description"))
+        assertEquals("The osu! game mode the event is for", option.getString("description"))
         assertEquals(3, option.getInt("type"))
         assertFalse(option.getBoolean("required", false))
         val choices = option.getArray("choices")

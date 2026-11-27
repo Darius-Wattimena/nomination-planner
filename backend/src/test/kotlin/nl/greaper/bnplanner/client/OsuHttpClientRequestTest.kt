@@ -1,7 +1,6 @@
 package nl.greaper.bnplanner.client
 
 import nl.greaper.bnplanner.auth.LoginExpiredException
-import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.osu.AuthToken

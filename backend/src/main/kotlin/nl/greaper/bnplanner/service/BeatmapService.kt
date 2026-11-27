@@ -7,9 +7,9 @@ import nl.greaper.bnplanner.CREATED_BEATMAP_ICON
 import nl.greaper.bnplanner.DELETED_BEATMAP_ICON
 import nl.greaper.bnplanner.REMOVED_NOMINATOR_ICON
 import nl.greaper.bnplanner.auth.OsuLogin
-import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.client.DiscordClient
 import nl.greaper.bnplanner.client.OsuHttpClient
+import nl.greaper.bnplanner.client.OsuUnavailableException
 import nl.greaper.bnplanner.client.OsuWait
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
 import nl.greaper.bnplanner.model.Gamemode
@@ -479,7 +479,7 @@ class BeatmapService(
 
         val message =
             StringBuilder()
-                .append("${beatmap.status.getEmojiIcon()} **Updated status to ${beatmap.status.name}**$gamemodeText")
+                .append("${beatmap.status.getEmojiIcon()} **Updated status to ${beatmap.status.toReadableName()}**$gamemodeText")
                 .append(describe(beatmap))
 
         discordClient?.send(
@@ -637,7 +637,7 @@ class BeatmapService(
         val message =
             StringBuilder()
                 .append("$CREATED_BEATMAP_ICON **Created**")
-                .append("\nGamemodes: $gamemodes")
+                .append("\nGame modes: $gamemodes")
                 .append(describe(beatmap))
 
         discordClient?.sendBeatmapUpdate(
@@ -712,7 +712,7 @@ class BeatmapService(
 
         val message =
             StringBuilder()
-                .append("${beatmap.status.getEmojiIcon()} **Updated status to ${beatmap.status.name}**")
+                .append("${beatmap.status.getEmojiIcon()} **Updated status to ${beatmap.status.toReadableName()}**")
                 .append(describe(beatmap))
 
         discordClient?.sendBeatmapUpdate(
@@ -780,7 +780,7 @@ class BeatmapService(
 
         // Take the biggest list of gamemodes to publish
         // On removal of a gamemode we want to publish to the deleted gamemode as well.
-        // On adding of a new gamemode we want to publish to the existing ane new gamemode.
+        // On adding of a new gamemode we want to publish to the existing and new game modes.
         val gamemodesToMessage =
             if (beatmap.gamemodes.size > gamemodesBeforeUpdate.size) {
                 beatmap.gamemodes.map { it.gamemode }
@@ -796,8 +796,8 @@ class BeatmapService(
         val message =
             StringBuilder()
                 .append(nominatorChangesText)
+                .append("\nGame modes: $beatmapGamemodeMessagePart")
                 .append(describe(beatmap))
-                .append(" [$beatmapGamemodeMessagePart]")
 
         discordClient?.sendBeatmapUpdate(
             description = message.toString(),

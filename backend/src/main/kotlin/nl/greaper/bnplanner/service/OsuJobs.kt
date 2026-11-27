@@ -5,6 +5,7 @@ import jakarta.annotation.PreDestroy
 import org.springframework.stereotype.Service
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -22,6 +23,9 @@ class OsuJobs(
     private val executor = Executors.newSingleThreadExecutor { Thread(it, "osu-jobs").apply { isDaemon = true } }
     private val queuedBeatmaps = ConcurrentHashMap.newKeySet<String>()
     private val queuedUsers = ConcurrentHashMap.newKeySet<String>()
+
+    @Volatile
+    private var stopping = false
 
     /** How many beatmaps and users are still to be synced */
     val waiting: Int
@@ -47,20 +51,40 @@ class OsuJobs(
         sync: (token: String, id: String) -> Unit,
     ): Int {
         val added = ids.filter { queued.add(it) }
+        var count = 0
 
-        added.forEach { id ->
-            executor.execute {
-                try {
-                    sync(checkNotNull(osuService.findClientToken()) { "osu! gave no token to the planner" }, id)
-                } catch (ex: Exception) {
-                    log.error(ex) { "Unable to sync $kind $id" }
-                } finally {
-                    queued.remove(id)
-                }
+        for (id in added) {
+            try {
+                executor.execute { run(kind, id, queued, sync) }
+                count++
+            } catch (ex: RejectedExecutionException) {
+                // Stopping, left for the syncs after the restart
+                queued.removeAll(added.drop(count).toSet())
+                log.debug { "Stopping, not syncing ${added.size - count} more of kind $kind" }
+                break
             }
         }
 
-        return added.size
+        return count
+    }
+
+    private fun run(
+        kind: String,
+        id: String,
+        queued: MutableSet<String>,
+        sync: (token: String, id: String) -> Unit,
+    ) {
+        try {
+            sync(checkNotNull(osuService.findClientToken()) { "osu! gave no token to the planner" }, id)
+        } catch (ex: Exception) {
+            if (stopping) {
+                log.info { "Stopped syncing $kind $id, the planner is stopping" }
+            } else {
+                log.error(ex) { "Unable to sync $kind $id" }
+            }
+        } finally {
+            queued.remove(id)
+        }
     }
 
     /** Waits until everything that is queued is done */
@@ -71,6 +95,7 @@ class OsuJobs(
     /** What is still queued is left for the syncs after the restart */
     @PreDestroy
     fun stop() {
+        stopping = true
         executor.shutdownNow()
         executor.awaitTermination(5, TimeUnit.SECONDS)
     }

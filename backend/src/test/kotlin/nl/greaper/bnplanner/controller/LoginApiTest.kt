@@ -145,7 +145,7 @@ class LoginApiTest : ApiTest() {
     fun `Should only keep the session of someone logging in for a short while until they logged in`() {
         osuKnows("5", "New BN")
         val start = startLogin()
-        assertTrue(sessionSecondsLeft(start) in 500..600, "${sessionSecondsLeft(start)}")
+        assertTrue(sessionSecondsLeft(start) in 1700..1800, "${sessionSecondsLeft(start)}")
 
         val loggedIn = finishLogin(start, "code" to "made-up-code")
         assertEquals(302, loggedIn.status)
@@ -419,7 +419,7 @@ class LoginApiTest : ApiTest() {
 
         val response = addBeatmap()
         assertEquals(503, response.status)
-        assertEquals("osu! can not be reached right now", JSONObject(response.contentAsString).getString("detail"))
+        assertEquals("osu! can't be reached right now. Try again in a moment.", JSONObject(response.contentAsString).getString("detail"))
         assertEquals(200, call(As.EDITOR, "GET", "/v2/session").status)
         assertNotEquals(null, storedLogin("2")["refreshToken"])
     }

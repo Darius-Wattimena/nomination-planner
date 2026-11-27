@@ -3,8 +3,8 @@ package nl.greaper.bnplanner
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.servlet.http.HttpServletRequest
 import nl.greaper.bnplanner.auth.LoginExpiredException
-import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.client.DiscordClient
+import nl.greaper.bnplanner.client.OsuUnavailableException
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
@@ -51,7 +51,9 @@ class DefaultExceptionHandler(
         log.warn(ex) { "osu! is unavailable" }
         return ResponseEntity
             .status(HttpStatus.SERVICE_UNAVAILABLE)
-            .body(ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, "osu! can not be reached right now"))
+            .body(
+                ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, "osu! can't be reached right now. Try again in a moment."),
+            )
     }
 
     /** Tells which parameter of a filter is missing or wrong, like for any other parameter */
@@ -91,6 +93,8 @@ class DefaultExceptionHandler(
 
         return ResponseEntity
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
-            .body(ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to handle request"))
+            .body(
+                ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong on the planner. Try again later."),
+            )
     }
 }

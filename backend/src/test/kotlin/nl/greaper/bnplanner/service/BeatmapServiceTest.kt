@@ -2,7 +2,7 @@ package nl.greaper.bnplanner.service
 
 import nl.greaper.bnplanner.auth.LoginExpiredException
 import nl.greaper.bnplanner.auth.OsuLogin
-import nl.greaper.bnplanner.auth.OsuUnavailableException
+import nl.greaper.bnplanner.client.OsuUnavailableException
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.User
@@ -180,7 +180,7 @@ class BeatmapServiceTest {
         assertEquals(listOf("GET /api/v2/beatmapsets/1"), FakeOsu.calls())
         assertEquals("Bearer $TOKEN", FakeOsu.requests.single().header("Authorization"))
         assertEquals(
-            update("🌟 **Created**\nGamemodes: catch, osu$footer", EmbedColor.GREEN, true, listOf(Gamemode.fruits, Gamemode.osu)),
+            update("🌟 **Created**\nGame modes: catch, osu$footer", EmbedColor.GREEN, true, listOf(Gamemode.fruits, Gamemode.osu)),
             planner.discord.single(),
         )
     }
@@ -572,17 +572,18 @@ class BeatmapServiceTest {
 
     @ParameterizedTest
     @CsvSource(
-        "Qualified,❤",
-        "Nominated,💭",
-        "Disqualified,💔",
-        "Reset,🗯",
-        "Ranked,💖",
-        "Graved,🗑",
-        "Unfinished,🔨",
+        "Qualified,❤,Qualified",
+        "Nominated,💭,Nominated",
+        "Disqualified,💔,Disqualified",
+        "Reset,🗯,Reset",
+        "Ranked,💖,Ranked",
+        "Graved,🗑,Graveyard",
+        "Unfinished,🔨,Unfinished",
     )
     fun `Should update the status`(
         status: BeatmapStatus,
         icon: String,
+        name: String,
     ) {
         planner.save(beatmap())
 
@@ -594,7 +595,7 @@ class BeatmapServiceTest {
             assertNull(planner.stored().dateRanked)
         }
         assertRecent(planner.stored().dateUpdated)
-        assertEquals(update("$icon **Updated status to $status**$footer", EmbedColor.ORANGE, true), planner.discord.single())
+        assertEquals(update("$icon **Updated status to $name**$footer", EmbedColor.ORANGE, true), planner.discord.single())
     }
 
     @Test
@@ -657,7 +658,7 @@ class BeatmapServiceTest {
         assertEquals(listOf(mode(Gamemode.osu, "7", "6", secondNominated = true)), planner.stored().gamemodes)
         assertRecent(planner.stored().dateUpdated)
         assertEquals(listOf("7", "6"), result.gamemodes[0].nominators.map { it.nominator.osuId })
-        assertEquals(update("${added("7")}\n${removed("5")}$footer [osu]", EmbedColor.BLUE, false), planner.discord.single())
+        assertEquals(update("${added("7")}\n${removed("5")}\nGame modes: osu$footer", EmbedColor.BLUE, false), planner.discord.single())
     }
 
     @Test
@@ -667,7 +668,7 @@ class BeatmapServiceTest {
         updateNominator("6", "0")
 
         assertEquals(listOf(mode(Gamemode.osu, "5", "0", firstNominated = true)), planner.stored().gamemodes)
-        assertEquals(update("${removed("6")}$footer [osu]", EmbedColor.BLUE, false), planner.discord.single())
+        assertEquals(update("${removed("6")}\nGame modes: osu$footer", EmbedColor.BLUE, false), planner.discord.single())
     }
 
     @Test
@@ -698,7 +699,7 @@ class BeatmapServiceTest {
 
         assertEquals(listOf(mode(Gamemode.osu), mode(Gamemode.fruits, "5")), planner.stored().gamemodes)
         assertEquals(
-            update("${added("5")} [catch]$footer [osu, catch]", EmbedColor.BLUE, false, listOf(Gamemode.osu, Gamemode.fruits)),
+            update("${added("5")} [catch]\nGame modes: osu, catch$footer", EmbedColor.BLUE, false, listOf(Gamemode.osu, Gamemode.fruits)),
             planner.discord.single(),
         )
     }
@@ -713,7 +714,7 @@ class BeatmapServiceTest {
         assertEquals(listOf(Gamemode.fruits), result.gamemodes.map { it.gamemode })
         // Also reported to the removed gamemode
         assertEquals(
-            update("${removed("5")} [osu]$footer [osu, catch]", EmbedColor.BLUE, false, listOf(Gamemode.osu, Gamemode.fruits)),
+            update("${removed("5")} [osu]\nGame modes: osu, catch$footer", EmbedColor.BLUE, false, listOf(Gamemode.osu, Gamemode.fruits)),
             planner.discord.single(),
         )
     }

@@ -73,7 +73,7 @@ class BeatmapController(
         }
 
         if (newBeatmap.gamemodes.isEmpty()) {
-            throw badRequest("A beatmap needs at least one gamemode")
+            throw badRequest("A beatmap needs at least one game mode")
         }
 
         return when (val result = service.addBeatmap(login, newBeatmap)) {

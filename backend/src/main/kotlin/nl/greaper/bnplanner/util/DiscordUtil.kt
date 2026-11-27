@@ -23,6 +23,13 @@ fun BeatmapStatus.getEmojiIcon(): String =
         BeatmapStatus.Unfinished -> UNFINISHED_STATUS_ICON
     }
 
+/** Like the website names it */
+fun BeatmapStatus.toReadableName(): String =
+    when (this) {
+        BeatmapStatus.Graved -> "Graveyard"
+        else -> name
+    }
+
 fun Gamemode.toReadableName(): String =
     when (this) {
         Gamemode.osu -> "osu"

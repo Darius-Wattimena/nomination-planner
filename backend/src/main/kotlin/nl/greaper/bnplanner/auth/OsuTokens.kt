@@ -1,5 +1,6 @@
 package nl.greaper.bnplanner.auth
 
+import nl.greaper.bnplanner.client.OsuUnavailableException
 import org.springframework.security.oauth2.client.ClientAuthorizationException
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager
@@ -50,10 +51,3 @@ class OsuLogin(
 }
 
 class LoginExpiredException : RuntimeException("The osu! login expired")
-
-class OsuUnavailableException(
-    message: String,
-    cause: Throwable?,
-) : RuntimeException(message, cause) {
-    constructor(cause: Throwable) : this("Could not reach osu!", cause)
-}

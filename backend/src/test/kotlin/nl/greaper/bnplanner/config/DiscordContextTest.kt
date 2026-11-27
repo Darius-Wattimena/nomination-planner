@@ -92,6 +92,6 @@ class DiscordDisabledTest {
         assertTrue(context.getBeansOfType(JDA::class.java).isEmpty())
 
         val response = context.getBean(DefaultExceptionHandler::class.java).exception(RuntimeException("made up"))
-        assertEquals("Unable to handle request", response.body!!.detail)
+        assertEquals("Something went wrong on the planner. Try again later.", response.body!!.detail)
     }
 }

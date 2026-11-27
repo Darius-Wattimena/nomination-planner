@@ -10,7 +10,6 @@ import nl.greaper.bnplanner.task.BackgroundSync
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
@@ -18,7 +17,6 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.RejectedExecutionException
 
 class OsuJobsTest {
     private val planner = Planner()
@@ -109,6 +107,8 @@ class OsuJobsTest {
                         Thread.sleep(60_000)
                     } catch (ex: InterruptedException) {
                         interrupted = true
+                        // Like a call to osu! that gets interrupted, only logged as the planner is stopping
+                        throw IllegalStateException("interrupted", ex)
                     }
                     null
                 }
@@ -122,7 +122,11 @@ class OsuJobsTest {
 
         assertEquals(true, interrupted)
         verify(service).findBeatmap("1")
-        assertThrows<RejectedExecutionException> { jobs.syncBeatmaps(listOf("3")) }
+        // What was still queued is left for the restart, what is queued afterwards is not kept
+        assertEquals(1, jobs.waiting)
+        assertEquals(0, jobs.syncBeatmaps(listOf("3")))
+        assertEquals(0, jobs.syncUsers(listOf("4", "5")))
+        assertEquals(1, jobs.waiting)
     }
 
     @Test

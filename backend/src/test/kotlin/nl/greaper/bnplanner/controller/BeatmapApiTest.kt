@@ -220,7 +220,7 @@ class BeatmapApiTest : ApiTest() {
         listOf("", "1a", "-1", " 1", "1.0").forEach {
             assertBadRequest(add("""{"osuId":"$it","gamemodes":["osu"]}"""), "The id of a beatmap only has digits")
         }
-        assertBadRequest(add("""{"osuId":"1","gamemodes":[]}"""), "A beatmap needs at least one gamemode")
+        assertBadRequest(add("""{"osuId":"1","gamemodes":[]}"""), "A beatmap needs at least one game mode")
         assertEquals(emptyList<String>(), FakeOsu.calls())
     }
 
@@ -235,7 +235,7 @@ class BeatmapApiTest : ApiTest() {
         FakeOsu.respond("GET /api/v2/beatmapsets/1", "{}", 500)
         FakeOsu.respond("GET /api/v2/beatmapsets/2", "{}", 502)
 
-        val unavailable = "osu! can not be reached right now"
+        val unavailable = "osu! can't be reached right now. Try again in a moment."
         assertProblem(add("""{"osuId":"1","gamemodes":["osu"]}"""), 503, "Service Unavailable", unavailable)
         assertProblem(call(As.EDITOR, "POST", "/v2/beatmap/2/sync"), 503, "Service Unavailable", unavailable)
         assertEquals(listOf("2"), beatmaps.list().map { it.osuId })

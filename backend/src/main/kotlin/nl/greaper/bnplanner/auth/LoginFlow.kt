@@ -31,7 +31,7 @@ class LoginFlow(
         const val RETURN_TO = "loginReturnTo"
 
         /** How long a session started by logging in is kept until it is logged in, anybody can start one */
-        const val LOGIN_SECONDS = 10 * 60
+        const val LOGIN_SECONDS = 30 * 60
     }
 
     private val resolver = DefaultOAuth2AuthorizationRequestResolver(registrations, "/oauth2/authorization")

@@ -72,8 +72,8 @@ class FollowBeatmapEvents(
         }
 
         val found = pages.findNewer(last) { index -> osuClient.findBeatmapsetEvents(token, index + 1).events }
-        val changedCount =
-            found.events.count { event ->
+        try {
+            return found.events.count { event ->
                 val changed = beatmapService.applyOsuEvent(token, event)
                 followed.saveLastId(NAME, event.id)
 
@@ -84,15 +84,15 @@ class FollowBeatmapEvents(
 
                 changed != null
             }
-
-        if (!found.complete) {
-            // osu! knows how the beatmaps are now. Only afterwards, so the older events don't overwrite what the syncs find.
-            val inProgress = beatmapDataSource.findAll { it.isInProgress() }.map { it.osuId }
-            log.warn { "Too many beatmap events of osu! after event $last to read, syncing ${inProgress.size} beatmaps instead" }
-            jobs.syncBeatmaps(inProgress)
+        } finally {
+            // Also when an event failed, the last id already moved past the events that were not read
+            if (!found.complete) {
+                // osu! knows how the beatmaps are now. Only afterwards, so the older events don't overwrite what the syncs find.
+                val inProgress = beatmapDataSource.findAll { it.isInProgress() }.map { it.osuId }
+                log.warn { "Too many beatmap events of osu! after event $last to read, syncing ${inProgress.size} beatmaps instead" }
+                jobs.syncBeatmaps(inProgress)
+            }
         }
-
-        return changedCount
     }
 
     private fun isMainGamemodeUnknown(

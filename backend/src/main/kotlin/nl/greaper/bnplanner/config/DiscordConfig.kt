@@ -125,7 +125,7 @@ class DiscordConfig(
 
             // Only the choices of the command are known, so this answers right away
             if (gamemodeValue != null && gamemode == null) {
-                event.reply("Unknown gamemode `$gamemodeValue`").queue()
+                event.reply("Unknown game mode `$gamemodeValue`").queue()
                 return
             }
 
@@ -148,9 +148,9 @@ class DiscordConfig(
                 StringBuilder("**Registered listener at channel**\n")
                     .let { builder ->
                         if (gamemode != null) {
-                            builder.append("Gamemode = `${gamemode.toReadableName()}`")
+                            builder.append("Game mode: `${gamemode.toReadableName()}`")
                         } else {
-                            builder.append("Gamemode = `all`")
+                            builder.append("Game mode: all modes")
                         }
                     }.toString()
 
@@ -204,7 +204,7 @@ class DiscordConfig(
 
         private fun command(): SlashCommandData {
             val gamemodeOption =
-                OptionData(OptionType.STRING, "gamemode", "The osu! gamemode the event is for")
+                OptionData(OptionType.STRING, "gamemode", "The osu! game mode the event is for")
                     .addChoices(Gamemode.entries.map { Choice(it.toReadableName(), it.name) })
 
             val registerCommand =

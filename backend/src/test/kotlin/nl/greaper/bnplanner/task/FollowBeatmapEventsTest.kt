@@ -154,6 +154,24 @@ class FollowBeatmapEventsTest {
     }
 
     @Test
+    fun `Should still sync the beatmaps in progress when an event after the gap fails`() {
+        planner.save(beatmap("1"))
+        planner.save(beatmap("2"))
+        followed.saveLastId(FollowBeatmapEvents.NAME, 1)
+        (2..FollowBeatmapEvents.MAX_PAGES).forEach { FakeOsu.beatmapsetEvents(it, page(event(1000L - it, "qualify", "4"))) }
+        FakeOsu.beatmapsetEvents(1, page(event(999, "nominate", "2", 30, "osu")))
+        FakeOsu.respond("GET /api/v2/users/30?key=id", "{}", 500)
+        FakeOsu.beatmap("1")
+
+        assertEquals(0, follower.follow())
+        planner.osuJobs.finish()
+
+        // Already past the events that were not read
+        assertEquals(998, followed.findLastId(FollowBeatmapEvents.NAME))
+        assertEquals(listOf("GET /api/v2/beatmapsets/1"), FakeOsu.calls().filter { it.startsWith("GET /api/v2/beatmapsets/1") })
+    }
+
+    @Test
     fun `Should sync only after following the events, so those don't overwrite how the beatmaps are now`() {
         planner.save(beatmap("1"))
         followed.saveLastId(FollowBeatmapEvents.NAME, 1)

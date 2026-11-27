@@ -2,7 +2,6 @@ package nl.greaper.bnplanner.client
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import nl.greaper.bnplanner.auth.LoginExpiredException
-import nl.greaper.bnplanner.auth.OsuUnavailableException
 import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.model.osu.AuthToken
 import nl.greaper.bnplanner.model.osu.BeatmapSet
