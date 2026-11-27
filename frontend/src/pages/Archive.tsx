@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from "react";
-import {NavLink, useSearchParams} from "react-router";
+import {Link, NavLink, useSearchParams} from "react-router";
 import {FaMagnifyingGlass, FaXmark} from "react-icons/fa6";
 import {useOpenMap} from "../beatmaps/useOpenMap";
 import MapView from "../beatmaps/MapView";
@@ -73,7 +73,15 @@ export default function Archive({page}: {page: BeatmapPage}) {
         </div>
         {(maps.error || total.error) && <p className="alert alert-error" role="alert">{maps.error ? "Could not load the archive." : "Could not count the beatmaps, so the pages are missing."} <button className="link" onClick={reload}>Try again</button></p>}
         {!maps.data && maps.loading && <Loading/>}
-        {maps.data?.length === 0 && !maps.loading && <EmptyState title="Nothing found"><p className="muted">Try another search.</p></EmptyState>}
+        {maps.data?.length === 0 && !maps.loading &&
+          <EmptyState title="Nothing found">
+            <p className="muted">Try another search.</p>
+            <div className="button-row">
+              {filter.search && <button className="button" onClick={() => update({q: undefined})}>Clear search</button>}
+              <Link className="button button-ghost" to={filter.search ? `/beatmaps?q=${encodeURIComponent(filter.search)}` : "/beatmaps"}>Look in the beatmaps in progress</Link>
+            </div>
+          </EmptyState>
+        }
         {maps.data && maps.data.length > 0 &&
           <>
             <ul className="gallery" aria-busy={maps.loading}>

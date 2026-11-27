@@ -42,7 +42,7 @@ export default function Shell() {
           {user
             ? <>
                 {isAdmin(session) && <NavLink to="/admin" aria-label="Admin" className={({isActive}) => `search-button admin-button ${isActive ? "active" : ""}`}><FaShieldHalved aria-hidden/><span>Admin</span></NavLink>}
-                <button className="search-button" aria-label="Find a beatmap or nominator" onClick={openFind}><FaMagnifyingGlass aria-hidden/><span>Find</span></button>
+                <button className="search-button" aria-label="Find a beatmap or nominator" title="Find a beatmap or nominator (/)" onClick={openFind}><FaMagnifyingGlass aria-hidden/><span>Find</span></button>
                 <AccountMenu user={user}/>
               </>
             : <>

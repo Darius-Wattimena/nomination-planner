@@ -131,7 +131,7 @@ function Overview() {
           {loading && <Loading/>}
           {!loading && members.length > 0 && shown.length === 0 && <p className="muted team-none">Nobody matches.</p>}
           <ul className="members">
-            {shown.map(it => <MemberCard key={it.user.osuId} member={it} mode={mode} free={isFree(it)} self={it.user.osuId === self?.osuId}/>)}
+            {shown.map(it => <MemberCard key={it.user.osuId} member={it} mode={mode} free={isFree(it)} self={it.user.osuId === self?.osuId} onOpen={open}/>)}
           </ul>
           {shown.some(it => it.inProgress.length > 0) &&
             <p className="legend muted">{ORDER.filter(it => it !== "qualified").map(it => <span key={it} className="legend-item"><span className="covers-key" data-state={it}/>{STATE[it]}</span>)}</p>
@@ -161,7 +161,7 @@ function Overview() {
   )
 }
 
-function MemberCard({member, mode, free, self}: {member: Member, mode?: Gamemode, free: boolean, self: boolean}) {
+function MemberCard({member, mode, free, self, onOpen}: {member: Member, mode?: Gamemode, free: boolean, self: boolean, onOpen: (id: string) => void}) {
   const {user, inProgress, moves, qualified, together} = member
   const role = ROLES[highestRole(user, mode)]
   const others = roleModes(user).filter(it => it !== mode)
@@ -185,13 +185,17 @@ function MemberCard({member, mode, free, self}: {member: Member, mode?: Gamemode
         </div>
         <span className="member-load" data-free={free || undefined}>{inProgress.length === 0 ? "Nothing planned" : `${inProgress.length} in progress`}</span>
       </div>
-      <div className="covers" role="img" aria-label={inProgress.length === 0 ? "Nothing in progress" : `Nominating ${inProgress.slice(0, SHOWN_COVERS).map(it => `${it.map.title}, ${STATE[it.part]}`).join("; ")}`}>
-        {inProgress.slice(0, SHOWN_COVERS).map(({map, part}) => (
-          <span key={map.osuId} className="covers-map" data-state={part} title={`${map.title}: ${STATE[part]}`}><Cover id={map.osuId} size="card"/></span>
-        ))}
-        {Array.from({length: Math.max(0, SHOWN_COVERS - inProgress.length)}, (_, index) => <span key={index} className="covers-map covers-empty"/>)}
-        {inProgress.length > SHOWN_COVERS && <span className="covers-more">+{inProgress.length - SHOWN_COVERS}</span>}
-      </div>
+      {/* Only what is really planned, the badge already says when there is nothing */}
+      {inProgress.length > 0 &&
+        <ul className="covers" aria-label={`Nominating, ${inProgress.length} in progress`}>
+          {inProgress.slice(0, SHOWN_COVERS).map(({map, part}) => (
+            <li key={map.osuId}>
+              <button className="covers-map" data-state={part} title={`${map.title}: ${STATE[part]}`} aria-label={`${map.title}, ${STATE[part]}`} onClick={() => onOpen(map.osuId)}><Cover id={map.osuId} size="card"/></button>
+            </li>
+          ))}
+          {inProgress.length > SHOWN_COVERS && <li className="covers-more" aria-label={`and ${inProgress.length - SHOWN_COVERS} more`}>+{inProgress.length - SHOWN_COVERS}</li>}
+        </ul>
+      }
       <p className="member-facts">{facts.join(" · ")}</p>
     </li>
   )
@@ -266,7 +270,7 @@ function Profile({id}: {id: string}) {
             <ul className="partners">
               {partners.map(it => (
                 <li key={it.osuId}>
-                  <span>{it.name}</span>
+                  <Link to={`/team?user=${it.osuId}`}>{it.name}</Link>
                   <span className="load-text">{it.pairingRanked}{it.pairingPending > 0 && ` + ${it.pairingPending}`}</span>
                   <span className="load" role="img" aria-label={`${it.pairingRanked} ranked, ${it.pairingPending} now`}>
                     <span className="load-check" style={{width: `${it.pairingRanked / most * 100}%`}}/><span className="load-wait" style={{width: `${it.pairingPending / most * 100}%`}}/>

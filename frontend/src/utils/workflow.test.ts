@@ -2,7 +2,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import type {User} from "../models/Types";
 import {BeatmapStatus, Gamemode} from "../models/Types";
 import {beatmap, bn, mode, probation} from "../test/builders";
-import {ageInDays, ageLabel, hiddenAsOld, lookingForNominator, OLD_DAYS, partOf, isStale, nextStep, stageOf, suggestions, toDate} from "./workflow";
+import {ageInDays, ageLabel, ageWords, byOldest, exactTime, hiddenAsOld, lookingForNominator, notePreview, OLD_DAYS, partOf, isStale, nextStep, splitByAge, stageOf, suggestions, toDate, waitingReason} from "./workflow";
+import {user} from "../test/builders";
 
 const {Osu, Taiko} = Gamemode
 const NOW = new Date("2026-06-01T12:00:00Z")
@@ -248,5 +249,63 @@ describe("lookingForNominator", () => {
   it("lists one mode", () => {
     expect(lookingForNominator(maps, Taiko).map(it => [it.map.osuId, it.mode])).toEqual([["1", Taiko], ["4", Taiko]])
     expect(lookingForNominator(maps, Gamemode.Mania)).toEqual([])
+  })
+})
+
+describe("ageWords", () => {
+  it("says the age in full words", () => {
+    const words = (days: number) => ageWords(beatmap({dateUpdated: daysAgo(days)}))
+    expect([0, 1, 3, 13, 14, 59, 60, 364, 365, 800].map(words))
+      .toEqual(["today", "yesterday", "3 days ago", "13 days ago", "2 weeks ago", "8 weeks ago", "2 months ago", "12 months ago", "1 year ago", "2 years ago"])
+    expect(ageWords(beatmap({dateUpdated: undefined}))).toBe("")
+  })
+
+  it("has the exact time for a title, nothing without a date", () => {
+    expect(exactTime(daysAgo(3))).toContain("2026")
+    expect(exactTime(undefined)).toBe("")
+  })
+})
+
+describe("splitByAge and byOldest", () => {
+  it("keeps what changed in the last months apart from the rest", () => {
+    const fresh = beatmap({osuId: "1", dateUpdated: daysAgo(OLD_DAYS - 1)})
+    const old = beatmap({osuId: "2", dateUpdated: daysAgo(OLD_DAYS)})
+    expect(splitByAge([fresh, old])).toEqual({recent: [fresh], older: [old]})
+  })
+
+  it("puts the longest waiting first", () => {
+    const maps = [beatmap({osuId: "1", dateUpdated: daysAgo(1)}), beatmap({osuId: "2", dateUpdated: daysAgo(9)}), beatmap({osuId: "3", dateUpdated: daysAgo(4)})]
+    expect([...maps].sort(byOldest).map(it => it.osuId)).toEqual(["2", "3", "1"])
+  })
+})
+
+describe("waitingReason", () => {
+  const rory = user("2", {[Osu]: "Nominator"}, "Rory")
+
+  it("names who nominated and how long ago", () => {
+    const map = beatmap({dateUpdated: daysAgo(5), gamemodes: [mode(Osu, bn("1"), [rory, true])]})
+    expect(waitingReason(map, "1")).toBe("Rory nominated · 5d")
+  })
+
+  it("asks to check it again after a disqualification or reset", () => {
+    expect(waitingReason(beatmap({status: BeatmapStatus.Disqualified, gamemodes: [mode(Osu, bn("1"), bn("2"))]}), "1")).toBe("Disqualified, check it again")
+    expect(waitingReason(beatmap({status: BeatmapStatus.Reset, gamemodes: [mode(Osu, bn("1"), bn("2"))]}), "1")).toBe("Reset, check it again")
+  })
+
+  it("looks at the other modes when nobody in yours nominated", () => {
+    const map = beatmap({dateUpdated: daysAgo(0), mainGamemodes: [Osu], gamemodes: [mode(Osu, [rory, true], [bn("3"), true]), mode(Taiko, bn("1", Taiko))]})
+    expect(waitingReason(map, "1")).toBe("Rory and User 3 nominated · today")
+  })
+
+  it("still says something without anybody who nominated or a date", () => {
+    expect(waitingReason(beatmap({dateUpdated: undefined, gamemodes: [mode(Osu, bn("1"))]}), "1")).toBe("Ready for your nomination")
+  })
+})
+
+describe("notePreview", () => {
+  it("keeps short notes and cuts long ones", () => {
+    expect(notePreview("  short ")).toBe("short")
+    expect(notePreview(undefined)).toBe("")
+    expect(notePreview("a".repeat(130))).toBe(`${"a".repeat(120)}…`)
   })
 })

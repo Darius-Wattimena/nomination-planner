@@ -173,3 +173,56 @@ export function ageLabel(map: Beatmap, now = Date.now()) {
   if (days < 365) return `${Math.floor(days / 30)}mo`
   return `${Math.floor(days / 365)}y`
 }
+
+/** The same age in full words, for where there is room: "3 days ago" */
+export function ageWords(map: Beatmap, now = Date.now()) {
+  if (!toDate(map.dateUpdated)) return ""
+  const days = ageInDays(map, now)
+  const ago = (count: number, unit: string) => `${count} ${unit}${count === 1 ? "" : "s"} ago`
+  if (days === 0) return "today"
+  if (days === 1) return "yesterday"
+  if (days < 14) return ago(days, "day")
+  if (days < 60) return ago(Math.floor(days / 7), "week")
+  if (days < 365) return ago(Math.floor(days / 30), "month")
+  return ago(Math.floor(days / 365), "year")
+}
+
+/** The exact local date and time, for a title behind a short age */
+export function exactTime(value: string | number | undefined) {
+  return toDate(value)?.toLocaleString(undefined, {dateStyle: "long", timeStyle: "short"}) ?? ""
+}
+
+/** The longest waiting first */
+export function byOldest(a: Beatmap, b: Beatmap) {
+  return (toDate(a.dateUpdated)?.getTime() ?? 0) - (toDate(b.dateUpdated)?.getTime() ?? 0)
+}
+
+/** Beatmaps changed in the last months, and those that are older */
+export function splitByAge(maps: Beatmap[], now = Date.now()) {
+  return {
+    recent: maps.filter(it => ageInDays(it, now) < OLD_DAYS),
+    older: maps.filter(it => ageInDays(it, now) >= OLD_DAYS)
+  }
+}
+
+/** Why a beatmap waits for you, so a list under "Waiting for you" doesn't repeat it: "Rory nominated · 5d" */
+export function waitingReason(map: Beatmap, userId: string | undefined, now = Date.now()) {
+  if (stageOf(map) === "attention") return `${map.status}, check it again`
+  const doneIn = (modes: Beatmap["gamemodes"]) => modes.flatMap(it => it.nominators)
+    .filter(it => it.hasNominated && !isMissing(it.nominator) && it.nominator.osuId !== userId)
+    .map(it => displayName(it.nominator))
+  // Those in your own modes say the most, the others when nobody there nominated
+  const own = doneIn(map.gamemodes.filter(mode => mode.nominators.some(it => it.nominator.osuId === userId)))
+  const names = Array.from(new Set(own.length > 0 ? own : doneIn(map.gamemodes)))
+  const who = names.length === 0 ? "Ready for your nomination"
+    : names.length > 2 ? `${names.length} nominators nominated`
+    : `${names.join(" and ")} nominated`
+  const age = ageLabel(map, now)
+  return age ? `${who} · ${age}` : who
+}
+
+/** The start of a note, short enough for a title */
+export function notePreview(note: string | undefined, length = 120) {
+  const text = note?.trim() ?? ""
+  return text.length > length ? `${text.slice(0, length).trimEnd()}…` : text
+}

@@ -32,8 +32,8 @@ function Help() {
         <ul className="help-colors">
           <li><span className="step step-you">{LABELS.move}</span></li>
           <li><span className="step step-open">{LABELS.open}</span></li>
-          <li><span className="step step-warn">Disqualified or reset</span></li>
-          <li><span className="step step-good">Nominated, qualified or ranked</span></li>
+          <li><span className="step step-warn">Disqualified, reset or needs a full nominator</span></li>
+          <li><span className="step step-good">Qualified or ranked</span></li>
           <li><span className="step step-calm">On its way, nothing for you to do</span></li>
         </ul>
       </section>
@@ -46,7 +46,7 @@ function Help() {
       </section>
       <section>
         <h3>Searching</h3>
-        <p className="muted">Words search the title, artist, mapper and note. Add any of these, like <code>mode:catch is:open</code>. The same key twice means either one, everything else has to match. Put quotes around a value with spaces.</p>
+        <p className="muted">Words search the title, artist, mapper, note and ID. Add any of these, like <code>mode:catch is:open</code>. The same key twice means either one, everything else has to match. Put quotes around a value with spaces.</p>
         <dl className="help-keys">
           <dt><code>bn:</code></dt><dd>A nominator, by name or id. <code>bn:me</code> is you.</dd>
           <dt><code>by:</code></dt><dd>The mapper, by name or id. <code>by:me</code> is you.</dd>
@@ -55,6 +55,22 @@ function Help() {
           <dd><code>open</code> {LABELS.open.toLowerCase()}, <code>mine</code> you nominate it, <code>move</code> {LABELS.move.toLowerCase()}, <code>stale</code> {LABELS.stale.toLowerCase()}, <code>noted</code> has a note</dd>
           <dt><code>stage:</code></dt><dd>{list(STAGES.map(it => it.id))}</dd>
           <dt><code>status:</code></dt><dd>{list(PENDING_STATUSES.map(it => it.toLowerCase()))}</dd>
+        </dl>
+      </section>
+      <section>
+        <h3>Shortcuts</h3>
+        <p className="muted">They do nothing while you type in a field.</p>
+        <dl className="help-keys">
+          <dt><kbd>/</kbd></dt><dd>Find a beatmap or nominator, on any page</dd>
+          <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>In an opened beatmap, the previous or next one</dd>
+          <dt><kbd>O</kbd></dt><dd>In an opened beatmap, open its discussion on osu!</dd>
+        </dl>
+        <p className="muted">In Discover:</p>
+        <dl className="help-keys">
+          <dt><kbd>←</kbd></dt><dd>Skip</dd>
+          <dt><kbd>→</kbd></dt><dd>Interested</dd>
+          <dt><kbd>Space</kbd></dt><dd>Play or pause the song</dd>
+          <dt><kbd>Backspace</kbd></dt><dd>Take back</dd>
         </dl>
       </section>
     </div>

@@ -8,7 +8,7 @@ import Cover from "../ui/Cover";
 import Dialog from "../ui/Dialog";
 import {ModePicker} from "../ui/ModeIcon";
 import {useToast} from "../ui/useToast";
-import {parseOsuLink} from "../utils/osuLink";
+import {parseBeatmap} from "../utils/osuLink";
 import {canEdit, useSession} from "../utils/session";
 import {modesOf} from "../utils/users";
 import {canJoin} from "../utils/nominations";
@@ -17,11 +17,6 @@ import type {OpenAdd} from "./useAddBeatmap";
 import {AddContext} from "./useAddBeatmap";
 import {focusesByItself} from "../utils/phone";
 import MapView from "./MapView";
-
-function parse(text: string) {
-  const id = text.trim()
-  return /^[0-9]{2,}$/.test(id) ? {id, mode: undefined} : parseOsuLink(id)
-}
 
 /** The window to add a beatmap. What was added opens over the page you are on. */
 export function AddBeatmapProvider({children}: {children: ReactNode}) {
@@ -64,7 +59,7 @@ function AddForm({initial, maps, onClose, onOpen}: AddFormProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
 
-  const found = parse(text)
+  const found = parseBeatmap(text)
   const known = found && maps.find(it => it.osuId === found.id)
   // The mode of the link, until something is picked by hand
   const modes = picked ?? (found?.mode ? [found.mode] : own)

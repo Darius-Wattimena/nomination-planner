@@ -12,7 +12,7 @@ import {filterMaps, formatQuery, MODE_WORDS, parseQuery} from "../utils/query";
 import {useSession} from "../utils/session";
 import {LABELS, STAGES} from "../utils/workflow";
 import {displayName, isMissing} from "../utils/users";
-import {focusesByItself} from "../utils/phone";
+import {focusesByItself, usePhone} from "../utils/phone";
 
 interface Option {
   key: string
@@ -71,6 +71,8 @@ interface FiltersProps {
 export default function Filters({query, onChange, maps, stages}: FiltersProps) {
   const self = useSession()?.user
   const help = useHelp()
+  // The whole list of what is searched doesn't fit on a phone
+  const phone = usePhone()
   const tokens = useMemo(() => parseQuery(query), [query])
   const filters = tokens.filter(it => it.key)
   const words = formatQuery(tokens.filter(it => !it.key))
@@ -108,7 +110,7 @@ export default function Filters({query, onChange, maps, stages}: FiltersProps) {
           type="search"
           enterKeyHint="search"
           aria-label="Search beatmaps"
-          placeholder="Search title, artist or note"
+          placeholder={phone ? "Search beatmaps" : "Search title, artist, mapper, note or ID"}
           autoComplete="off"
           value={text}
           onChange={event => apply(event.target.value)}

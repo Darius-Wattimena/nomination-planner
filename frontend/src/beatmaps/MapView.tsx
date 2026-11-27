@@ -1,5 +1,5 @@
 import type {TouchEvent as ReactTouchEvent} from "react";
-import {useRef, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import Modal from "react-modal";
 import {FaArrowUpRightFromSquare, FaCheck, FaChevronLeft, FaChevronRight, FaLink, FaPlus, FaRegComments, FaXmark} from "react-icons/fa6";
 import {GAMEMODE_NAMES, GAMEMODES, MISSING_USER_ID, ROLES} from "../Constants";
@@ -19,7 +19,9 @@ import {useToast} from "../ui/useToast";
 import {canEdit, isAdmin, useSession} from "../utils/session";
 import {canJoin, doneNominations, isHybrid, lacksFullNominator, needsFullNominator, neededNominations, openSpot, roleOf, spots} from "../utils/nominations";
 import {displayName, highestRole, isMissing, onProbation, sortedModes} from "../utils/users";
-import {ageLabel, nextStep, toDate} from "../utils/workflow";
+import {ageWords, exactTime, nextStep, toDate} from "../utils/workflow";
+import {beatmapUrl, discussionUrl} from "../utils/osuLink";
+import {isShortcut} from "../utils/keys";
 import {inProgress} from "../utils/involvement";
 import {useNominators} from "./actions";
 import NominatorPicker from "./NominatorPicker";
@@ -57,14 +59,33 @@ export default function MapView({id, ids = [], onOpen, onClose, onChanged}: MapV
     if (to && Math.abs(x) > 70 && Math.abs(x) > 2 * Math.abs(y) && from.x > 24 && from.x < window.innerWidth - 24) onOpen(to)
   }
 
+  // The arrows step through the beatmaps and o opens the discussion, unless you type or another dialog lies on top
+  useEffect(() => {
+    if (!id) return
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement
+      if (!isShortcut(event) || (target !== document.body && !target.closest?.(".map-view"))) return
+      const to = event.key === "ArrowLeft" ? previous : event.key === "ArrowRight" ? next : undefined
+      if (to) {
+        event.preventDefault()
+        onOpen(to)
+      } else if (event.key === "o" && id) {
+        event.preventDefault()
+        window.open(discussionUrl(id), "_blank", "noreferrer")
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [id, previous, next, onOpen])
+
   return (
     <Modal isOpen={!!id} onRequestClose={onClose} contentLabel="Beatmap" className="map-view" overlayClassName="overlay overlay-view">
       <div className="map-view-bar">
         {index >= 0 && ids.length > 1 &&
           <div className="stepper">
-            <button className="icon-button" aria-label="Previous beatmap" disabled={!previous} onClick={() => previous && onOpen(previous)}><FaChevronLeft/></button>
+            <button className="icon-button" aria-label="Previous beatmap" title="Previous beatmap (←)" disabled={!previous} onClick={() => previous && onOpen(previous)}><FaChevronLeft/></button>
             <span>{index + 1} of {ids.length}</span>
-            <button className="icon-button" aria-label="Next beatmap" disabled={!next} onClick={() => next && onOpen(next)}><FaChevronRight/></button>
+            <button className="icon-button" aria-label="Next beatmap" title="Next beatmap (→)" disabled={!next} onClick={() => next && onOpen(next)}><FaChevronRight/></button>
           </div>
         }
         <button className="icon-button" aria-label="Close" onClick={onClose}><FaXmark/></button>
@@ -98,7 +119,7 @@ function Details({beatmap, onClose, onChanged}: {beatmap: Beatmap, onClose: () =
   const modes = sortedModes(beatmap)
   const absent = GAMEMODES.filter(mode => !modes.some(it => it.gamemode === mode))
   const ranked = toDate(beatmap.dateRanked)
-  const age = ageLabel(beatmap)
+  const age = ageWords(beatmap)
 
   // Somebody can nominate or a mode can disappear while a slot is selected
   const selectedMode = slot && modes.find(it => it.gamemode === slot.mode)
@@ -116,14 +137,19 @@ function Details({beatmap, onClose, onChanged}: {beatmap: Beatmap, onClose: () =
       <div className="map-facts">
         <StatusBadge status={beatmap.status}/>
         <span className="with-avatar"><Avatar user={beatmap.mapper}/>{displayName(beatmap.mapper)}</span>
-        {ranked ? <span>ranked {ranked.toLocaleDateString()}</span> : age && <span>updated {age}{age !== "today" && " ago"}</span>}
+        {ranked ? <span title={exactTime(beatmap.dateRanked)}>Ranked {ranked.toLocaleDateString()}</span> : age && <span title={exactTime(beatmap.dateUpdated)}>Last change {age}</span>}
         <Links beatmap={beatmap}/>
       </div>
 
       <div className="map-body">
         <section className="map-grid" aria-label="Nominators">
           <div className="map-progress">
-            <span className={`step step-${step.tone}`}>{step.text}</span>
+            <span className="map-step">
+              <span className={`step step-${step.tone}`}>{step.text}</span>
+              {step.tone === "you" &&
+                <a className="button button-primary" href={discussionUrl(beatmap.osuId)} target="_blank" rel="noreferrer" title="Open the discussion (O)"><FaRegComments/>Open discussion to nominate</a>
+              }
+            </span>
             <span className="muted">{doneNominations(beatmap)} of {neededNominations(beatmap)} nominations</span>
           </div>
           {modes.map(mode => (
@@ -163,11 +189,11 @@ function Details({beatmap, onClose, onChanged}: {beatmap: Beatmap, onClose: () =
 
 function Links({beatmap}: {beatmap: Beatmap}) {
   const toast = useToast()
-  const url = `https://osu.ppy.sh/beatmapsets/${beatmap.osuId}`
+  const url = beatmapUrl(beatmap.osuId)
   return (
     <span className="map-links">
       <a className="icon-button" href={url} target="_blank" rel="noreferrer" aria-label="Open on osu!" title="Open on osu!"><FaArrowUpRightFromSquare/></a>
-      <a className="icon-button" href={`${url}/discussion`} target="_blank" rel="noreferrer" aria-label="Open the discussion" title="Open the discussion"><FaRegComments/></a>
+      <a className="icon-button" href={discussionUrl(beatmap.osuId)} target="_blank" rel="noreferrer" aria-label="Open the discussion" title="Open the discussion (O)"><FaRegComments/></a>
       <button className="icon-button" aria-label="Copy the link" title="Copy the link" onClick={() => {
         navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => toast("Could not copy the link", {kind: "error"}))
       }}><FaLink/></button>

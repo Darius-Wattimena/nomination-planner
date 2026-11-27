@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vitest";
 import {BeatmapStatus, Gamemode} from "../models/Types";
 import {beatmap, bn, mode} from "../test/builders";
-import {inProgress, involvement, involvementOf} from "./involvement";
+import {inProgress, involvement, involvementOf, summaryOf} from "./involvement";
 
 describe("involvement", () => {
   const first = beatmap({osuId: "1", gamemodes: [mode(Gamemode.Osu, bn("1"), [bn("2"), true])]})
@@ -31,5 +31,15 @@ describe("involvement", () => {
   it("counts what is in progress", () => {
     expect(inProgress(maps, "1")).toBe(1)
     expect(inProgress(maps, "3")).toBe(0)
+  })
+})
+
+describe("summaryOf", () => {
+  it("counts what waits, what looks for a partner and what is qualified, leaving out what there is none of", () => {
+    const map = beatmap()
+    expect(summaryOf([{map, part: "move"}, {map, part: "move"}, {map, part: "partner"}, {map, part: "qualified"}, {map, part: "waiting"}]))
+      .toBe("2 waiting for you · 1 looking for a second nominator · 1 qualified")
+    expect(summaryOf([{map, part: "qualified"}])).toBe("1 qualified")
+    expect(summaryOf([{map, part: "checking"}])).toBe("")
   })
 })

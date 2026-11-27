@@ -19,7 +19,8 @@ import {EmptyState, PlannerStatus} from "../ui/States";
 import StatusBadge from "../ui/StatusBadge";
 import {canEdit, useSession} from "../utils/session";
 import {canNominate, displayName} from "../utils/users";
-import {ageLabel, partOf, suggestions} from "../utils/workflow";
+import {ageLabel, exactTime, partOf, suggestions} from "../utils/workflow";
+import {dialogOpen, isShortcut, pressesFocused} from "../utils/keys";
 import {usePairings} from "../resources/pairings";
 import JoinButton from "../beatmaps/JoinButton";
 
@@ -89,6 +90,23 @@ function Deck({user}: {user: User}) {
 
   const song = useSongPreview(current?.map.osuId, upcoming[0]?.map.osuId)
 
+  // The keys follow the buttons: left skips, right is interested. Always the latest, so the listener stays the same.
+  const keys = useRef<(event: KeyboardEvent) => void>(undefined)
+  useEffect(() => {
+    keys.current = event => {
+      if (!isShortcut(event) || dialogOpen() || pressesFocused(event)) return
+      const action = {ArrowLeft: () => decide("pass"), ArrowRight: () => decide("like"), " ": song.toggle, Backspace: undo}[event.key]
+      if (!action || (event.key !== "Backspace" && !current) || (event.key === "Backspace" && history.length === 0) || (event.key === " " && song.missing)) return
+      event.preventDefault()
+      action()
+    }
+  })
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => keys.current?.(event)
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
+
   function decide(choice: Choice) {
     if (!current) return
     choose(current.map.osuId, choice)
@@ -131,13 +149,13 @@ function Deck({user}: {user: User}) {
             <section className="deck" aria-label="Beatmap to consider">
               <Card key={current.map.osuId} map={current.map} mode={current.mode} reason={current.reason} song={song} onDecide={decide} onOpen={() => open(current.map.osuId)}/>
               <div className="deck-actions">
-                <button className="deck-button" onClick={() => decide("pass")}><FaXmark/>Skip</button>
+                <button className="deck-button" title="Skip (←)" onClick={() => decide("pass")}><FaXmark/>Skip</button>
                 <JoinButton key={current.map.osuId} beatmap={current.map} mode={current.mode} user={user} className="deck-button deck-join"
                             onJoined={undoJoin => next({id: current.map.osuId, undo: undoJoin, at: Date.now()})}/>
-                <button className="deck-button deck-like" onClick={() => decide("like")}><FaHeart/>Interested</button>
+                <button className="deck-button deck-like" title="Interested (→)" onClick={() => decide("like")}><FaHeart/>Interested</button>
               </div>
               <div className="deck-foot">
-                <button className="button button-ghost" disabled={history.length === 0} onClick={undo}><FaRotateLeft/>Take back</button>
+                <button className="button button-ghost" title="Take back (Backspace)" disabled={history.length === 0} onClick={undo}><FaRotateLeft/>Take back</button>
                 <label className="volume">
                   {song.volume === 0 ? <FaVolumeXmark aria-hidden/> : <FaVolumeHigh aria-hidden/>}
                   <input id="volume" type="range" min={0} max={1} step={0.05} aria-label="Volume" value={song.volume} onChange={event => song.setVolume(Number(event.target.value))}/>
@@ -235,7 +253,7 @@ function Card({map, mode, reason, song, onDecide, onOpen}: CardProps) {
         <p className="panel-meta">
           <span>mapped by {displayName(map.mapper)}</span>
           <StatusBadge status={map.status}/>
-          {ageLabel(map) && <span>updated {ageLabel(map)}{ageLabel(map) !== "today" && " ago"}</span>}
+          {ageLabel(map) && <span title={exactTime(map.dateUpdated)}>updated {ageLabel(map)}{ageLabel(map) !== "today" && " ago"}</span>}
         </p>
         {slots &&
           <div className="discover-why">
@@ -261,7 +279,7 @@ function PlayButton({song, title}: {song: ReturnType<typeof useSongPreview>, tit
   const {onProgress} = song
   useEffect(() => onProgress(setProgress), [onProgress])
   return (
-    <button className="play" disabled={song.missing} aria-label={song.playing ? `Pause ${title}` : `Play ${title}`} onClick={song.toggle}>
+    <button className="play" disabled={song.missing} aria-label={song.playing ? `Pause ${title}` : `Play ${title}`} title={song.playing ? "Pause (Space)" : "Play (Space)"} onClick={song.toggle}>
       {song.playing && <span className="approach" style={{scale: 1.9 - 0.9 * progress}}/>}
       {song.playing ? <FaPause/> : <FaPlay/>}
     </button>

@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react";
+import {useMemo, useRef, useState} from "react";
 import {useSearchParams} from "react-router";
 import {FaList, FaPlus, FaTableColumns, FaXmark} from "react-icons/fa6";
 import {useOpenMap} from "../beatmaps/useOpenMap";
@@ -21,6 +21,7 @@ import {modesOf} from "../utils/users";
 import {ageInDays, hiddenAsOld, LABELS, OLD_DAYS, stageOf, STAGES} from "../utils/workflow";
 import {readStored, store} from "../utils/storage";
 import {useToast} from "../ui/useToast";
+import {useScrollFade} from "../utils/scrollFade";
 
 const STEP = 60
 
@@ -37,6 +38,9 @@ export default function Beatmaps() {
   const saved = useSavedViews()
   const toast = useToast()
   const [naming, setNaming] = useState<string>()
+  // Enter and leaving the field can both end the naming, only the first counts
+  const namingDone = useRef(false)
+  const fadeViews = useScrollFade<HTMLDivElement>()
   // The list grows as a whole, every column by itself
   const [limit, setLimit] = useState(STEP)
   const [columnLimits, setColumnLimits] = useState<Record<string, number>>({})
@@ -63,6 +67,23 @@ export default function Beatmaps() {
       else next.delete("older")
     }
     setParams(next, {replace: true})
+  }
+
+  function startNaming() {
+    namingDone.current = false
+    setNaming("")
+  }
+
+  /** Saves the view under the name, an empty name is changing your mind */
+  function finishNaming(keep: boolean) {
+    if (namingDone.current) return
+    namingDone.current = true
+    const name = naming?.trim()
+    if (keep && name) {
+      saveView({name, query})
+      toast(`Saved the view ${name}`)
+    }
+    setNaming(undefined)
   }
 
   function remove(view: SavedView) {
@@ -106,7 +127,7 @@ export default function Beatmaps() {
           </div>
         </PageHeader>
 
-        <div className="views" role="group" aria-label="Views">
+        <div className="views" role="group" aria-label="Views" ref={fadeViews}>
           {views.map(view => <button key={view.name} className="view" aria-pressed={view.query === query} onClick={() => update({q: view.query})}>{view.name}</button>)}
           {saved.map(view => (
             <span key={`saved:${view.name}`} className="view view-saved" data-active={view.query === query || undefined}>
@@ -115,14 +136,17 @@ export default function Beatmaps() {
             </span>
           ))}
           {!isSaved && (naming === undefined
-            ? <button className="link" onClick={() => setNaming("")}>Save view</button>
+            ? <button className="link" onClick={startNaming}>Save view</button>
             : <form onSubmit={event => {
                 event.preventDefault()
-                const name = naming.trim()
-                if (name) saveView({name, query})
-                setNaming(undefined)
+                finishNaming(true)
               }}>
-                <input id="view-name" autoFocus={focusesByItself()} aria-label="Name of the view" placeholder="Name, then Enter" value={naming} onChange={event => setNaming(event.target.value)} onBlur={() => setNaming(undefined)}/>
+                <input id="view-name" autoFocus={focusesByItself()} aria-label="Name of the view" placeholder="Name, then Enter" value={naming}
+                       onChange={event => setNaming(event.target.value)}
+                       onKeyDown={event => {
+                         if (event.key === "Escape") finishNaming(false)
+                       }}
+                       onBlur={() => finishNaming(true)}/>
               </form>
           )}
           <span className="views-end"><RingLegend/></span>
