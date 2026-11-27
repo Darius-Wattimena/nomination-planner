@@ -1,0 +1,11 @@
+/* The history of a beatmap, in the beatmap view */
+.map-history { display: grid; gap: 8px; }
+.map-history > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; }
+.map-history > summary::-webkit-details-marker { display: none; }
+.map-history > summary::before { content: "›"; display: inline-block; width: 1em; color: var(--muted); transition: transform .12s; }
+.map-history[open] > summary::before { transform: rotate(90deg); }
+.map-history > summary h3 { margin: 0; }
+.history-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: .86rem; }
+.history-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; overflow-wrap: anywhere; }
+.history-list time { white-space: nowrap; font-size: .78rem; }
+.history-more { font-size: .78rem; }

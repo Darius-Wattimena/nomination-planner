@@ -49,6 +49,11 @@ const Api = {
     method: 'GET',
     url: `/v2/beatmap/${encodeURIComponent(id)}`
   }),
+  // The newest of what happened to it
+  fetchBeatmapEvents: (id: string): AxiosRequestConfig => ({
+    method: 'GET',
+    url: `/v2/beatmap/${encodeURIComponent(id)}/events`
+  }),
   countBeatmaps: (filter: Partial<BeatmapFilter>): AxiosRequestConfig => ({
     method: 'GET',
     url: '/v2/beatmap/count',
