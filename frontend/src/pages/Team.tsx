@@ -29,6 +29,8 @@ import {usePairings} from "../resources/pairings";
 
 const TEAM_ROLES: UserRole[] = ["NominationAssessment", "Nominator", "Probation"]
 const SHOWN_COVERS = 5
+/** Beatmaps in progress on a profile before "Show all", so what comes after stays in reach */
+const SHOWN_IN_PROGRESS = 8
 
 const ORDER: Part[] = ["move", "partner", "checking", "waiting", "qualified"]
 const STATE: Record<Part, string> = {
@@ -210,6 +212,7 @@ function Profile({id}: {id: string}) {
   const {selected, open, close} = useOpenMap()
   const pairings = usePairings(id)
   const [choosing, setChoosing] = useState(false)
+  const [showAll, setShowAll] = useState(false)
 
   const isSelf = id === self?.osuId
   const known = maps.flatMap(it => [...it.gamemodes.flatMap(mode => mode.nominators).map(slot => slot.nominator), it.mapper]).find(it => it.osuId === id)
@@ -256,7 +259,12 @@ function Profile({id}: {id: string}) {
             <header><h2>In progress</h2><span className="count">{own.length}</span></header>
             {own.length === 0
               ? <p className="muted">Nothing in progress.</p>
-              : <ul className="map-list">{own.map(it => <MapRow key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={open}/>)}</ul>
+              : <ul className="map-list">{(showAll ? own : own.slice(0, SHOWN_IN_PROGRESS)).map(it => <MapRow key={it.osuId} beatmap={it} selected={selected === it.osuId} onOpen={open}/>)}</ul>
+            }
+            {own.length > SHOWN_IN_PROGRESS &&
+              <button className="link older-toggle" aria-expanded={showAll} onClick={() => setShowAll(!showAll)}>
+                {showAll ? "Show fewer" : `Show all ${own.length}`}
+              </button>
             }
           </section>
           <ActivityHeatmap id={id} self={isSelf}/>
