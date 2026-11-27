@@ -4,7 +4,7 @@ import {GAMEMODE_NAMES} from "../Constants";
 import type {Gamemode} from "../models/Types";
 import {MODE_WORDS} from "../utils/query";
 import {Table} from "./Columns";
-import {scale} from "./stats";
+import {scale, shownLabels} from "./stats";
 import "./analytics.css";
 
 export interface StackedRow {
@@ -57,6 +57,8 @@ export interface SplitColumn {
   first: number
   /** Drawn on top */
   second: number
+  /** Still growing, drawn lighter */
+  current?: boolean
 }
 
 /** Columns made of two parts, like new and returning */
@@ -64,7 +66,7 @@ export function SplitColumns({columns, names, label, height = 200}: {columns: Sp
   const [active, setActive] = useState<number>()
   const max = Math.max(0, ...columns.map(it => it.first + it.second))
   const {top, ticks} = scale(max)
-  const years = columns.length > 14 && columns.some(it => /^[0-9]{4}$/.test(it.short))
+  const labels = shownLabels(columns.map(it => it.short))
   const shown = active !== undefined ? columns[active] : undefined
   const total = (it: SplitColumn) => it.first + it.second
   const highest = columns.find(it => total(it) === max)
@@ -84,7 +86,7 @@ export function SplitColumns({columns, names, label, height = 200}: {columns: Sp
           {columns.map((column, index) => (
             <span key={column.key} className="column-hit" data-active={active === index || undefined}
                   onPointerEnter={() => setActive(index)} onPointerDown={() => setActive(index)}>
-              <span className="column-bar an-split" style={{height: `${total(column) / top * 100}%`}}>
+              <span className="column-bar an-split" data-unfinished={column.current || undefined} style={{height: `${total(column) / top * 100}%`}}>
                 <span className="an-second" style={{flexGrow: column.second}}/>
                 <span className="an-first" style={{flexGrow: column.first}}/>
               </span>
@@ -92,7 +94,7 @@ export function SplitColumns({columns, names, label, height = 200}: {columns: Sp
           ))}
           {shown && active !== undefined &&
             <span className="tooltip" style={{left: `${(active + .5) / columns.length * 100}%`}} data-side={active < columns.length / 2 ? "right" : "left"}>
-              <strong>{shown.label}</strong>
+              <strong>{shown.label}{shown.current && ", so far"}</strong>
               <span>{shown.first} {names[0].toLowerCase()}</span>
               <span>{shown.second} {names[1].toLowerCase()}</span>
             </span>
@@ -100,7 +102,7 @@ export function SplitColumns({columns, names, label, height = 200}: {columns: Sp
         </div>
       </div>
       <div className="columns-labels" aria-hidden>
-        {columns.map(column => <span key={column.key}>{!years || /^[0-9]{4}$/.test(column.short) ? column.short : ""}</span>)}
+        {columns.map((column, index) => <span key={column.key}>{labels[index] ? column.short : ""}</span>)}
       </div>
       <Table head={["", names[0], names[1]]} rows={columns.map(it => [it.label, it.first, it.second])}/>
     </figure>

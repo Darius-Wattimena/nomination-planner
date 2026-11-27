@@ -5,13 +5,15 @@ import type {Beatmap, Gamemode} from "../models/Types";
 import ModeIcon from "../ui/ModeIcon";
 import {Avatar} from "../ui/Person";
 import type {Summary} from "./stats";
-import {inYear, network, nominatorsOf, perMonth, rankedDate, summarize} from "./stats";
+import {inYear, network, nominatorsOf, rankedDate, summarize} from "./stats";
+import Delta from "./Delta";
+import {buckets, count, resolve} from "./range";
 import {displayName} from "../utils/users";
 
 interface FiguresProps {
   summary: Summary
   before?: Summary
-  /** What it is compared to, like "2025" */
+  /** What it is compared to, like "2025" or "the 4 weeks before" */
   than?: string
 }
 
@@ -26,24 +28,20 @@ export function Figures({summary, before, than}: FiguresProps) {
   return (
     <>
       <dl className="figures">
-        {figures.map(([key, one, many]) => {
-          const change = before && summary[key] - before[key]
-          return (
-            <div key={key}>
-              <dt>{summary[key] === 1 ? one : many}</dt>
-              <dd>{summary[key]}{change !== undefined && change !== 0 && <span className="change">{change > 0 ? "+" : "−"}{Math.abs(change)}</span>}</dd>
-            </div>
-          )
-        })}
+        {figures.map(([key, one, many]) => (
+          <div key={key}>
+            <dt>{summary[key] === 1 ? one : many}</dt>
+            <dd>{summary[key]}<Delta value={summary[key]} before={before?.[key]} than={than}/></dd>
+          </div>
+        ))}
       </dl>
-      {before && <p className="muted figures-than">Compared to {than}</p>}
     </>
   )
 }
 
 /** What is worth remembering about a year */
 export function Highlights({maps, all, year, mode}: {maps: Beatmap[], all: Beatmap[], year: number, mode?: Gamemode}) {
-  const months = perMonth(maps, year * 12, year * 12 + 11)
+  const months = count(buckets(resolve(String(year)), "month"), maps, rankedDate)
   const busiest = months.reduce((best, it) => it.value > best.value ? it : best, months[0])
   const {links, people} = useMemo(() => network(maps, mode), [maps, mode])
   const pair = links[0]

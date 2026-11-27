@@ -2,7 +2,7 @@ import {describe, expect, it} from "vitest";
 import {Gamemode} from "../models/Types";
 import {beatmap, mode} from "../test/builders";
 import {daysToRank, duration, extremes, medianOverTime, medianPerMode, speedHistogram, timed} from "./speed";
-import {timeline} from "./timeline";
+import {buckets, resolve} from "./range";
 
 const {Osu, Taiko} = Gamemode
 const map = (osuId: string, added: string | undefined, ranked: string | undefined, modes = [mode(Osu)]) =>
@@ -35,7 +35,8 @@ describe("speed", () => {
   })
 
   it("has the median per month", () => {
-    const line = timeline([], {year: 2026, lastYear: false}, new Date(2026, 3, 15))
+    const now = new Date(2026, 3, 15)
+    const line = buckets(resolve("2026", undefined, now), "month", now)
     expect(medianOverTime(line, timed(maps)).map(it => it.value)).toEqual([12, 0, 100, 0])
   })
 

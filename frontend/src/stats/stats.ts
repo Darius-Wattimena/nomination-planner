@@ -10,6 +10,8 @@ export interface Column {
   /** In the tooltip and the table */
   label: string
   value: number
+  /** Still growing, drawn lighter */
+  current?: boolean
 }
 
 const month = (date: Date) => date.getFullYear() * 12 + date.getMonth()
@@ -42,22 +44,6 @@ export function perMonth(maps: Beatmap[], first: number, last: number): Column[]
     if (column) column.value++
   })
   return columns
-}
-
-/** Months while there are few of them, years once the months would become unreadable */
-export function overTime(maps: Beatmap[], lastYearOnly: boolean, now = new Date()): {columns: Column[], unit: "month" | "year"} {
-  const dates = maps.map(rankedDate).filter((it): it is Date => !!it && it <= now)
-  if (lastYearOnly) return {columns: perMonth(maps, month(now) - 11, month(now)), unit: "month"}
-  if (dates.length === 0) return {columns: [], unit: "month"}
-
-  const first = Math.min(...dates.map(month))
-  if (month(now) - first < 36) return {columns: perMonth(maps, first, month(now)), unit: "month"}
-
-  const years = Array.from({length: now.getFullYear() - Math.floor(first / 12) + 1}, (_, index) => Math.floor(first / 12) + index)
-  return {
-    unit: "year",
-    columns: years.map(year => ({key: String(year), short: String(year), label: String(year), value: dates.filter(it => it.getFullYear() === year).length}))
-  }
 }
 
 export function nominatorsOf(map: Beatmap, mode?: Gamemode): User[] {
@@ -192,9 +178,11 @@ export function inYear(map: Beatmap, year: number) {
   return rankedDate(map)?.getFullYear() === year
 }
 
-/** The same part of the year before, so an unfinished year isn't compared to a whole one */
-export function yearBefore(maps: Beatmap[], year: number, now = new Date()) {
-  const end = new Date(now)
-  end.setFullYear(now.getFullYear() - 1)
-  return maps.filter(it => inYear(it, year - 1) && (year !== now.getFullYear() || rankedDate(it)! <= end))
+/** Which labels below columns to show: where each year starts in years of months, or a few spread out when there are many */
+export function shownLabels(shorts: string[]) {
+  const year = (it: string) => /^[0-9]{4}$/.test(it)
+  if (shorts.length <= 14) return shorts.map(() => true)
+  if (shorts.some(year) && !shorts.every(year)) return shorts.map(year)
+  const step = Math.ceil(shorts.length / 7)
+  return shorts.map((_, index) => index % step === 0)
 }

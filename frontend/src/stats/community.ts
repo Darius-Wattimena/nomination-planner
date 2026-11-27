@@ -1,13 +1,17 @@
 import type {Beatmap, Gamemode} from "../models/Types";
 import type {Column} from "./stats";
 import {nominatorsOf, rankedDate} from "./stats";
-import type {Timeline} from "./timeline";
-import {group} from "./timeline";
+import type {Bucket} from "./range";
+import {columnOf, group} from "./range";
 
-/** Different nominators on the beatmaps ranked in every column */
-export function activeNominators(line: Timeline, maps: Beatmap[], mode?: Gamemode): Column[] {
-  const groups = group(line, maps, rankedDate)
-  return line.columns.map((column, index) => ({...column, value: new Set(groups[index].flatMap(it => nominatorsOf(it, mode)).map(it => it.osuId)).size}))
+/** Different nominators on these beatmaps */
+export function nominatorCount(maps: Beatmap[], mode?: Gamemode) {
+  return new Set(maps.flatMap(it => nominatorsOf(it, mode)).map(it => it.osuId)).size
+}
+
+/** Different nominators on the beatmaps ranked in every bucket */
+export function activeNominators(list: Bucket[], maps: Beatmap[], mode?: Gamemode): Column[] {
+  return group(list, maps, rankedDate).map((own, index) => columnOf(list[index], nominatorCount(own, mode)))
 }
 
 /** The date of the first ranked nomination of every nominator, from everything ever ranked */
@@ -24,10 +28,9 @@ export function firstNominations(maps: Beatmap[], mode?: Gamemode) {
   return first
 }
 
-/** Nominators whose first ranked nomination is in each column */
-export function newcomers(line: Timeline, firsts: Map<string, Date>): Column[] {
-  const groups = group(line, Array.from(firsts.values()), it => it)
-  return line.columns.map((column, index) => ({...column, value: groups[index].length}))
+/** Nominators whose first ranked nomination is in each bucket */
+export function newcomers(list: Bucket[], firsts: Map<string, Date>): Column[] {
+  return group(list, Array.from(firsts.values()), it => it).map((own, index) => columnOf(list[index], own.length))
 }
 
 const monthsBefore = (now: Date, months: number) => new Date(now.getFullYear(), now.getMonth() - months, now.getDate())
@@ -81,12 +84,11 @@ export interface MapperColumn extends Column {
   returning: number
 }
 
-/** Different mappers in each column, split into those with their first ranked beatmap then and those who had one before */
-export function mappersOverTime(line: Timeline, maps: Beatmap[], debuts: Set<string>): MapperColumn[] {
-  const groups = group(line, maps, rankedDate)
-  return line.columns.map((column, index) => {
-    const first = new Set(groups[index].filter(it => debuts.has(it.osuId)).map(it => it.mapper.osuId))
-    const all = new Set(groups[index].map(it => it.mapper.osuId))
-    return {...column, value: all.size, first: first.size, returning: all.size - first.size}
+/** Different mappers in each bucket, split into those with their first ranked beatmap then and those who had one before */
+export function mappersOverTime(list: Bucket[], maps: Beatmap[], debuts: Set<string>): MapperColumn[] {
+  return group(list, maps, rankedDate).map((own, index) => {
+    const first = new Set(own.filter(it => debuts.has(it.osuId)).map(it => it.mapper.osuId))
+    const all = new Set(own.map(it => it.mapper.osuId))
+    return {...columnOf(list[index], all.size), first: first.size, returning: all.size - first.size}
   })
 }

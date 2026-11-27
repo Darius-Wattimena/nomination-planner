@@ -2,7 +2,7 @@ import {describe, expect, it} from "vitest";
 import {Gamemode} from "../models/Types";
 import {beatmap, bn, mode, user} from "../test/builders";
 import {activeNominators, firstNominations, lorenz, mappersOverTime, newcomers, nominationCounts, retention, topShare} from "./community";
-import {timeline} from "./timeline";
+import {buckets, resolve} from "./range";
 
 const {Osu, Taiko} = Gamemode
 const a = bn("1"), b = bn("2"), c = bn("3", Taiko)
@@ -10,7 +10,7 @@ const ranked = (osuId: string, date: string, modes = [mode(Osu, [a, true], [b, t
   beatmap({osuId, dateRanked: date, gamemodes: modes, mapper})
 
 const now = new Date(2026, 5, 15)
-const line = timeline([], {year: 2026, lastYear: false}, now)
+const line = buckets(resolve("2026", undefined, now), "month", now)
 const maps = [
   ranked("10", "2025-06-01T12:00:00Z", [mode(Osu, [a, true])]),
   ranked("11", "2026-01-10T12:00:00Z"),

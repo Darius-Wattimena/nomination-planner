@@ -7,29 +7,33 @@ import Columns, {Table} from "./Columns";
 import type {Timed} from "./speed";
 import {duration, extremes, medianOverTime, medianPerMode, speedHistogram, timed} from "./speed";
 import {median, rankedDate} from "./stats";
-import type {Period} from "./timeline";
-import {timeline} from "./timeline";
+import Delta from "./Delta";
+import type {Bucket, TimeRange, Unit} from "./range";
+import {inRange} from "./range";
 import "./analytics.css";
 
 interface SpeedProps {
-  /** In the mode and period */
+  /** In the mode and range */
   scope: Beatmap[]
   /** In the mode, of all time */
   all: Beatmap[]
-  period: Period
+  /** The buckets of the range */
+  list: Bucket[]
+  unit: Unit
+  /** The range to compare to */
+  before?: TimeRange
   mode?: Gamemode
   onOpen: (id: string) => void
 }
 
 /** How long it takes from being added to the planner until ranked */
-export default function Speed({scope, all, period, mode, onOpen}: SpeedProps) {
+export default function Speed({scope, all, list, unit, before, mode, onOpen}: SpeedProps) {
   const times = useMemo(() => timed(scope), [scope])
-  const line = useMemo(() => timeline(all, period), [all, period])
-  const over = useMemo(() => medianOverTime(line, timed(all)), [line, all])
+  const earlier = useMemo(() => before ? timed(all.filter(it => inRange(rankedDate(it), before))) : undefined, [all, before])
+  const over = useMemo(() => medianOverTime(list, times), [list, times])
   const histogram = useMemo(() => speedHistogram(times), [times])
   const perMode = useMemo(() => medianPerMode(times, mode), [times, mode])
   const {fastest, slowest} = useMemo(() => extremes(times), [times])
-  const unfinished = !period.year || period.year === new Date().getFullYear()
 
   if (times.length === 0) return <p className="muted">None of these beatmaps have a known date they were added, so there is nothing to show.</p>
   const most = Math.max(1, ...perMode.map(it => it.days ?? 0))
@@ -38,15 +42,16 @@ export default function Speed({scope, all, period, mode, onOpen}: SpeedProps) {
   return (
     <>
       <dl className="figures">
-        <div><dt>median days to ranked</dt><dd>{median(times.map(it => it.days))}</dd></div>
-        <div><dt>beatmaps with both dates</dt><dd>{times.length}</dd></div>
+        <div><dt>median days to ranked</dt><dd>{median(times.map(it => it.days))}
+          <Delta value={median(times.map(it => it.days))} before={earlier && median(earlier.map(it => it.days))} than={before?.label} lowerIsBetter/></dd></div>
+        <div><dt>beatmaps with both dates</dt><dd>{times.length}<Delta value={times.length} before={earlier?.length} than={before?.label}/></dd></div>
       </dl>
       {left > 0 && <p className="muted figures-than">{left} without a date they were added are left out</p>}
 
       <section className="stat">
-        <h2>Median days per {line.unit}</h2>
-        <p className="muted">From being added to the planner until ranked, by the {line.unit} it was ranked. Empty means nothing was ranked.</p>
-        <Columns columns={over} unit="days" label={`Median days from added to ranked per ${line.unit}`} unfinished={unfinished}/>
+        <h2>Median days per {unit}</h2>
+        <p className="muted">From being added to the planner until ranked, by the {unit} it was ranked. Empty means nothing was ranked.</p>
+        <Columns columns={over} unit="days" label={`Median days from added to ranked per ${unit}`}/>
       </section>
 
       <div className="stat-pair">

@@ -3,8 +3,8 @@ import type {Beatmap, Gamemode} from "../models/Types";
 import {toDate} from "../utils/workflow";
 import type {Column} from "./stats";
 import {median, rankedDate} from "./stats";
-import type {Timeline} from "./timeline";
-import {group} from "./timeline";
+import type {Bucket} from "./range";
+import {columnOf, group} from "./range";
 
 const DAY = 86_400_000
 
@@ -28,10 +28,9 @@ export function timed(maps: Beatmap[]): Timed[] {
   })
 }
 
-/** The median days for every column, where a column without beatmaps stays at 0 */
-export function medianOverTime(line: Timeline, all: Timed[]): Column[] {
-  const groups = group(line, all, it => rankedDate(it.map))
-  return line.columns.map((column, index) => ({...column, value: median(groups[index].map(it => it.days)) ?? 0}))
+/** The median days for every bucket, where a bucket without beatmaps stays at 0 */
+export function medianOverTime(list: Bucket[], all: Timed[]): Column[] {
+  return group(list, all, it => rankedDate(it.map)).map((own, index) => columnOf(list[index], median(own.map(it => it.days)) ?? 0))
 }
 
 export const SPEED_BUCKETS: {label: string, short: string, below: number}[] = [

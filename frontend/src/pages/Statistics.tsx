@@ -5,7 +5,10 @@ import MapView from "../beatmaps/MapView";
 import {GAMEMODE_NAMES} from "../Constants";
 import {useRanked} from "../resources/ranked";
 import Columns, {Table} from "../stats/Columns";
-import {combinations, debuts, inLastYear, inYear, network, nominatorsOf, overTime, perMonth, rankedDate, summarize, yearBefore} from "../stats/stats";
+import {combinations, debuts, network, nominatorsOf, rankedDate, summarize} from "../stats/stats";
+import type {Unit} from "../stats/range";
+import {autoUnit, buckets, count, dailyAverage, inRange, parseRange, previous, resolve, unitFor, UNITS} from "../stats/range";
+import RangeControl from "../stats/RangeControl";
 import {Figures, Highlights, YearTable} from "../stats/Years";
 import Multiples from "../stats/Multiples";
 import {modeParam} from "../utils/query";
@@ -41,25 +44,35 @@ export default function Statistics() {
   const chosen = modeParam(params.get("mode"))
   const mode = chosen === "all" ? undefined : chosen
   const years = useMemo(() => Array.from(new Set((maps ?? []).map(it => rankedDate(it)?.getFullYear()).filter((it): it is number => !!it))).sort((a, b) => b - a), [maps])
-  const period = params.get("period") ?? "recent"
-  const year = /^[0-9]{4}$/.test(period) ? Number(period) : undefined
-  const lastYear = !year && period !== "all"
-  const thisYear = new Date().getFullYear()
-  const timeframe = useMemo(() => ({year, lastYear}), [year, lastYear])
+  const key = parseRange(params.get("range"), params.get("period"))
+  const year = /^[0-9]{4}$/.test(key) ? Number(key) : undefined
 
-  function update(changes: {view?: string, period?: string, mode?: string}) {
+  function update(changes: {view?: string, range?: string, unit?: string, mode?: string}) {
     const next = new URLSearchParams(params)
-    Object.entries(changes).forEach(([key, value]) => ["overview", "recent"].includes(value) || (key === "mode" && value === "all") ? next.delete(key) : next.set(key, value))
+    // The old name of the range
+    if (changes.range) next.delete("period")
+    Object.entries(changes).forEach(([key, value]) => value === "" || ["overview", "12m"].includes(value) || (key === "mode" && value === "all") ? next.delete(key) : next.set(key, value))
     setParams(next, {replace: true})
   }
 
   const ofMode = useMemo(() => (maps ?? []).filter(it => !mode || it.gamemodes.some(own => own.gamemode === mode)), [maps, mode])
-  const scope = useMemo(() => year ? ofMode.filter(it => inYear(it, year)) : lastYear ? ofMode.filter(it => inLastYear(it)) : ofMode, [ofMode, lastYear, year])
+  const earliest = useMemo(() => ofMode.reduce<Date | undefined>((first, it) => {
+    const date = rankedDate(it)
+    return date && (!first || date < first) ? date : first
+  }, undefined), [ofMode])
+  const range = useMemo(() => resolve(key, earliest), [key, earliest])
+  const unit = unitFor(range, UNITS.find(it => it === params.get("unit")))
+  // Only compared when something was ranked by then
+  const before = useMemo(() => {
+    const it = previous(range)
+    return it && earliest && earliest < it.to ? it : undefined
+  }, [range, earliest])
+  const scope = useMemo(() => ofMode.filter(it => inRange(rankedDate(it), range)), [ofMode, range])
   // Worked out for the tab that shows it
   const stars = useMemo(() => tab === "constellation" ? network(scope, mode) : undefined, [tab, scope, mode])
-  const time = useMemo(() => year
-    ? {unit: "month" as const, columns: perMonth(scope, year * 12, year * 12 + (year === thisYear ? new Date().getMonth() : 11)).map(it => ({...it, short: it.label.slice(0, 3)}))}
-    : overTime(ofMode, lastYear), [ofMode, scope, lastYear, year, thisYear])
+  const list = useMemo(() => buckets(range, unit), [range, unit])
+  const columns = useMemo(() => count(list, scope, rankedDate), [list, scope])
+  const trend = useMemo(() => unit === "day" ? dailyAverage(range, ofMode, rankedDate) : undefined, [unit, range, ofMode])
   const combos = useMemo(() => combinations(scope), [scope])
   // Whether it is a debut depends on everything the mapper ever ranked
   const everyDebut = useMemo(() => debuts(maps ?? []), [maps])
@@ -70,7 +83,7 @@ export default function Statistics() {
   const ranking = useMemo(() => tab === "leaderboards" ? boards(scores(scope, firsts, mode)) : undefined, [tab, scope, firsts, mode])
 
   const summary = summarize(scope, firsts, mode)
-  const before = year && years.includes(year - 1) ? summarize(yearBefore(ofMode, year), firsts, mode) : undefined
+  const earlier = before && summarize(ofMode.filter(it => inRange(rankedDate(it), before)), firsts, mode)
   const hybrids = scope.filter(it => it.gamemodes.length > 1).length
   const undated = ofMode.filter(it => !rankedDate(it)).length
   const what = mode ? GAMEMODE_NAMES[mode] : "all modes"
@@ -80,13 +93,8 @@ export default function Statistics() {
       <PageHeader title="Statistics" subtitle="Beatmaps that were ranked through the planner, not all of osu!">
         <div className="button-row">
           <ModeSwitch selected={mode} onChange={it => update({mode: it ?? "all"})}/>
-          <select id="period" aria-label="Period" value={period} onChange={event => update({period: event.target.value})}>
-            <option value="recent">Last 12 months</option>
-            <option value="all">All time</option>
-            <optgroup label="Year">
-              {(year && !years.includes(year) ? [year, ...years] : years).map(it => <option key={it} value={it}>{it}</option>)}
-            </optgroup>
-          </select>
+          <RangeControl range={range} years={years} unit={unit} onRange={it => update({range: it})}
+                        onUnit={(it: Unit) => update({unit: it === autoUnit(range) ? "" : it})}/>
         </div>
       </PageHeader>
 
@@ -102,38 +110,38 @@ export default function Statistics() {
       {!live && scope.length > 0 &&
         <>
           {tab === "overview" && <>
-          <Figures summary={summary} before={before} than={year === thisYear ? `${year - 1} until the same day` : String(year && year - 1)}/>
+          <Figures summary={summary} before={earlier} than={before?.label}/>
 
           <section className="stat">
-            <h2>Ranked per {time.unit}</h2>
-            <p className="muted">{mode ? what : "All modes, a hybrid counts once"}{undated > 0 && period === "all" && `. ${undated} without a known date are left out`}</p>
-            <Columns columns={time.columns} unit="ranked" label={`Ranked beatmaps per ${time.unit}, ${what}`} unfinished={!year || year === thisYear}/>
+            <h2>Ranked per {unit}</h2>
+            <p className="muted">{range.label}, {mode ? what : "all modes, a hybrid counts once"}{undated > 0 && key === "all" && `. ${undated} without a known date are left out`}</p>
+            <Columns columns={columns} unit="ranked" label={`Ranked beatmaps per ${unit}, ${what}`} line={trend}/>
           </section>
-          {!mode && <Multiples maps={ofMode} period={timeframe} unfinished={!year || year === thisYear}/>}
+          {!mode && <Multiples maps={scope} list={list} unit={unit}/>}
           {year && <Highlights maps={scope} all={ofMode} year={year} mode={mode}/>}
-          {period === "all" && years.length > 1 && <YearTable maps={ofMode} firsts={firsts} years={years} mode={mode} onPick={it => {
-            update({period: String(it)})
+          {key === "all" && years.length > 1 && <YearTable maps={ofMode} firsts={firsts} years={years} mode={mode} onPick={it => {
+            update({range: String(it)})
             window.scrollTo({top: 0})
           }}/>}
 
           </>}
           {tab === "speed" && <Suspense fallback={<Loading/>}>
-            <Speed scope={scope} all={ofMode} period={timeframe} mode={mode} onOpen={open}/>
+            <Speed scope={scope} all={ofMode} list={list} unit={unit} before={before} mode={mode} onOpen={open}/>
           </Suspense>}
 
           {tab === "community" && <Suspense fallback={<Loading/>}>
-            <Community scope={scope} all={ofMode} debuts={firsts} period={timeframe} mode={mode}/>
+            <Community scope={scope} all={ofMode} debuts={firsts} range={range} list={list} unit={unit} before={before} mode={mode}/>
           </Suspense>}
 
           {tab === "constellation" && <section className="stat">
             <h2>Constellation</h2>
-            <p className="muted">Who ranked beatmaps together, grouped by mode</p>
-            {stars && <Suspense fallback={<Loading/>}><Constellation key={`${mode}-${period}`} data={stars}/></Suspense>}
+            <p className="muted">Who ranked beatmaps together, grouped by mode. {range.label}</p>
+            {stars && <Suspense fallback={<Loading/>}><Constellation key={`${mode}-${key}`} data={stars}/></Suspense>}
           </section>}
 
           {tab === "leaderboards" && <section className="stat">
             <h2>Leaderboards</h2>
-            <p className="muted">Different ways to stand out, {year ? `in ${year}` : lastYear ? "over the last 12 months" : "of all time"}{mode && ` for ${what}`}</p>
+            <p className="muted">Different ways to stand out. {range.label}{mode && `, ${what}`}</p>
             {ranking && <Suspense fallback={<Loading/>}><Leaderboards boards={ranking}/></Suspense>}
           </section>}
 

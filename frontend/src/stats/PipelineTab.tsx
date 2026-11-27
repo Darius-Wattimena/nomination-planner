@@ -29,7 +29,7 @@ export default function Pipeline({mode, onOpen}: {mode?: Gamemode, onOpen: (id: 
     <>
       <section className="stat">
         <h2>Where beatmaps are</h2>
-        <p className="muted">Beatmaps in progress per stage, with the median days since their last update. A hybrid counts in each of its modes.</p>
+        <p className="muted">Live: beatmaps in progress right now per stage, whatever the period. With the median days since their last update. A hybrid counts in each of its modes.</p>
         <ModeBars label="Beatmaps in progress per stage" rows={stages.map(it => ({
           key: it.id, name: it.label, label: <span title={it.hint}>{it.label}</span>, total: it.count,
           parts: modes.map(own => ({mode: own, value: it.modes[own]})),

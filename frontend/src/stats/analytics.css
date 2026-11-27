@@ -29,6 +29,7 @@
 /* Columns made of two parts */
 .column-bar.an-split { display: flex; flex-direction: column; overflow: hidden; background: none; }
 .an-split > span { min-height: 0; }
+.an-split[data-unfinished] > span { opacity: .55; }
 .an-first { background: var(--series); }
 .an-second { background: var(--series-2); }
 .legend-dot.an-first { background: var(--series); }
