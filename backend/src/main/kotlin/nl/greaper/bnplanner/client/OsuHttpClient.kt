@@ -211,6 +211,53 @@ class OsuHttpClient(
     }
 
     /**
+     * A page of the nominations, resets and disqualifications of all beatmap sets between two days, in no useful order
+     *
+     * @param from the first day (in UTC)
+     * @param until the last day (in UTC), included
+     * @param page starts at 1, fewer than [EVENTS_PER_PAGE] events means it is the last page
+     */
+    fun findNominationHistory(
+        osuApiToken: String,
+        from: LocalDate,
+        until: LocalDate,
+        page: Int,
+    ): BeatmapsetEvents {
+        val types =
+            listOf(BeatmapsetEventType.NOMINATE, BeatmapsetEventType.NOMINATION_RESET, BeatmapsetEventType.DISQUALIFY)
+                .joinToString("&") { "types[]=${it.osuName}" }
+        val response = get("/beatmapsets/events?$types&min_date=$from&max_date=$until&limit=$EVENTS_PER_PAGE&page=$page", osuApiToken)
+
+        return objectMapper.readValue<BeatmapsetEvents>(response.body ?: "")
+    }
+
+    /**
+     * Up to [USERS_PER_CALL] users at once. Restricted users and ids osu! doesn't know are left out.
+     *
+     * @throws OsuRequestException when osu! gave no clear answer
+     */
+    fun findUsersWithIds(
+        osuApiToken: String,
+        osuIds: Collection<String>,
+    ): List<Me> {
+        require(osuIds.size <= USERS_PER_CALL) { "osu! gives at most $USERS_PER_CALL users at once" }
+        if (osuIds.isEmpty()) {
+            return emptyList()
+        }
+
+        return try {
+            val response = get("/users?${osuIds.joinToString("&") { "ids[]=$it" }}", osuApiToken)
+            objectMapper.readValue<Users>(response.body ?: "").users
+        } catch (ex: Exception) {
+            throw OsuRequestException("Unable to get ${osuIds.size} users from the osu api", ex)
+        }
+    }
+
+    private data class Users(
+        val users: List<Me> = emptyList(),
+    )
+
+    /**
      * The ids of everyone in a group, of every gamemode. Not part of the api, the page of the group on the website has them as JSON.
      *
      * @throws OsuUnavailableException when the page has no users, like when osu! changed it
@@ -273,6 +320,9 @@ class OsuHttpClient(
     companion object {
         /** The most osu! gives at once */
         const val EVENTS_PER_PAGE = 50
+
+        /** The most users osu! gives at once */
+        const val USERS_PER_CALL = 50
 
         private val GROUP_USERS = Regex("""<script id="json-users" type="application/json">(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
     }

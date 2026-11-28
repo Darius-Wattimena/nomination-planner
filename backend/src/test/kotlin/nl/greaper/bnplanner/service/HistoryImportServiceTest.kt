@@ -16,18 +16,47 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Instant
+import java.time.LocalDate
 
 class HistoryImportServiceTest {
     private val planner = Planner()
     private val service = planner.historyImport
 
     private val search = "GET /api/v2/beatmapsets/search?s=ranked&sort=ranked_asc&nsfw=true"
+    private val january = nominationsOf("2014-01-01", "2014-01-31")
+    private val february = nominationsOf("2014-02-01", "2014-02-10")
+
+    private fun nominationsOf(
+        from: String,
+        until: String,
+        page: Int = 1,
+    ) = "GET /api/v2/beatmapsets/events?types%5B%5D=nominate&types%5B%5D=nomination_reset&types%5B%5D=disqualify" +
+        "&min_date=$from&max_date=$until&limit=50&page=$page"
+
+    private var eventId = 0
+
+    private fun event(
+        set: String?,
+        type: String = "nominate",
+        user: String? = null,
+        modes: String? = null,
+        at: String = "2014-01-05T10:00:00Z",
+    ): String {
+        val beatmapset = set?.let { ""","beatmapset":{"id":$it}""" }.orEmpty()
+        val comment = modes?.let { ""","comment":{"modes":$it}""" }.orEmpty()
+        return """{"id":${++eventId},"type":"$type","created_at":"$at","user_id":${user ?: "null"}$beatmapset$comment}"""
+    }
+
+    private fun events(vararg events: String) = """{"events":[${events.joinToString()}]}"""
 
     @BeforeEach
     fun osu() {
         FakeOsu.token("own")
         MeGroup.SupportedGroups.forEach { FakeOsu.groupHistory(it, """{"events":[]}""") }
         listOf("20", "21", "30").forEach { FakeOsu.user(it, "BN $it") }
+        service.nominationsSince = LocalDate.of(2014, 1, 1)
+        FakeOsu.respond(january, events())
+        FakeOsu.respond(february, events())
     }
 
     private fun set(
@@ -61,7 +90,7 @@ class HistoryImportServiceTest {
         val single = set("1", nominations = listOf("20" to null, "21" to null))
         val taiko = set("4", modes = listOf("taiko"), main = "taiko", nominations = listOf("30" to null, "2778" to null))
         val hybrid = set("5", modes = listOf("osu", "osu", "taiko"), nominations = listOf("30" to null, "20" to null))
-        FakeOsu.respond(search, page(set("1"), set("2", ranked = 4), set("3"), set("4"), set("5"), cursor = "next+1="))
+        FakeOsu.respond(search, page(single, set("2", ranked = 4), set("3"), taiko, hybrid, cursor = "next+1="))
         FakeOsu.respond("$search&cursor_string=next%2B1%3D", page(set("6")))
         details("1" to single, "2" to set("2", ranked = 4), "4" to taiko, "5" to hybrid, "6" to set("6"))
     }
@@ -136,9 +165,99 @@ class HistoryImportServiceTest {
 
         assertEquals(listOf(UserGamemode(Gamemode.taiko, Role.Nominator)), planner.users.findUser("40")!!.gamemodes)
         assertEquals("BN 40", planner.users.findUser("40")!!.username)
-        assertEquals(1, FakeOsu.calls().count { it == "GET /api/v2/users/40?key=id" })
+        assertEquals(1, FakeOsu.calls().count { it.startsWith("GET /api/v2/users?") && it.contains("=40") })
         // Restricted, also asked about only once
-        assertEquals(1, FakeOsu.calls().count { it == "GET /api/v2/users/2778?key=id" })
+        assertEquals(1, FakeOsu.calls().count { it.startsWith("GET /api/v2/users?") && it.contains("=2778") })
+    }
+
+    @Test
+    fun `Should take who nominated from the nominations of osu, without asking about each beatmap set`() {
+        setUp()
+        // Deleted beatmap sets fill the first page, so a second one is read
+        val filler = List(46) { event(null) }
+        FakeOsu.respond(
+            january,
+            events(
+                event("1", user = "20", at = "2014-01-02T10:00:00Z"),
+                event("1", user = "25", at = "2014-01-02T11:00:00Z"),
+                event("1", type = "disqualify", at = "2014-01-03T10:00:00Z"),
+                event("1", user = "20", modes = """["osu"]""", at = "2014-01-04T10:00:00Z"),
+                *filler.toTypedArray(),
+            ),
+        )
+        FakeOsu.respond(
+            nominationsOf("2014-01-01", "2014-01-31", page = 2),
+            events(
+                event("1", user = "21", at = "2014-01-04T11:00:00Z"),
+                event("4", user = "30"),
+                event("4", user = "2778"),
+                // Not ranked, of no use
+                event("7", user = "20"),
+            ),
+        )
+
+        service.start()
+        service.finish()
+
+        val status = service.findStatus()
+        assertNull(status.failed)
+        assertEquals(3, status.imported)
+        assertEquals(LocalDate.of(2014, 2, 10), status.nominationsReached)
+        // Only the hybrid had no nominations, and the last beatmap set none that add up
+        assertEquals(1, status.askedAbout)
+        assertEquals(
+            listOf("5", "6"),
+            FakeOsu
+                .calls()
+                .filter {
+                    it.matches(Regex("GET /api/v2/beatmapsets/[0-9]+"))
+                }.map { it.substringAfterLast("/") },
+        )
+        assertEquals(listOf(nominated(Gamemode.osu, "20", "21")), planner.stored("1").gamemodes)
+        assertEquals(listOf(nominated(Gamemode.taiko, "30", "2778")), planner.stored("4").gamemodes)
+        // Everyone of the page is asked about at once
+        assertEquals(1, FakeOsu.calls().count { it.startsWith("GET /api/v2/users?") })
+        assertEquals("Zyid", planner.users.findUser("2778")!!.username)
+        assertEquals(null, planner.users.findUser("25"))
+    }
+
+    @Test
+    fun `Should compare some with what osu tells of the beatmap set, which counts when they disagree`() {
+        setUp()
+        service.checkEvery = 1
+        FakeOsu.respond(
+            january,
+            events(event("1", user = "20"), event("1", user = "25"), event("4", user = "30"), event("4", user = "2778")),
+        )
+
+        service.start()
+        service.finish()
+
+        val status = service.findStatus()
+        assertEquals(2, status.checked)
+        assertEquals(1, status.disagreed)
+        assertEquals(listOf(nominated(Gamemode.osu, "20", "21")), planner.stored("1").gamemodes)
+        assertEquals(listOf(nominated(Gamemode.taiko, "30", "2778")), planner.stored("4").gamemodes)
+    }
+
+    @Test
+    fun `Should continue reading the nominations at the month it stopped`() {
+        setUp()
+        FakeOsu.respond(february, "{}", 503)
+
+        service.start()
+        service.finish()
+        assertEquals(true, service.findStatus().failed!!.startsWith("Stopped"))
+        assertEquals(LocalDate.of(2014, 1, 31), service.findStatus().nominationsReached)
+        assertEquals(0, FakeOsu.calls().count { it.startsWith(search) })
+
+        FakeOsu.respond(february, events())
+        service.start()
+        service.finish()
+
+        assertEquals(true, service.findStatus().done)
+        assertEquals(1, FakeOsu.calls().count { it == january })
+        assertEquals(2, FakeOsu.calls().count { it == february })
     }
 
     @Test

@@ -2,12 +2,16 @@ package nl.greaper.bnplanner.datasource
 
 import com.mongodb.client.MongoDatabase
 import com.mongodb.client.model.Filters
+import com.mongodb.client.model.Indexes
+import com.mongodb.client.model.ReplaceOneModel
 import com.mongodb.client.model.ReplaceOptions
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.service.HistoryGuess
 import org.bson.Document
 import org.springframework.stereotype.Component
+import java.time.Instant
 import java.time.LocalDate
+import java.util.Date
 
 /** How far the import of the ranked history got, so it continues there after a restart, and what it couldn't be sure of */
 @Component
@@ -16,6 +20,27 @@ class HistoryImportDataSource(
 ) {
     private val progress by lazy { database.getCollection("historyImport") }
     private val guesses by lazy { database.getCollection("historyGuesses") }
+    private val nominations by lazy {
+        database.getCollection("historyNominations").also { it.createIndex(Indexes.ascending("beatmapsetId")) }
+    }
+
+    /** A nomination, reset or disqualification of a beatmap set, as osu! keeps them since 2008 */
+    data class NominationEvent(
+        val id: Long,
+        val beatmapsetId: String,
+        val kind: Kind,
+        val at: Instant,
+        val userId: String? = null,
+        /** The gamemodes of a nomination, when osu! kept them */
+        val modes: List<String>? = null,
+    ) {
+        enum class Kind {
+            Nominate,
+
+            /** Takes away every nomination before it, like a disqualification */
+            Reset,
+        }
+    }
 
     data class Progress(
         /** The first day the current search of osu! starts at, null for the oldest ranked beatmap */
@@ -28,6 +53,16 @@ class HistoryImportDataSource(
         val done: Boolean = false,
         val seen: Int = 0,
         val imported: Int = 0,
+        /** The first day of which osu! wasn't asked for the nominations yet, null before it starts */
+        val nominationsFrom: LocalDate? = null,
+        /** Every nomination of osu! until the day the beatmaps are looked at was read */
+        val nominationsDone: Boolean = false,
+        /** Beatmap sets osu! was asked about on their own, as their nominations didn't tell enough */
+        val askedAbout: Int = 0,
+        /** Beatmap sets of which the nominations were compared with what osu! tells of the beatmap set itself */
+        val checked: Int = 0,
+        /** Those where the two didn't agree, which shows whether the nominations can be trusted */
+        val disagreed: Int = 0,
     )
 
     fun findProgress(): Progress {
@@ -40,6 +75,11 @@ class HistoryImportDataSource(
             done = document.getBoolean("done", false),
             seen = document.getInteger("seen", 0),
             imported = document.getInteger("imported", 0),
+            nominationsFrom = document.getString("nominationsFrom")?.let { LocalDate.parse(it) },
+            nominationsDone = document.getBoolean("nominationsDone", false),
+            askedAbout = document.getInteger("askedAbout", 0),
+            checked = document.getInteger("checked", 0),
+            disagreed = document.getInteger("disagreed", 0),
         )
     }
 
@@ -52,8 +92,44 @@ class HistoryImportDataSource(
                 .append("done", value.done)
                 .append("seen", value.seen)
                 .append("imported", value.imported)
+                .append("nominationsFrom", value.nominationsFrom?.toString())
+                .append("nominationsDone", value.nominationsDone)
+                .append("askedAbout", value.askedAbout)
+                .append("checked", value.checked)
+                .append("disagreed", value.disagreed)
         progress.replaceOne(Filters.eq("_id", ID), document, ReplaceOptions().upsert(true))
     }
+
+    fun saveNominations(events: List<NominationEvent>) {
+        events.chunked(500).forEach { batch ->
+            nominations.bulkWrite(
+                batch.map { event ->
+                    val document =
+                        Document("_id", event.id)
+                            .append("beatmapsetId", event.beatmapsetId)
+                            .append("kind", event.kind.name)
+                            .append("at", Date.from(event.at))
+                            .append("userId", event.userId)
+                            .append("modes", event.modes)
+                    ReplaceOneModel(Filters.eq("_id", event.id), document, ReplaceOptions().upsert(true))
+                },
+            )
+        }
+    }
+
+    fun findNominations(beatmapsetId: String): List<NominationEvent> =
+        nominations
+            .find(Filters.eq("beatmapsetId", beatmapsetId))
+            .map { document ->
+                NominationEvent(
+                    id = (document.get("_id") as Number).toLong(),
+                    beatmapsetId = document.getString("beatmapsetId"),
+                    kind = NominationEvent.Kind.valueOf(document.getString("kind")),
+                    at = document.getDate("at").toInstant(),
+                    userId = document.getString("userId"),
+                    modes = document.getList("modes", String::class.java),
+                )
+            }.toList()
 
     fun saveGuess(guess: HistoryGuess) {
         val document =

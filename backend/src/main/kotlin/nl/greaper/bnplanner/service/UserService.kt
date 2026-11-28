@@ -129,6 +129,35 @@ class UserService(
     }
 
     /**
+     * Looks up many users at once, quietly, like the nominators of the ranked history. Whoever osu! leaves out is restricted, or an
+     * id it doesn't know.
+     *
+     * @return the users found or marked as restricted, empty when osu! gave no clear answer
+     */
+    fun forceFindUsersByIds(
+        osuApiToken: String,
+        osuIds: Collection<String>,
+    ): List<User> {
+        val found =
+            try {
+                osuHttpClient.findUsersWithIds(osuApiToken, osuIds).associateBy { it.id }
+            } catch (ex: OsuRequestException) {
+                log.error(ex) { "Unable to look up ${osuIds.size} users" }
+                return emptyList()
+            }
+
+        return osuIds.map { osuId ->
+            val osuUser = found[osuId]
+            if (osuUser == null) {
+                log.info { "[CREATE] Added restricted user (osuId = $osuId)" }
+                saveFromOsu(User(osuId, "RESTRICTED", emptyList(), restricted = true))
+            } else {
+                saveFromOsu(convertOsuUserToUser(osuUser))
+            }
+        }
+    }
+
+    /**
      * osu! knows nothing about the modes someone chose themselves, which they may have changed while asking osu!, nor about who
      * nominated before
      */

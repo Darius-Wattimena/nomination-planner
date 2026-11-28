@@ -76,6 +76,7 @@ class Planner(
             sleeper = { historySleeps += it },
             // No time passes, so every call to osu! waits the whole second
             clock = { 0L },
+            today = { java.time.LocalDate.of(2014, 2, 10) },
         )
 
     fun user(

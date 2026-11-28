@@ -156,7 +156,7 @@ function ImportResult({summary, title}: {summary: ImportSummary, title: string})
   )
 }
 
-const PHASES = {Roles: "Reading the role history", Beatmaps: "Importing ranked beatmaps", Modes: "Working out the modes"}
+const PHASES = {Roles: "Reading the role history", Nominations: "Reading every nomination of osu!", Beatmaps: "Importing ranked beatmaps", Modes: "Working out the modes"}
 
 function RankedHistory() {
   const status = usePolled<HistoryStatus>(Api.fetchHistoryStatus, 5000)
@@ -184,13 +184,15 @@ function RankedHistory() {
   return (
     <section className="card">
       <h2>Ranked history of osu!</h2>
-      <p className="muted">Only for developers. Imports every ranked beatmap of osu! with its nominators, about 60,000, along with the staff log of the wiki and the group history of osu!. It asks osu! about each one, which takes about 17 hours, so run it on your own machine and import its export on the servers. It continues where it stopped.</p>
+      <p className="muted">Only for developers. Imports every ranked beatmap of osu! with its nominators, about 60,000, along with the staff log of the wiki and the group history of osu!. It first reads every nomination osu! kept since 2008, then takes who nominated each beatmap from those, only asking osu! about a beatmap on its own when they don't add up. That takes about 2 hours, so run it on your own machine and import its export on the servers. It continues where it stopped.</p>
       <div role="status">
         {failed && <p className="alert alert-error">{failed}</p>}
         {value && (
           <ul>
             <li>{running && <span className="spinner"/>}{describe(value)}</li>
             <li>{value.seen} ranked beatmaps seen, {value.imported} imported{value.reached && `, up to those ranked on ${new Date(value.reached).toLocaleDateString("en-GB")}`}</li>
+            {value.nominationsReached && <li>Nominations read up to {new Date(value.nominationsReached).toLocaleDateString("en-GB")}</li>}
+            {value.seen > 0 && <li>{value.askedAbout} asked about on their own, {value.checked} compared with osu!{value.checked > 0 && ` (${value.disagreed} disagreed)`}</li>}
             {value.guessed > 0 && <li>The modes of {value.guessed} beatmaps were worked out from other nominations</li>}
             {value.failed && <li className="field-error">{value.failed}</li>}
           </ul>

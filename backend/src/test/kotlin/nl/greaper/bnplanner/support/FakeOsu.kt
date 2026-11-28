@@ -89,13 +89,24 @@ object FakeOsu {
             requests += request
 
             val key = "${request.method} ${request.uri}"
-            val response = firstResponses[key]?.poll() ?: responses[key] ?: Response(404, """{"error":null}""")
+            val response = firstResponses[key]?.poll() ?: responses[key] ?: manyUsers(key) ?: Response(404, """{"error":null}""")
             val bytes = response.body.toByteArray()
             it.responseHeaders.add("Content-Type", "application/json")
             response.headers.forEach { (name, value) -> it.responseHeaders.add(name, value) }
             it.sendResponseHeaders(response.status, if (bytes.isEmpty()) -1 else bytes.size.toLong())
             if (bytes.isNotEmpty()) it.responseBody.write(bytes)
         }
+    }
+
+    /** Many users at once, made of those set up on their own. Like osu!, it leaves out whoever it doesn't know. */
+    private fun manyUsers(key: String): Response? {
+        if (!key.startsWith("GET /api/v2/users?")) {
+            return null
+        }
+        val ids = Regex("ids%5B%5D=([0-9]+)").findAll(key).map { it.groupValues[1] }
+        val found = ids.mapNotNull { responses["GET /api/v2/users/$it?key=id"]?.takeIf { response -> response.status == 200 }?.body }
+
+        return Response(200, """{"users":[${found.joinToString()}]}""")
     }
 
     private fun HttpExchange.use(block: (HttpExchange) -> Unit) =

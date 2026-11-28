@@ -31,6 +31,8 @@ data class BeatmapSet(
     data class NominationsSummary(
         @JsonProperty("eligible_main_rulesets")
         val eligibleMainRulesets: List<String>? = null,
+        /** Nominations it has now, 0 on beatmap sets from before about 2017 */
+        val current: Int? = null,
     )
 
     data class CurrentNomination(

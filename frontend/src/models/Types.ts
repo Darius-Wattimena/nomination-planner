@@ -136,7 +136,7 @@ export interface ImportStatus {
   failed?: string
 }
 
-export type HistoryPhase = "Roles" | "Beatmaps" | "Modes"
+export type HistoryPhase = "Roles" | "Nominations" | "Beatmaps" | "Modes"
 
 /** How the import of every ranked beatmap of osu! is going */
 export interface HistoryStatus {
@@ -144,6 +144,13 @@ export interface HistoryStatus {
   phase?: HistoryPhase
   seen: number
   imported: number
+  /** The last day of which every nomination of osu! was read */
+  nominationsReached?: string
+  /** Beatmaps osu! was asked about on their own, as their nominations didn't add up */
+  askedAbout: number
+  /** Beatmaps of which the nominations were compared with what osu! tells of the beatmap itself, and those that disagreed */
+  checked: number
+  disagreed: number
   reached?: string
   done: boolean
   guessed: number
