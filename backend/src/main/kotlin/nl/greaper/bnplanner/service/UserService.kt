@@ -229,6 +229,9 @@ class UserService(
         return dataSource.modifyUser(osuId) { current -> current?.copy(interests = chosen) }
     }
 
+    /** Everyone the planner has in the BN, probationary BN or NAT */
+    fun findUsersInGroups(): List<User> = dataSource.allUsers().filter { user -> user.gamemodes.any { it.role != Role.Mapper } }
+
     fun findUserById(osuId: String): User? {
         if (osuId == MISSING_USER_ID) {
             return User(

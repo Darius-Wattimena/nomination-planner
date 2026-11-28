@@ -223,7 +223,7 @@ function ModeRow({beatmap, mode, editable, selected, onSelect}: ModeRowProps) {
 
   return (
     <div className="mode-row" data-mine={mine || undefined}>
-      <div className="mode-name"><Ring beatmap={beatmap} mode={mode} large/><span>{GAMEMODE_NAMES[mode.gamemode]}{isHybrid(beatmap) && role !== "other" && <span className="muted">{role === "main" ? "Main mode" : "Maybe main"}</span>}</span></div>
+      <div className="mode-name"><Ring beatmap={beatmap} mode={mode} large/><span>{GAMEMODE_NAMES[mode.gamemode]}{isHybrid(beatmap) && role !== "other" && <span className="muted">{role === "main" ? "Main mode" : "Maybe main"}</span>}{mode.guessed && <span className="muted" title="osu! didn't record who nominated which mode, so this was worked out from what they nominated around that time">Guessed</span>}</span></div>
       {shown.map(({nominator, hasNominated, index, optional}) => {
         const missing = isMissing(nominator)
         const role = ROLES[highestRole(nominator, mode.gamemode)]

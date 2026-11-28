@@ -2,6 +2,7 @@ package nl.greaper.bnplanner.datasource
 
 import com.mongodb.client.MongoDatabase
 import com.mongodb.client.model.Filters
+import com.mongodb.client.model.ReplaceOneModel
 import com.mongodb.client.model.ReplaceOptions
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
@@ -64,6 +65,23 @@ class UserDataSource(
     fun saveUser(user: User) {
         collection.replaceOne(Filters.eq("_id", user.osuId), toDocument(user), ReplaceOptions().upsert(true))
         addInMemoryUser(user)
+    }
+
+    /**
+     * Saves the users that are not known yet, like of an import. Who is known stays as they are, the planner knows them better.
+     *
+     * @return the users that were added
+     */
+    @Synchronized
+    fun saveAllMissing(users: Collection<User>): List<User> {
+        val missing = users.distinctBy { it.osuId }.filter { this.users[it.osuId] == null }
+
+        missing.chunked(BeatmapDataSource.BATCH_SIZE).forEach { batch ->
+            collection.bulkWrite(batch.map { ReplaceOneModel(Filters.eq("_id", it.osuId), toDocument(it), ReplaceOptions().upsert(true)) })
+            batch.forEach { addInMemoryUser(it) }
+        }
+
+        return missing
     }
 
     /**

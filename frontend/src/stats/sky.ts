@@ -4,7 +4,7 @@ import {Gamemode} from "../models/Types";
 import type {Bucket, TimeRange} from "./range";
 import {buckets} from "./range";
 import type {Link, network} from "./stats";
-import {nominatorsOf, rankedDate} from "./stats";
+import {nominatorsOf, pairsOf, rankedDate} from "./stats";
 import {displayName, isMissing} from "../utils/users";
 
 export type Network = ReturnType<typeof network>
@@ -217,12 +217,12 @@ export function findStars(people: Star[], text: string, limit = 6) {
 /** The key of a pair, the same either way round, as in the network */
 export const pairKey = (a: string, b: string) => a < b ? `${a}-${b}` : `${b}-${a}`
 
-/** The pairs on a beatmap the way the network counts them: the two nominators of the same mode, once per beatmap */
+/** The pairs on a beatmap the way the network counts them: every two nominators of the same mode, once per beatmap */
 function pairsOn(map: Beatmap, only: Gamemode | undefined) {
   const keys = new Set<string>()
   map.gamemodes.filter(it => !only || it.gamemode === only).forEach(({nominators}) => {
     const ids = Array.from(new Set(nominators.map(it => it.nominator).filter(it => !isMissing(it)).map(it => it.osuId)))
-    if (ids.length === 2) keys.add(pairKey(ids[0], ids[1]))
+    pairsOf(ids).forEach(([a, b]) => keys.add(pairKey(a, b)))
   })
   return keys
 }

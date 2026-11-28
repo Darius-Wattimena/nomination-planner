@@ -21,7 +21,10 @@ class FollowGroupsTest {
     private val sleeps = mutableListOf<Long>()
     private var now = Instant.parse("2026-11-26T19:00:00Z")
 
-    private fun follower() = FollowGroups(followed, planner.osuClient, planner.userService, { sleeps += it }, Backoff { now })
+    private fun follower() =
+        FollowGroups(followed, planner.osuClient, planner.userService, planner.roleHistory, {
+            sleeps += it
+        }, Backoff { now })
 
     private val follower = follower()
 
@@ -135,7 +138,7 @@ class FollowGroupsTest {
         FakeOsu.groupHistory(MeGroup.PBN, page())
         FakeOsu.groupHistory(MeGroup.NAT, page())
 
-        FollowGroups(followed, planner.osuClient, planner.userService).follow()
+        FollowGroups(followed, planner.osuClient, planner.userService, planner.roleHistory).follow()
 
         assertEquals(7, last(MeGroup.BN))
     }

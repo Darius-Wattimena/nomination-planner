@@ -48,8 +48,13 @@ object StoredBeatmap {
 
     private fun toDocument(gamemode: BeatmapGamemode): Document {
         val missing = BeatmapNominator(MISSING_USER_ID, false)
-        return Document("mode", gamemode.gamemode.name)
-            .append("by", gamemode.nominators.dropLastWhile { it == missing }.map { toDocument(it) })
+        val document =
+            Document("mode", gamemode.gamemode.name)
+                .append("by", gamemode.nominators.dropLastWhile { it == missing }.map { toDocument(it) })
+        if (gamemode.guessed) {
+            document.append("guessed", true)
+        }
+        return document
     }
 
     private fun toDocument(nominator: BeatmapNominator): Document {
@@ -87,6 +92,7 @@ object StoredBeatmap {
                         .getList("by", Document::class.java)
                         .map { BeatmapNominator(it["user"].toString(), it.getBoolean("done", false)) },
                 ),
+            guessed = document.getBoolean("guessed", false),
         )
 
     /** Read how beatmaps were stored before */

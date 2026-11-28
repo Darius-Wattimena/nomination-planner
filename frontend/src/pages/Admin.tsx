@@ -2,7 +2,8 @@ import type {FormEvent} from "react";
 import {useEffect, useState} from "react";
 import {Link} from "react-router";
 import {PENDING_STATUSES} from "../Constants";
-import type {SyncQueued} from "../models/Types";
+import type {SyncQueued, SyncSearching} from "../models/Types";
+import Developer from "./Developer";
 import {BeatmapStatus} from "../models/Types";
 import Api from "../resources/Api";
 import {problemOf, request} from "../resources/client";
@@ -11,7 +12,7 @@ import Health from "../stats/Health";
 import PageHeader from "../ui/PageHeader";
 import {useTitle} from "../ui/useTitle";
 import {EmptyState} from "../ui/States";
-import {isAdmin, useSession} from "../utils/session";
+import {isAdmin, isDeveloper, useSession} from "../utils/session";
 
 export default function Admin() {
   const session = useSession()
@@ -40,7 +41,9 @@ export default function Admin() {
       <div className="cards">
         <SyncBeatmaps onStarted={onStarted}/>
         <SyncUsers onStarted={onStarted}/>
+        <SyncFromOsu onStarted={onStarted}/>
       </div>
+      {isDeveloper(session) && <Developer/>}
     </div>
   )
 }
@@ -201,6 +204,71 @@ function SyncUsers({onStarted}: {onStarted: () => void}) {
         <SyncResult {...sync} unit="user"/>
         <button className="button button-primary" disabled={sync.syncing}>Sync users</button>
       </form>
+    </section>
+  )
+}
+
+/** Brings the planner up to date with osu!: everyone in the groups, and the nominated beatmaps nobody added */
+function SyncFromOsu({onStarted}: {onStarted: () => void}) {
+  const members = useSync(onStarted)
+  const [days, setDays] = useState("30")
+  const [importing, setImporting] = useState(false)
+  const [searching, setSearching] = useState<SyncSearching>()
+  const [failed, setFailed] = useState<string>()
+  const [confirming, setConfirming] = useState(false)
+  const count = Number(days)
+  const validDays = Number.isInteger(count) && count >= 1 && count <= 365
+
+  async function importMissing() {
+    setImporting(true)
+    setSearching(undefined)
+    setFailed(undefined)
+    try {
+      setSearching(await request<SyncSearching>(Api.importMissingBeatmaps(count)))
+      onStarted()
+    } catch (error) {
+      setFailed(problemOf(error) ?? "The import could not be started.")
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>Sync with osu!</h2>
+      <p className="muted">Sync everyone in the BN, probationary BN and NAT on osu!, and everyone the planner still has in them who left.</p>
+      <SyncResult {...members} unit="user"/>
+      <div className="button-row">
+        <button className="button button-primary" disabled={members.syncing} onClick={() => void members.run(Api.syncGroupMembers())}>Sync all BNs and NAT</button>
+      </div>
+      <p className="muted">Import the beatmaps nominated on osu! that are not on the planner, with their nominators. Those that went back to pending, the graveyard or loved are left out.</p>
+      <label className="field">
+        <span>Nominated in the last days</span>
+        <input value={days} inputMode="numeric" aria-invalid={!validDays} disabled={importing} onChange={event => setDays(event.target.value)}/>
+      </label>
+      {!validDays && <p className="field-error">Use a number of days from 1 to 365.</p>}
+      <div role="status">
+        {importing && <p className="alert"><span className="spinner"/>Starting the import…</p>}
+        {failed && <p className="alert alert-error">{failed}</p>}
+        {searching && (searching.started
+          ? <p className="alert alert-success">Looking through the nominations on osu!. The missing beatmaps appear on the planner one by one.</p>
+          : <p className="alert alert-warning">An import is still going, wait until it is done.</p>)}
+      </div>
+      <div className="button-row">
+        <button className="button button-primary" disabled={importing || !validDays} onClick={() => setConfirming(true)}>Import missing beatmaps</button>
+      </div>
+      <ConfirmDialog
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        onConfirm={async () => {
+          setConfirming(false)
+          void importMissing()
+        }}
+        title="Import missing beatmaps"
+        action="Start import"
+      >
+        <p>Import every beatmap nominated on osu! in the last <b>{count} {count === 1 ? "day" : "days"}</b> that is not on the planner? It runs in the background, the planner can be used meanwhile.</p>
+      </ConfirmDialog>
     </section>
   )
 }

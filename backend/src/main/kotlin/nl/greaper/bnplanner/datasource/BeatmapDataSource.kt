@@ -140,6 +140,36 @@ class BeatmapDataSource(
         return null
     }
 
+    /**
+     * Adds many at once, like an import, in batches so others can change beatmaps in between
+     *
+     * @return the beatmaps that were added, the others were known already
+     */
+    fun insertAllMissing(beatmaps: List<Beatmap>): List<Beatmap> = beatmaps.chunked(BATCH_SIZE).flatMap { insertBatch(it) }
+
+    @Synchronized
+    private fun insertBatch(batch: List<Beatmap>): List<Beatmap> {
+        val missing = batch.map { StoredBeatmap.normalize(it) }.distinctBy { it.osuId }.filter { beatmaps[it.osuId] == null }
+
+        if (missing.isEmpty()) {
+            return emptyList()
+        }
+
+        if (usesOld) {
+            oldCollection().bulkWrite(missing.map { StoredBeatmap.toOldDocument(it) }.map { replace(it) })
+        }
+        collection().bulkWrite(missing.map { StoredBeatmap.toDocument(it) }.map { replace(it) })
+
+        missing.forEach { beatmap ->
+            beatmaps[beatmap.osuId] = beatmap
+            changes.mark(beatmap.osuId, forPlanner = beatmap.isInProgress())
+        }
+
+        return missing
+    }
+
+    private fun replace(document: Document) = ReplaceOneModel(Filters.eq("_id", document["_id"]), document, ReplaceOptions().upsert(true))
+
     /** Only visible to others once it is stored */
     @Synchronized
     fun update(beatmap: Beatmap) {

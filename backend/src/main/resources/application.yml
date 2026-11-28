@@ -40,8 +40,9 @@ beatmaps.keep-old: true
 # How long the website may wait for a change before it gets an empty answer, below the timeout of a proxy in between
 planner.wait-millis: 25000
 
-# The osu! ids of the users that may do everything on the planner, whatever their roles on osu! are
-planner.admins: "2369776"
+# The osu! ids of the users that may do everything on the planner whatever their roles on osu! are, including exporting and
+# importing ranked beatmaps
+planner.developers: "2369776"
 
 # Syncs the beatmaps in progress with osu! on its own, a few every minute. Needs a client id and secret.
 osu.background-sync:
@@ -53,11 +54,19 @@ osu.background-sync:
 osu.follow-events:
   enabled: false
   every-seconds: 60
+  # Adds a beatmap that is nominated on osu! without being on the planner, with its nominators
+  import-missing: true
 
 # Follows who joins or leaves the BN, probationary BN and NAT on osu!, and their gamemodes. Starts at the newest change the first time.
 osu.follow-groups:
   enabled: false
   every-seconds: 600
+
+# Importing every ranked beatmap of osu! from the Admin page of a developer, which asks osu! about each one. osu! asks to be told
+# about more than 60 requests a minute, so it takes about 17 hours at this rate. Meant to run on a developer's own machine, whose
+# export is imported on the servers.
+osu.history-import:
+  per-minute: 60
 
 cors:
   uris: http://localhost:3000,http://localhost:8080

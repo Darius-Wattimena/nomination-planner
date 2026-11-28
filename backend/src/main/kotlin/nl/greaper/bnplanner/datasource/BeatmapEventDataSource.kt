@@ -55,6 +55,20 @@ class BeatmapEventDataSource(
         insertOne(event)
     }
 
+    fun insertAll(events: Collection<BeatmapEvent>) {
+        events.chunked(BeatmapDataSource.BATCH_SIZE).forEach { batch -> collection.insertMany(batch.map { toDocument(it) }) }
+    }
+
+    /** Everything that happened to these beatmaps, oldest first */
+    fun findAllOf(beatmapIds: Collection<String>): List<BeatmapEvent> =
+        beatmapIds.chunked(BeatmapDataSource.BATCH_SIZE).flatMap { ids ->
+            collection
+                .find(Filters.`in`("beatmapId", ids))
+                .sort(Sorts.ascending("at", "_id"))
+                .map { fromDocument(it) }
+                .toList()
+        }
+
     /** Newest first, what happened at the same moment the last recorded first */
     fun findNewest(
         beatmapId: String,

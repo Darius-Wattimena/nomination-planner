@@ -75,7 +75,7 @@ class SecurityConfig(
                     .permitAll()
                     .anyRequest()
                     .authenticated()
-            }.addFilterAfter(SessionRolesFilter(userService, planner.admins), SecurityContextHolderFilter::class.java)
+            }.addFilterAfter(SessionRolesFilter(userService, planner.developers), SecurityContextHolderFilter::class.java)
             .build()
 
     @Bean

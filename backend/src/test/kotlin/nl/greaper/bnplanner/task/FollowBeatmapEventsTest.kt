@@ -23,7 +23,7 @@ class FollowBeatmapEventsTest {
     private val sleeps = mutableListOf<Long>()
     private var now = Instant.parse("2026-11-26T19:00:00Z")
 
-    private fun follower() =
+    private fun follower(importMissing: Boolean = true) =
         FollowBeatmapEvents(
             followed,
             planner.osuService,
@@ -31,6 +31,7 @@ class FollowBeatmapEventsTest {
             planner.beatmapService,
             planner.beatmaps,
             planner.osuJobs,
+            importMissing,
             { sleeps += it },
             Backoff { now },
         )
@@ -116,6 +117,48 @@ class FollowBeatmapEventsTest {
         assertEquals(4, planner.discord.sent.size)
         assertEquals(2, eventCalls().size)
         assertEquals(emptyList<Long>(), sleeps)
+    }
+
+    @Test
+    fun `Should import a beatmap nominated without being on the planner`() {
+        planner.save(beatmap("1"))
+        FakeOsu.user("20", "BN")
+        FakeOsu.user("10", "Mapper")
+        FakeOsu.beatmap("2", nominations = """[{"rulesets":["taiko"],"reset":false,"user_id":20}]""")
+        followed.saveLastId(FollowBeatmapEvents.NAME, 100)
+        FakeOsu.beatmapsetEvents(
+            1,
+            page(
+                event(103, "qualify", "1"),
+                event(102, "nominate", "2", 20, "taiko"),
+                event(100, "qualify", "1"),
+            ),
+        )
+
+        assertEquals(1, follower.follow())
+        planner.osuJobs.finish()
+
+        assertEquals(BeatmapStatus.Nominated, planner.stored("2").status)
+        assertEquals(listOf(mode(Gamemode.taiko, "20", firstNominated = true)), planner.stored("2").gamemodes)
+        assertEquals(103L, followed.findLastId(FollowBeatmapEvents.NAME))
+    }
+
+    @Test
+    fun `Should not import a beatmap that is not on the planner when turned off`() {
+        followed.saveLastId(FollowBeatmapEvents.NAME, 100)
+        FakeOsu.beatmapsetEvents(
+            1,
+            page(
+                event(102, "nominate", "2", 20, "taiko"),
+                event(100, "qualify", "1"),
+            ),
+        )
+
+        assertEquals(0, follower(importMissing = false).follow())
+        planner.osuJobs.finish()
+
+        assertNull(planner.beatmaps.findById("2"))
+        assertEquals(false, FakeOsu.calls().any { it.contains("/beatmapsets/2") })
     }
 
     @Test

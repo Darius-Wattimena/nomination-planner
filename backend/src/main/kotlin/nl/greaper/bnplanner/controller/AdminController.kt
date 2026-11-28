@@ -50,8 +50,32 @@ class AdminController(
         return syncService.syncPendingBeatmaps(status.orEmpty())
     }
 
+    /** Queues everyone in the BN, probationary BN and NAT on osu! to sync, and everyone the planner has in them who may have left */
+    @PostMapping("/sync/users/groups")
+    @RolesAllowed(RolePermission.ADMIN)
+    fun syncGroupMembers(): SyncService.Queued = syncService.syncGroupMembers()
+
+    /** Imports the beatmaps nominated on osu! in the last days that are not on the planner, in the background */
+    @PostMapping("/sync/beatmaps/missing")
+    @RolesAllowed(RolePermission.ADMIN)
+    fun importMissingBeatmaps(
+        @RequestParam(required = false) days: Int?,
+    ): SyncService.Searching {
+        val wanted = days ?: DEFAULT_IMPORT_DAYS
+
+        if (wanted !in 1..SyncService.MAX_DAYS) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "The days to look back are from 1 to ${SyncService.MAX_DAYS}")
+        }
+
+        return syncService.importMissingBeatmaps(wanted)
+    }
+
     /** How many beatmaps and users are still waiting to be synced in the background */
     @GetMapping("/sync/waiting")
     @RolesAllowed(RolePermission.ADMIN)
     fun findWaiting(): Int = syncService.findWaiting()
+
+    companion object {
+        const val DEFAULT_IMPORT_DAYS = 30
+    }
 }

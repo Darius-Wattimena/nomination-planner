@@ -34,6 +34,6 @@ class SessionController(
         // Known, as someone the planner doesn't know is not logged in
         val user = login?.let { userService.findUserById(it.name)!! } ?: return ResponseEntity.noContent().build()
 
-        return ResponseEntity.ok(Session(user, getHighestRoleForUser(user, planner.admins), csrf.token))
+        return ResponseEntity.ok(Session(user, getHighestRoleForUser(user, planner.developers), csrf.token))
     }
 }

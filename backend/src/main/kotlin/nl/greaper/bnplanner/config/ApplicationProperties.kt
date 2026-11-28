@@ -44,6 +44,6 @@ data class LoginProperties(
 
 @ConfigurationProperties("planner")
 data class PlannerProperties(
-    /** The osu! ids of the users that may do everything on the planner, whatever their roles on osu! are */
-    val admins: List<String> = emptyList(),
+    /** The osu! ids of the users that may do everything on the planner whatever their roles on osu! are, also export and import */
+    val developers: List<String> = emptyList(),
 )

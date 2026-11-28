@@ -71,6 +71,11 @@ function add(counts: ModeCounts, mode: Gamemode) {
   counts[mode] = (counts[mode] ?? 0) + 1
 }
 
+/** Every two of the given ids, each pair once, in the order given */
+export function pairsOf(ids: string[]): [string, string][] {
+  return ids.flatMap((a, index) => ids.slice(index + 1).map((b): [string, string] => [a, b]))
+}
+
 /** Who ranked beatmaps together: being on the same mode of the same beatmap, the most active first */
 export function network(maps: Beatmap[], only: Gamemode | undefined) {
   const people = new Map<string, {user: User, count: number, modes: ModeCounts}>()
@@ -87,13 +92,15 @@ export function network(maps: Beatmap[], only: Gamemode | undefined) {
     map.gamemodes.filter(it => !only || it.gamemode === only).forEach(({gamemode, nominators}) => {
       const ids = Array.from(new Set(nominators.map(it => it.nominator).filter(it => !isMissing(it)).map(it => it.osuId))).sort()
       ids.forEach(id => add(people.get(id)!.modes, gamemode))
-      if (ids.length !== 2) return
-      const key = ids.join("-")
-      const link = links.get(key) ?? {a: ids[0], b: ids[1], count: 0, modes: {}}
-      links.set(key, link)
-      add(link.modes, gamemode)
-      if (!counted.has(key)) link.count++
-      counted.add(key)
+      // Old ranked beatmaps can have three nominators on a mode, each two of them are a pair
+      pairsOf(ids).forEach(([a, b]) => {
+        const key = `${a}-${b}`
+        const link = links.get(key) ?? {a, b, count: 0, modes: {}}
+        links.set(key, link)
+        add(link.modes, gamemode)
+        if (!counted.has(key)) link.count++
+        counted.add(key)
+      })
     })
   })
 

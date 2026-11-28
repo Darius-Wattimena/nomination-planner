@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
 import nl.greaper.bnplanner.datasource.FollowedDataSource
+import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.beatmap.Beatmap
 import nl.greaper.bnplanner.model.osu.BeatmapsetEvent
 import nl.greaper.bnplanner.model.osu.BeatmapsetEventType
@@ -14,6 +15,7 @@ import nl.greaper.bnplanner.util.Backoff
 import nl.greaper.bnplanner.util.EventPages
 import nl.greaper.bnplanner.util.Sleeper
 import nl.greaper.bnplanner.util.isInProgress
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -21,7 +23,8 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Follows the nominations, qualifications, ranks, resets and disqualifications on osu! (https://osu.ppy.sh/beatmapsets/events)
- * of the beatmaps on the planner, so the planner shows them within a minute.
+ * of the beatmaps on the planner, so the planner shows them within a minute. A beatmap nominated without being on the planner
+ * is imported, unless turned off.
  */
 @Component
 @ConditionalOnProperty(name = ["osu.follow-events.enabled"], havingValue = "true")
@@ -32,6 +35,7 @@ class FollowBeatmapEvents(
     private val beatmapService: BeatmapService,
     private val beatmapDataSource: BeatmapDataSource,
     private val jobs: OsuJobs,
+    @Value("\${osu.follow-events.import-missing:true}") private val importMissing: Boolean = true,
     sleeper: Sleeper = Sleeper.THREAD,
     private val backoff: Backoff = Backoff(),
 ) {
@@ -72,10 +76,15 @@ class FollowBeatmapEvents(
         }
 
         val found = pages.findNewer(last) { index -> osuClient.findBeatmapsetEvents(token, index + 1).events }
+        val missing = mutableMapOf<String, MutableMap<Gamemode, MutableList<String>>>()
         try {
             return found.events.count { event ->
                 val changed = beatmapService.applyOsuEvent(token, event)
                 followed.saveLastId(NAME, event.id)
+
+                if (importMissing && changed == null) {
+                    collectMissing(event, missing)
+                }
 
                 if (changed != null && isMainGamemodeUnknown(changed, event)) {
                     // Only osu! knows which gamemode needs two nominations, see findMainGamemodes
@@ -85,6 +94,12 @@ class FollowBeatmapEvents(
                 changed != null
             }
         } finally {
+            if (missing.isNotEmpty()) {
+                // osu! tells how they are now, which covers what happened to them since
+                log.info { "Importing ${missing.size} beatmaps nominated on osu! that are not on the planner" }
+                jobs.importBeatmaps(missing)
+            }
+
             // Also when an event failed, the last id already moved past the events that were not read
             if (!found.complete) {
                 // osu! knows how the beatmaps are now. Only afterwards, so the older events don't overwrite what the syncs find.
@@ -93,6 +108,26 @@ class FollowBeatmapEvents(
                 jobs.syncBeatmaps(inProgress)
             }
         }
+    }
+
+    /** A nomination of a beatmap that is not on the planner, with who nominated which gamemode */
+    private fun collectMissing(
+        event: BeatmapsetEvent,
+        missing: MutableMap<String, MutableMap<Gamemode, MutableList<String>>>,
+    ) {
+        val osuId = event.beatmapset?.id ?: return
+        val userId = event.userId ?: return
+
+        if (event.kind != BeatmapsetEventType.NOMINATE || beatmapDataSource.findById(osuId) != null) {
+            return
+        }
+
+        val nominated = missing.getOrPut(osuId) { mutableMapOf() }
+        event.comment
+            ?.modes
+            .orEmpty()
+            .mapNotNull { mode -> Gamemode.entries.find { it.name == mode } }
+            .forEach { nominated.getOrPut(it) { mutableListOf() } += userId.toString() }
     }
 
     private fun isMainGamemodeUnknown(

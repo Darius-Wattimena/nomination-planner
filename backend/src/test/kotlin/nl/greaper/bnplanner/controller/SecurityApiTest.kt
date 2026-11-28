@@ -40,6 +40,8 @@ class SecurityApiTest : ApiTest() {
             "ADMIN  | PATCH  | /v2/beatmap/1/status?new=Pending                             | ",
             "ADMIN  | POST   | /v2/admin/sync/users/ids                                     | []",
             "ADMIN  | POST   | /v2/admin/sync/beatmaps/pending                              | ",
+            "DEVELOPER | GET | /v2/developer/import                                      | ",
+            "DEVELOPER | GET | /v2/developer/history                                     | ",
         ],
     )
     fun `Should only allow the required role`(
@@ -50,10 +52,10 @@ class SecurityApiTest : ApiTest() {
     ) {
         val allowed =
             when (required) {
-                As.VIEWER -> setOf(As.VIEWER, As.EDITOR, As.ADMIN, As.LISTED_ADMIN)
-                As.EDITOR -> setOf(As.EDITOR, As.ADMIN, As.LISTED_ADMIN)
-                As.ADMIN -> setOf(As.ADMIN, As.LISTED_ADMIN)
-                else -> setOf(As.LISTED_ADMIN)
+                As.VIEWER -> setOf(As.VIEWER, As.EDITOR, As.ADMIN, As.DEVELOPER)
+                As.EDITOR -> setOf(As.EDITOR, As.ADMIN, As.DEVELOPER)
+                As.ADMIN -> setOf(As.ADMIN, As.DEVELOPER)
+                else -> setOf(As.DEVELOPER)
             }
         val contentType = if (uri.endsWith("note")) "text/plain" else body?.let { "application/json" }
 

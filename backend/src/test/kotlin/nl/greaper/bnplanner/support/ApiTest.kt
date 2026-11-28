@@ -71,7 +71,7 @@ abstract class ApiTest {
         VIEWER("1"),
         EDITOR("2"),
         ADMIN("3"),
-        LISTED_ADMIN("2369776"),
+        DEVELOPER("2369776"),
         ;
 
         /** The osu! token the planner got for them when they logged in */
@@ -92,7 +92,7 @@ abstract class ApiTest {
                 As.VIEWER to User("1", "Viewer", listOf(UserGamemode(Gamemode.osu, Role.Mapper))),
                 As.EDITOR to User("2", "Editor", listOf(UserGamemode(Gamemode.osu, Role.Nominator))),
                 As.ADMIN to User("3", "Admin", listOf(UserGamemode(Gamemode.mania, Role.NominationAssessment))),
-                As.LISTED_ADMIN to User("2369776", "Developer", emptyList()),
+                As.DEVELOPER to User("2369776", "Developer", emptyList()),
             )
 
         @JvmStatic

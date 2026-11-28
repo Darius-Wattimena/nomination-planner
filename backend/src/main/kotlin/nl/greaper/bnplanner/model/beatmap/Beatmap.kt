@@ -21,7 +21,10 @@ data class Beatmap(
 
 data class BeatmapGamemode(
     val gamemode: Gamemode,
+    /** Two or more, a missing nominator fills a place. Old ranked beatmaps can have more than two. */
     val nominators: List<BeatmapNominator>,
+    /** osu! didn't tell who nominated this gamemode, so it was worked out from their other nominations */
+    val guessed: Boolean = false,
 )
 
 data class BeatmapNominator(

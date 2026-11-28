@@ -2,6 +2,7 @@ package nl.greaper.bnplanner.service
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.annotation.PreDestroy
+import nl.greaper.bnplanner.model.Gamemode
 import org.springframework.stereotype.Service
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -23,13 +24,15 @@ class OsuJobs(
     private val executor = Executors.newSingleThreadExecutor { Thread(it, "osu-jobs").apply { isDaemon = true } }
     private val queuedBeatmaps = ConcurrentHashMap.newKeySet<String>()
     private val queuedUsers = ConcurrentHashMap.newKeySet<String>()
+    private val queuedImports = ConcurrentHashMap.newKeySet<String>()
+    private val queuedSearches = ConcurrentHashMap.newKeySet<String>()
 
     @Volatile
     private var stopping = false
 
-    /** How many beatmaps and users are still to be synced */
+    /** How many beatmaps, users, imports and searches for them are still to be done */
     val waiting: Int
-        get() = queuedBeatmaps.size + queuedUsers.size
+        get() = queuedBeatmaps.size + queuedUsers.size + queuedImports.size + queuedSearches.size
 
     /** @return how many were added, a beatmap that is already waiting is not added again */
     fun syncBeatmaps(ids: Collection<String>): Int =
@@ -43,6 +46,25 @@ class OsuJobs(
             userService.forceFindUserById(token, id, logEventToDiscord = false)
             log.debug { "User $id synced" }
         }
+
+    /**
+     * @param found who nominated which gamemode of each beatmap on osu!, oldest first
+     * @return how many were added, a beatmap that is already waiting is not added again
+     */
+    fun importBeatmaps(found: Map<String, Map<Gamemode, List<String>>>): Int =
+        queue("import", found.keys, queuedImports) { token, id ->
+            beatmapService.importBeatmap(token, id, found[id].orEmpty())
+        }
+
+    /**
+     * Something that finds out what to sync or import, like a search through the events of osu!
+     *
+     * @return false when the same search is already waiting
+     */
+    fun search(
+        name: String,
+        search: (token: String) -> Unit,
+    ): Boolean = queue("search", listOf(name), queuedSearches) { token, _ -> search(token) } == 1
 
     private fun queue(
         kind: String,
@@ -87,9 +109,11 @@ class OsuJobs(
         }
     }
 
-    /** Waits until everything that is queued is done */
+    /** Waits until everything that is queued is done, also what a search queued meanwhile */
     fun finish() {
-        executor.submit {}.get()
+        do {
+            executor.submit {}.get()
+        } while (waiting > 0)
     }
 
     /** What is still queued is left for the syncs after the restart */

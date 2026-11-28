@@ -106,6 +106,53 @@ const Api = {
     url: '/v2/admin/sync/beatmaps/pending',
     params: toParams({status})
   }),
+  // Everyone in the BN, probationary BN and NAT on osu!, and who left them
+  syncGroupMembers: (): AxiosRequestConfig => ({
+    method: 'POST',
+    url: '/v2/admin/sync/users/groups'
+  }),
+  // The beatmaps nominated on osu! in the last days that are not on the planner
+  importMissingBeatmaps: (days: number): AxiosRequestConfig => ({
+    method: 'POST',
+    url: '/v2/admin/sync/beatmaps/missing',
+    params: {days}
+  }),
+  // Every ranked beatmap with its history, users and role history, as a gzipped file
+  exportRanked: (): AxiosRequestConfig => ({
+    method: 'GET',
+    url: '/v2/developer/export',
+    responseType: 'blob'
+  }),
+  // Tells what importing the file would do, unless dryRun is false, which starts it
+  importRanked: (file: Blob, dryRun: boolean): AxiosRequestConfig => ({
+    method: 'POST',
+    url: '/v2/developer/import',
+    params: {dryRun},
+    headers: {'Content-Type': 'application/octet-stream'},
+    data: file
+  }),
+  fetchImportStatus: (): AxiosRequestConfig => ({
+    method: 'GET',
+    url: '/v2/developer/import'
+  }),
+  fetchHistoryStatus: (): AxiosRequestConfig => ({
+    method: 'GET',
+    url: '/v2/developer/history'
+  }),
+  // Starts, or continues, importing every ranked beatmap of osu!
+  startHistory: (): AxiosRequestConfig => ({
+    method: 'POST',
+    url: '/v2/developer/history/start'
+  }),
+  stopHistory: (): AxiosRequestConfig => ({
+    method: 'POST',
+    url: '/v2/developer/history/stop'
+  }),
+  // Works out again who nominated which mode of the old ranked beatmaps
+  guessHistoryModes: (): AxiosRequestConfig => ({
+    method: 'POST',
+    url: '/v2/developer/history/modes'
+  }),
   // Answers with the beatmap as osu! has it now
   syncBeatmap: (id: string): AxiosRequestConfig => ({
     method: 'POST',

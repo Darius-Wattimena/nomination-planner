@@ -22,7 +22,9 @@ login:
 beatmaps.keep-old: true
 
 planner.wait-millis: 400
-planner.admins: "2369776"
+# The osu! ids of the users that may do everything on the planner whatever their roles on osu! are, including exporting and
+# importing ranked beatmaps
+planner.developers: "2369776"
 
 osu.background-sync:
   enabled: false

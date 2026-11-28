@@ -23,17 +23,18 @@ fun getRolePermissions(osuRole: Role): RolePermission {
     return RolePermission(osuRole, permissions)
 }
 
-/** @param admins the osu! ids of the users that may do everything, whatever their roles on osu! are */
+/** @param developers the osu! ids of the users that may do everything, whatever their roles on osu! are */
 fun getHighestRoleForUser(
     user: User?,
-    admins: Collection<String> = emptyList(),
+    developers: Collection<String> = emptyList(),
 ): RolePermission {
     if (user == null) {
         return getRolePermissions(Role.Mapper)
     }
 
-    if (user.osuId in admins) {
-        return getRolePermissions(Role.NominationAssessment)
+    if (user.osuId in developers) {
+        val admin = getRolePermissions(Role.NominationAssessment)
+        return admin.copy(roles = admin.roles + RolePermission.DEVELOPER)
     }
 
     val userRoles = user.gamemodes.map { it.role }.toSet()

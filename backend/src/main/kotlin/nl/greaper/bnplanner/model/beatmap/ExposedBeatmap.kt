@@ -21,6 +21,8 @@ data class ExposedBeatmap(
 data class ExposedBeatmapGamemode(
     val gamemode: Gamemode,
     val nominators: List<ExposedBeatmapNominator>,
+    /** True when who nominated this gamemode was worked out from their other nominations, as osu! didn't tell. Left out otherwise. */
+    val guessed: Boolean? = null,
 )
 
 data class ExposedBeatmapNominator(

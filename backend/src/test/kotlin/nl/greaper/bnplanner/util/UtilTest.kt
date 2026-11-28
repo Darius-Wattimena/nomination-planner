@@ -119,11 +119,14 @@ class UtilTest {
         assertEquals(RolePermission(Role.Probation, setOf("VIEWER", "EDITOR")), permission(Role.Mapper, Role.Probation))
         assertEquals(nominator, permission(Role.Probation, Role.Nominator))
         assertEquals(admin, permission(Role.Nominator, Role.NominationAssessment, Role.Mapper))
-        assertEquals(admin, getHighestRoleForUser(User("2369776", "", emptyList()), listOf("5", "2369776")))
+        assertEquals(
+            RolePermission(Role.NominationAssessment, setOf("VIEWER", "EDITOR", "ADMIN", "DEVELOPER")),
+            getHighestRoleForUser(User("2369776", "", emptyList()), listOf("5", "2369776")),
+        )
         assertEquals(viewer, getHighestRoleForUser(User("2369776", "", emptyList())))
         assertEquals(viewer, getHighestRoleForUser(null, listOf("2369776")))
         // Only the default of the class, application.yml lists the owner
-        assertEquals(emptyList<String>(), PlannerProperties().admins)
+        assertEquals(emptyList<String>(), PlannerProperties().developers)
         assertEquals("Nominator", nominator.name)
     }
 

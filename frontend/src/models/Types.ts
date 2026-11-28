@@ -54,7 +54,10 @@ export interface Pairing {
 
 export interface BeatmapGamemode {
   gamemode: Gamemode
+  /** Two or more, old ranked beatmaps can have three */
   nominators: BeatmapNominator[]
+  /** osu! didn't record who nominated this mode, it was worked out from their other nominations */
+  guessed?: boolean
 }
 
 export interface BeatmapNominator {
@@ -112,4 +115,41 @@ export interface BeatmapEvent {
 /** A sync runs in the background, this is how many it will go through */
 export interface SyncQueued {
   queued: number
+}
+
+/** What importing an export does, or would do */
+export interface ImportSummary {
+  newBeatmaps: number
+  knownBeatmaps: number
+  notRanked: number
+  newUsers: number
+  knownUsers: number
+  events: number
+  roleChanges: number
+  exportedAt: string
+}
+
+export interface ImportStatus {
+  running: boolean
+  last?: ImportSummary
+  failed?: string
+}
+
+export type HistoryPhase = "Roles" | "Beatmaps" | "Modes"
+
+/** How the import of every ranked beatmap of osu! is going */
+export interface HistoryStatus {
+  running: boolean
+  phase?: HistoryPhase
+  seen: number
+  imported: number
+  reached?: string
+  done: boolean
+  guessed: number
+  failed?: string
+}
+
+/** A search on osu! for what to import, false when the same search is still going */
+export interface SyncSearching {
+  started: boolean
 }

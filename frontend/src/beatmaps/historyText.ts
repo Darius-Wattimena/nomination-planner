@@ -32,6 +32,8 @@ export function describeEvent(event: BeatmapEvent): string {
 
   switch (event.type) {
     case "Added":
+      // Nobody added it, the planner found it among the nominations on osu!
+      if (!event.user) return `Imported from osu!${where ? ` for ${where}` : ""}`
       return `${who} added it${where ? ` for ${where}` : ""}`
     case "NominatorJoined":
       return self ? `${who} joined ${where}` : `${who} added ${nominator} to ${where}`

@@ -6,6 +6,8 @@ import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.datasource.BeatmapDataSource
 import nl.greaper.bnplanner.datasource.BeatmapEventDataSource
+import nl.greaper.bnplanner.datasource.HistoryImportDataSource
+import nl.greaper.bnplanner.datasource.RoleHistoryDataSource
 import nl.greaper.bnplanner.datasource.UserDataSource
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
@@ -17,10 +19,13 @@ import nl.greaper.bnplanner.model.beatmap.BeatmapNominator
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.service.AuthService
 import nl.greaper.bnplanner.service.BeatmapService
+import nl.greaper.bnplanner.service.HistoryImportService
 import nl.greaper.bnplanner.service.OsuJobs
 import nl.greaper.bnplanner.service.OsuService
 import nl.greaper.bnplanner.service.ProfileService
+import nl.greaper.bnplanner.service.RoleHistoryService
 import nl.greaper.bnplanner.service.SyncService
+import nl.greaper.bnplanner.service.TransferService
 import nl.greaper.bnplanner.service.UserService
 import nl.greaper.bnplanner.util.Sleeper
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -48,8 +53,30 @@ class Planner(
     val osuService = OsuService(osuClient)
     val authService = AuthService(discordClient)
     val osuJobs = OsuJobs(beatmapService, userService, osuService)
-    val syncService = SyncService(userService, beatmapService, osuJobs)
+    val syncService = SyncService(userService, beatmapService, osuJobs, osuClient)
     val profileService = ProfileService(beatmapService, userService)
+    val roleHistories = RoleHistoryDataSource(TestMongo.database)
+    val roleHistory = RoleHistoryService(roleHistories, osuClient, jacksonMapperBuilder().build())
+    val transferService = TransferService(beatmaps, events, users, roleHistory, jacksonMapperBuilder().build())
+    val historyProgress = HistoryImportDataSource(TestMongo.database)
+
+    /** How long the import of the ranked history waited between calls to osu! */
+    val historySleeps = mutableListOf<Long>()
+    val historyImport =
+        HistoryImportService(
+            osuClient,
+            osuService,
+            userService,
+            users,
+            beatmaps,
+            events,
+            historyProgress,
+            roleHistory,
+            perMinute = 60,
+            sleeper = { historySleeps += it },
+            // No time passes, so every call to osu! waits the whole second
+            clock = { 0L },
+        )
 
     fun user(
         id: String,

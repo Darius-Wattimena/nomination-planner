@@ -13,6 +13,9 @@ data class RolePermission(
 
     companion object {
         const val ADMIN = "ADMIN"
+
+        /** Only for the developers, who may also export and import beatmaps, which can change a lot at once */
+        const val DEVELOPER = "DEVELOPER"
         const val EDITOR = "EDITOR"
         const val VIEWER = "VIEWER"
     }

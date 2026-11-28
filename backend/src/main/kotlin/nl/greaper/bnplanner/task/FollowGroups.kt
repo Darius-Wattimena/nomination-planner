@@ -5,6 +5,7 @@ import nl.greaper.bnplanner.client.OsuHttpClient
 import nl.greaper.bnplanner.datasource.FollowedDataSource
 import nl.greaper.bnplanner.model.osu.GroupEvent
 import nl.greaper.bnplanner.model.osu.MeGroup
+import nl.greaper.bnplanner.service.RoleHistoryService
 import nl.greaper.bnplanner.service.UserService
 import nl.greaper.bnplanner.util.Backoff
 import nl.greaper.bnplanner.util.EventPages
@@ -24,6 +25,7 @@ class FollowGroups(
     private val followed: FollowedDataSource,
     private val osuClient: OsuHttpClient,
     private val userService: UserService,
+    private val roleHistory: RoleHistoryService,
     private val sleeper: Sleeper = Sleeper.THREAD,
     private val backoff: Backoff = Backoff(),
 ) {
@@ -85,6 +87,8 @@ class FollowGroups(
 
         return found.events.count { event ->
             val changed = userService.applyGroupEvent(event)
+            // Also when the planner knew already, the history keeps when it happened
+            roleHistory.toRoleChange(event)?.let { roleHistory.saveAll(listOf(it)) }
             followed.saveLastId(name, event.id)
             changed != null
         }

@@ -5,6 +5,7 @@ import nl.greaper.bnplanner.auth.LoginExpiredException
 import nl.greaper.bnplanner.config.OsuProperties
 import nl.greaper.bnplanner.model.osu.AuthToken
 import nl.greaper.bnplanner.model.osu.BeatmapSet
+import nl.greaper.bnplanner.model.osu.BeatmapSetSearch
 import nl.greaper.bnplanner.model.osu.BeatmapsetEventType
 import nl.greaper.bnplanner.model.osu.BeatmapsetEvents
 import nl.greaper.bnplanner.model.osu.GroupHistory
@@ -23,6 +24,7 @@ import tools.jackson.databind.ObjectMapper
 import tools.jackson.module.kotlin.readValue
 import java.net.URI
 import java.net.URLEncoder
+import java.time.LocalDate
 
 @Component
 class OsuHttpClient(
@@ -160,6 +162,89 @@ class OsuHttpClient(
     }
 
     /**
+     * A page of all ranked and approved beatmap sets, the oldest ranked first. Without the nominations, only asking for the beatmap
+     * set itself gives those. osu! stops after 10,000 results of one search, so a new search starts at a later day.
+     *
+     * @param since the first day (in UTC) they were ranked on, null for the oldest
+     * @param cursor of the page before, null for the first page
+     */
+    fun searchRankedBeatmapsets(
+        osuApiToken: String,
+        since: LocalDate?,
+        cursor: String?,
+    ): BeatmapSetSearch {
+        val query = since?.let { "&q=${URLEncoder.encode("ranked>=$it", Charsets.UTF_8)}" }.orEmpty()
+        val after = cursor?.let { "&cursor_string=${URLEncoder.encode(it, Charsets.UTF_8)}" }.orEmpty()
+        // Built by hand, the cursor must reach osu! exactly as it gave it
+        val uri = URI.create("${config.baseUrl}/api/v2/beatmapsets/search?s=ranked&sort=ranked_asc&nsfw=true$query$after")
+
+        val body =
+            rateLimit.call("GET $uri") {
+                log.debug { "GET ==> $uri" }
+                rest
+                    .get()
+                    .uri(uri)
+                    .headers { it.setBearerAuth(osuApiToken) }
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String::class.java)
+            }
+
+        return objectMapper.readValue<BeatmapSetSearch>(body ?: "")
+    }
+
+    /**
+     * A page of the nominations of all beatmap sets since the start of a day, newest first
+     *
+     * @param since the day (in UTC) of the oldest nomination, osu! may still answer with older ones
+     * @param page starts at 1
+     */
+    fun findNominations(
+        osuApiToken: String,
+        since: LocalDate,
+        page: Int,
+    ): BeatmapsetEvents {
+        val type = BeatmapsetEventType.NOMINATE.osuName
+        val response = get("/beatmapsets/events?types[]=$type&min_date=$since&limit=$EVENTS_PER_PAGE&page=$page", osuApiToken)
+
+        return objectMapper.readValue<BeatmapsetEvents>(response.body ?: "")
+    }
+
+    /**
+     * The ids of everyone in a group, of every gamemode. Not part of the api, the page of the group on the website has them as JSON.
+     *
+     * @throws OsuUnavailableException when the page has no users, like when osu! changed it
+     */
+    fun findGroupMembers(groupId: String): List<String> {
+        val uri = URI.create("${config.baseUrl}/groups/${URLEncoder.encode(groupId, Charsets.UTF_8)}")
+
+        val body =
+            try {
+                rateLimit.call("GET $uri") {
+                    log.debug { "GET ==> $uri" }
+                    rest
+                        .get()
+                        .uri(uri)
+                        .accept(MediaType.TEXT_HTML)
+                        .retrieve()
+                        .body(String::class.java)
+                }
+            } catch (ex: Exception) {
+                throw OsuUnavailableException("Unable to get the members of group $groupId from osu!", ex)
+            }
+
+        val json =
+            GROUP_USERS.find(body.orEmpty())?.groupValues?.get(1)
+                ?: throw OsuUnavailableException("The page of group $groupId on osu! has no users", null)
+
+        return objectMapper.readValue<List<GroupMember>>(json).map { it.id }
+    }
+
+    private data class GroupMember(
+        val id: String,
+    )
+
+    /**
      * A page of who joined or left a group, newest first. Not part of the api, but the website answers with JSON when asked to.
      *
      * @param cursor of the page before, null for the newest
@@ -183,6 +268,13 @@ class OsuHttpClient(
             }
 
         return objectMapper.readValue<GroupHistory>(body ?: "")
+    }
+
+    companion object {
+        /** The most osu! gives at once */
+        const val EVENTS_PER_PAGE = 50
+
+        private val GROUP_USERS = Regex("""<script id="json-users" type="application/json">(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
     }
 }
 

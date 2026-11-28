@@ -21,6 +21,7 @@ describe("describeEvent", () => {
   it("tells who added the beatmap or a mode, and changed the note", () => {
     expect(describeEvent(event({type: "Added", user: rory, gamemodes: [Gamemode.Osu, Gamemode.Taiko, Gamemode.Catch]}))).toBe("Rory added it for osu!, osu!taiko and osu!catch")
     expect(describeEvent(event({type: "Added", user: rory}))).toBe("Rory added it")
+    expect(describeEvent(event({type: "Added", gamemodes: [Gamemode.Taiko]}))).toBe("Imported from osu! for osu!taiko")
     expect(describeEvent(event({type: "ModeAdded", user: rory, gamemodes: [Gamemode.Catch]}))).toBe("Rory added osu!catch")
     expect(describeEvent(event({type: "ModeRemoved", user: rory, gamemodes: [Gamemode.Catch]}))).toBe("Rory removed osu!catch")
     expect(describeEvent(event({type: "NoteChanged"}))).toBe("Someone changed the note")

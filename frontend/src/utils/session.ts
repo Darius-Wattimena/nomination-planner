@@ -78,3 +78,8 @@ export function canEdit(session: UserContext | undefined) {
 export function isAdmin(session: UserContext | undefined) {
   return !!session?.permission.roles.includes("ADMIN")
 }
+
+/** Only the developers, who may export and import ranked beatmaps */
+export function isDeveloper(session: UserContext | undefined) {
+  return !!session?.permission.roles.includes("DEVELOPER")
+}
