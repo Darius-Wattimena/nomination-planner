@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Backend" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
     <option name="ACTIVE_PROFILES" value="local" />
-    <module name="bnplanner-backend.main" />
+    <module name="nl.greaper.bnplanner-backend.main" />
     <option name="SPRING_BOOT_MAIN_CLASS" value="nl.greaper.bnplanner.Application" />
     <method v="2">
       <option name="Make" enabled="true" />
