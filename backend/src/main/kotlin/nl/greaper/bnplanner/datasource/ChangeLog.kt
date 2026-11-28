@@ -1,5 +1,6 @@
 package nl.greaper.bnplanner.datasource
 
+import java.util.TreeMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** Remembers when something last changed, since the start of the backend */
@@ -8,6 +9,10 @@ class ChangeLog {
 
     // The last change of each that the planner shows, which can be older than its last change
     private val plannerVersions = mutableMapOf<String, Long>()
+
+    // The same, sorted by version, so finding what changed since doesn't go past everything that ever changed
+    private val byVersion = TreeMap<Long, String>()
+    private val plannerByVersion = TreeMap<Long, String>()
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
     private var latest = 0L
 
@@ -26,9 +31,11 @@ class ChangeLog {
     ) {
         synchronized(this) {
             latest++
-            versions[id] = latest
+            versions.put(id, latest)?.let { byVersion.remove(it) }
+            byVersion[latest] = id
             if (forPlanner) {
-                plannerVersions[id] = latest
+                plannerVersions.put(id, latest)?.let { plannerByVersion.remove(it) }
+                plannerByVersion[latest] = id
             }
         }
 
@@ -42,7 +49,7 @@ class ChangeLog {
     fun findSince(
         version: Long,
         forPlanner: Boolean = false,
-    ): Set<String> = (if (forPlanner) plannerVersions else versions).filterValues { it > version }.keys
+    ): Set<String> = (if (forPlanner) plannerByVersion else byVersion).tailMap(version, false).values.toSet()
 
     /**
      * Called after every change the planner shows, while the one making the change waits. So it has to be quick and must not read

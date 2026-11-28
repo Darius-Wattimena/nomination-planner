@@ -9,7 +9,7 @@ import {canNominate, displayName, isMissing, roleModes} from "../utils/users";
 import {badges, scores} from "./boards";
 import Columns from "./Columns";
 import {Badges} from "./Badges";
-import {debuts, nominatorsOf, perMonth, rankedDate, topBy} from "./stats";
+import {firstsOf, nominatorsOf, perMonth, rankedDate, topBy} from "./stats";
 
 interface NominatorYearProps {
   id: string
@@ -25,7 +25,7 @@ export default function NominatorYear({id, self}: NominatorYearProps) {
   const years = Array.from(new Set(own.map(it => rankedDate(it)!.getFullYear())))
   const [picked, setPicked] = useState<number>()
   const year = picked && years.includes(picked) ? picked : years[0]
-  const firsts = useMemo(() => new Set(debuts(maps ?? []).map(it => it.osuId)), [maps])
+  const firsts = useMemo(() => firstsOf(maps ?? []), [maps])
 
   if (error) return <p className="alert alert-error" role="alert">Could not load the ranked beatmaps. <button className="link" onClick={retry}>Try again</button></p>
   if (!maps) return <Loading/>
@@ -71,7 +71,7 @@ export function NominatorBadges({id}: {id: string}) {
   const earned = useMemo(() => {
     const all = maps ?? []
     const own = all.filter(map => nominatorsOf(map).some(it => it.osuId === id))
-    return badges(scores(own, new Set(debuts(all).map(it => it.osuId))).find(it => it.user.osuId === id))
+    return badges(scores(own, firstsOf(all)).find(it => it.user.osuId === id))
   }, [maps, id])
   if (!maps) return null
 

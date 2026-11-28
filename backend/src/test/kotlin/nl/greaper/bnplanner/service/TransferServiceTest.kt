@@ -81,8 +81,12 @@ class TransferServiceTest {
         assertEquals(2, summary.knownUsers)
         assertNull(planner.beatmaps.findById("1"))
 
+        val before = planner.users.changes.version
         service.start(file)
         service.finish()
+        // New users of ranked beatmaps don't wake whoever waits for the planner
+        assertEquals(false, "22" in planner.users.changes.findSince(before, forPlanner = true))
+        assertEquals(true, "22" in planner.users.changes.findSince(before))
 
         assertEquals(old, planner.stored("1"))
         assertNull(planner.beatmaps.findById("2"))

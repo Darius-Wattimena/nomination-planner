@@ -8,7 +8,7 @@ import ModeIcon from "../ui/ModeIcon";
 import {Avatar} from "../ui/Person";
 import {Table} from "./Columns";
 import type {Camera, Network, Point, Size, Star} from "./sky";
-import {findStars, firstTogether, fit, isVisible, layout, newPairs, pairKey, pan, partnersOf, placeNames, radius, shares, starScale, steps, strongestLinks, timeline, toScreen, upTo, zoomAt} from "./sky";
+import {findStars, largest, firstTogether, fit, isVisible, layout, newPairs, pairKey, pan, partnersOf, placeNames, radius, shares, starScale, steps, strongestLinks, timeline, toScreen, upTo, zoomAt} from "./sky";
 import type {Link} from "./stats";
 import {useScope} from "./useScope";
 import {displayName} from "../utils/users";
@@ -35,6 +35,39 @@ type Selection = {person: string} | {pair: [string, string]}
 const modeNames = (modes: Partial<Record<Gamemode, number>>) => GAMEMODES.filter(mode => modes[mode]).map(mode => GAMEMODE_NAMES[mode]).join(", ")
 
 /** Everybody is a star in the colors of their modes, the lines are the beatmaps they ranked together */
+/** How often a sky is drawn again while dragging it, in milliseconds */
+const DRAW_WHILE_DRAGGING = 100
+
+/** Skies larger than this are laid out by a worker, so the page keeps responding meanwhile */
+const LAID_OUT_AWAY = 300
+
+/** Where everyone is in the sky, empty while a big one is still being laid out */
+function useLayout(data: Network): Map<string, Point> {
+  const away = data.people.length > LAID_OUT_AWAY && typeof Worker !== "undefined"
+  const here = useMemo(() => away ? undefined : layout(data), [data, away])
+  const [laid, setLaid] = useState<{data: Network, points: Map<string, Point>}>()
+
+  useEffect(() => {
+    if (!away) return
+    const worker = new Worker(new URL("./skyWorker.ts", import.meta.url), {type: "module"})
+    worker.onmessage = (event: MessageEvent<[string, Point][]>) => {
+      setLaid({data, points: new Map(event.data)})
+      worker.terminate()
+    }
+    // Laid out here after all when the worker can't
+    worker.onerror = () => {
+      setLaid({data, points: layout(data)})
+      worker.terminate()
+    }
+    worker.postMessage(data)
+    return () => worker.terminate()
+  }, [data, away])
+
+  return here ?? (laid?.data === data ? laid.points : NOWHERE)
+}
+
+const NOWHERE = new Map<string, Point>()
+
 export default function Constellation({data}: {data: Network}) {
   const frame = useRef<HTMLDivElement>(null)
   const svg = useRef<SVGSVGElement>(null)
@@ -65,10 +98,10 @@ export default function Constellation({data}: {data: Network}) {
   const period = range.label.startsWith("Last") ? `the ${range.label.toLowerCase().slice(5)}` : range.label === "This year" ? "this year" : range.label
 
   // Laid out once for the whole range, so nobody moves while playing through it
-  const points = useMemo(() => layout(data), [data])
+  const points = useLayout(data)
   const byId = useMemo(() => new Map(data.people.map(it => [it.user.osuId, it])), [data])
-  const most = Math.max(1, ...data.people.map(it => it.count))
-  const strongest = Math.max(1, ...data.links.map(it => it.count))
+  const most = useMemo(() => largest(data.people.map(it => it.count), 1), [data])
+  const strongest = useMemo(() => largest(data.links.map(it => it.count), 1), [data])
   const countOf = (star: Star) => until === undefined ? star.count : upTo(times.people.get(star.user.osuId), until)
   const togetherOf = (link: Link) => until === undefined ? link.count : upTo(times.links.get(pairKey(link.a, link.b)), until)
 
@@ -150,6 +183,25 @@ export default function Constellation({data}: {data: Network}) {
   // Dragging with a mouse or a finger, pinching with two fingers
   const pointers = useRef(new Map<number, Point>())
   const gesture = useRef({start: {x: 0, y: 0}, moved: false})
+  // While dragging the drawn sky only moves along, and is drawn again at most every so often, as drawing thousands of stars
+  // on every move of the pointer makes dragging stutter
+  const layer = useRef<SVGGElement>(null)
+  const dragged = useRef({x: 0, y: 0, drawnAt: 0})
+
+  function showDragged() {
+    const {x, y} = dragged.current
+    if (x === 0 && y === 0) layer.current?.removeAttribute("transform")
+    else layer.current?.setAttribute("transform", `translate(${x} ${y})`)
+  }
+
+  function drawDragged() {
+    const {x, y} = dragged.current
+    dragged.current = {x: 0, y: 0, drawnAt: performance.now()}
+    if (x !== 0 || y !== 0) setCamera(it => it && pan(it, x, y))
+  }
+
+  // Once drawn again, whatever was dragged since is still shown moved along
+  useLayoutEffect(showDragged, [camera])
 
   function position(event: ReactPointerEvent): Point {
     const bounds = svg.current!.getBoundingClientRect()
@@ -176,6 +228,7 @@ export default function Constellation({data}: {data: Network}) {
       const middleBefore = {x: (before.x + other.x) / 2, y: (before.y + other.y) / 2}
       const middle = {x: (at.x + other.x) / 2, y: (at.y + other.y) / 2}
       gesture.current.moved = true
+      drawDragged()
       setCamera(it => it && pan(zoomAt(it, size, distance / distanceBefore, middle), middle.x - middleBefore.x, middle.y - middleBefore.y))
       return
     }
@@ -185,11 +238,15 @@ export default function Constellation({data}: {data: Network}) {
       gesture.current.moved = true
       svg.current!.setPointerCapture(event.pointerId)
     }
-    setCamera(it => it && pan(it, at.x - before.x, at.y - before.y))
+    dragged.current.x += at.x - before.x
+    dragged.current.y += at.y - before.y
+    showDragged()
+    if (performance.now() - dragged.current.drawnAt > DRAW_WHILE_DRAGGING) drawDragged()
   }
 
   function up(event: ReactPointerEvent) {
     pointers.current.delete(event.pointerId)
+    drawDragged()
   }
 
   // Who is looked at: the person pointed at, otherwise who was selected
@@ -199,10 +256,11 @@ export default function Constellation({data}: {data: Network}) {
   const partners = useMemo(() => focus ? partnersOf(data.links, focus) : [], [data, focus])
   const close = new Set(focus ? [focus, ...partners.map(it => it.id)] : pair ?? [])
   const lit = (id: string) => close.size > 0 ? close.has(id) : (!onlyNew || inFresh.has(id)) && (!picked || !!byId.get(id)?.modes[picked])
-  const pairLink = pair && data.links.find(it => (it.a === pair[0] && it.b === pair[1]) || (it.a === pair[1] && it.b === pair[0]))
+  const pairLink = useMemo(() => pair && data.links.find(it => (it.a === pair[0] && it.b === pair[1]) || (it.a === pair[1] && it.b === pair[0])), [data, pair])
 
   const scale = camera ? starScale(camera.zoom) : 1
-  const screen = new Map(camera && size ? data.people.map(it => [it.user.osuId, toScreen(camera, size, points.get(it.user.osuId)!)]) : [])
+  // Nobody until the sky is laid out
+  const screen = new Map(camera && size ? data.people.filter(it => points.has(it.user.osuId)).map(it => [it.user.osuId, toScreen(camera, size, points.get(it.user.osuId)!)]) : [])
   // While playing, only who ranked something by then
   const shown = until === undefined ? data.people : data.people.filter(it => countOf(it) > 0)
   const sizes = new Map(shown.map(it => [it.user.osuId, radius(countOf(it), most) * scale]))
@@ -226,8 +284,8 @@ export default function Constellation({data}: {data: Network}) {
   const bridges = data.people.filter(it => shares(it).length > 1).length
   const found = findStars(data.people, search)
   const person = selected ? byId.get(selected) : undefined
-  const selectedPartners = selected ? partnersOf(data.links, selected) : []
-  const mostTogether = Math.max(1, ...selectedPartners.map(it => it.link.count))
+  const selectedPartners = useMemo(() => selected ? partnersOf(data.links, selected) : [], [data, selected])
+  const mostTogether = largest(selectedPartners.map(it => it.link.count), 1)
   const searching = search.trim() !== ""
 
   const star = (it: Star) => {
@@ -303,6 +361,7 @@ export default function Constellation({data}: {data: Network}) {
           <svg ref={svg} width={size?.width} height={size?.height} role="group" aria-label="Nominators grouped by mode and connected by the beatmaps they ranked together"
                onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
             <rect className="sky-background" width="100%" height="100%" onClick={() => !gesture.current.moved && setSelection(undefined)}/>
+            <g ref={layer}>
             {lines.map(link => {
               const a = screen.get(link.a)!, b = screen.get(link.b)!
               const highlighted = lineLit(link)
@@ -313,6 +372,7 @@ export default function Constellation({data}: {data: Network}) {
             {visible.filter(it => !lit(it.user.osuId)).map(star)}
             {visible.filter(it => lit(it.user.osuId) && !always.has(it.user.osuId)).map(star)}
             {visible.filter(it => always.has(it.user.osuId)).map(star)}
+            </g>
           </svg>
           <div className="sky-controls" role="group" aria-label="Zoom">
             <button className="icon-button" aria-label="Zoom in" title="Zoom in" onClick={() => zoomButton(1.5)}><FaPlus/></button>

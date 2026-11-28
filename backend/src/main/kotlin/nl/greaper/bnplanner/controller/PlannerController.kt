@@ -2,13 +2,15 @@ package nl.greaper.bnplanner.controller
 
 import jakarta.annotation.security.RolesAllowed
 import nl.greaper.bnplanner.auth.RolePermission
+import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.PlannerUpdate
-import nl.greaper.bnplanner.model.RankedUpdate
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.service.LiveUpdates
 import nl.greaper.bnplanner.service.PlannerService
 import nl.greaper.bnplanner.service.RankedService
 import nl.greaper.bnplanner.service.UserService
+import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -39,11 +41,13 @@ class PlannerController(
     /** Everyone who nominated before in a gamemode they have no role in now, only asked for when someone looks for them */
     @GetMapping("/former")
     @RolesAllowed(RolePermission.VIEWER)
-    fun findFormerNominators(): List<User> = userService.findFormerNominators()
+    fun findFormerNominators(
+        @RequestParam(required = false) gamemode: Gamemode?,
+    ): List<User> = userService.findFormerNominators(gamemode)
 
     @GetMapping("/ranked")
     @RolesAllowed(RolePermission.VIEWER)
     fun findRanked(
         @RequestParam(required = false) since: String?,
-    ): RankedUpdate = rankedService.find(since)
+    ): ResponseEntity<ByteArray> = ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(rankedService.findJson(since))
 }

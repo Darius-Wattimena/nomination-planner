@@ -5,7 +5,7 @@ import MapView from "../beatmaps/MapView";
 import {GAMEMODE_NAMES} from "../Constants";
 import {useRanked} from "../resources/ranked";
 import Columns, {Table} from "../stats/Columns";
-import {combinations, debuts, network, nominatorsOf, rankedDate, summarize} from "../stats/stats";
+import {combinations, debuts, firstsOf, network, nominatorsOf, rankedDate, summarize} from "../stats/stats";
 import type {Unit} from "../stats/range";
 import {useScope} from "../stats/useScope";
 import {autoUnit, buckets, count, dailyAverage, parseRange, unitFor, UNITS} from "../stats/range";
@@ -67,16 +67,19 @@ export default function Statistics() {
   const combos = useMemo(() => combinations(scope), [scope])
   // Whether it is a debut depends on everything the mapper ever ranked
   const everyDebut = useMemo(() => debuts(maps ?? []), [maps])
-  const newMappers = useMemo(() => everyDebut.filter(it => scope.includes(it)), [everyDebut, scope])
+  const newMappers = useMemo(() => {
+    const shown = new Set(scope)
+    return everyDebut.filter(it => shown.has(it))
+  }, [everyDebut, scope])
 
-  const firsts = useMemo(() => new Set(everyDebut.map(it => it.osuId)), [everyDebut])
+  const firsts = useMemo(() => firstsOf(maps ?? []), [maps])
   const live = tab === "pipeline"
   const ranking = useMemo(() => tab === "leaderboards" ? boards(scores(scope, firsts, mode)) : undefined, [tab, scope, firsts, mode])
 
-  const summary = summarize(scope, firsts, mode)
-  const earlier = previousScope && summarize(previousScope, firsts, mode)
-  const hybrids = scope.filter(it => it.gamemodes.length > 1).length
-  const undated = ofMode.filter(it => !rankedDate(it)).length
+  const summary = useMemo(() => summarize(scope, firsts, mode), [scope, firsts, mode])
+  const earlier = useMemo(() => previousScope && summarize(previousScope, firsts, mode), [previousScope, firsts, mode])
+  const hybrids = useMemo(() => scope.filter(it => it.gamemodes.length > 1).length, [scope])
+  const undated = useMemo(() => ofMode.filter(it => !rankedDate(it)).length, [ofMode])
   const what = mode ? GAMEMODE_NAMES[mode] : "all modes"
 
   return (

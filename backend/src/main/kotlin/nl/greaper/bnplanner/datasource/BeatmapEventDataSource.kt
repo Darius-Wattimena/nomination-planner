@@ -25,6 +25,8 @@ class BeatmapEventDataSource(
 
     init {
         collection.createIndex(Indexes.compoundIndex(Indexes.ascending("beatmapId"), Indexes.descending("at")))
+        // For the weekly summary, which asks what reached a status lately among tens of thousands of events
+        collection.createIndex(Indexes.compoundIndex(Indexes.ascending("status"), Indexes.descending("at")))
     }
 
     override fun toDocument(value: BeatmapEvent): Document =

@@ -136,7 +136,7 @@ class PlannerServiceTest {
         val restarted = PlannerService(planner.beatmaps, planner.users, FeedTokens(planner.beatmaps, planner.users))
 
         assertTrue(restarted.find(token).isComplete)
-        listOf("", "other/1/1", "$run/1", "$run/x/1", "$run/1/x", "$run/1/1/1").forEach {
+        listOf("", "other/1/1", "$run/1", "$run/x/1", "$run/1/x", "$run/1/1/1/1").forEach {
             assertEquals(setOf("1"), service.find(it).beatmapIds(), it)
             assertTrue(service.find(it).isComplete, it)
         }

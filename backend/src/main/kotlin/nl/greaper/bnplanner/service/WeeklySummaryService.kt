@@ -144,7 +144,7 @@ class WeeklySummaryService(
         since: Instant,
     ): Int {
         val ids = events.findBeatmapsReaching(status, since)
-        return beatmaps.count { it.osuId in ids && hasMode(it, gamemode) }
+        return ids.count { id -> beatmaps.findById(id)?.let { hasMode(it, gamemode) } == true }
     }
 
     private fun link(beatmap: Beatmap) = "[${beatmap.artist} - ${beatmap.title}](https://osu.ppy.sh/beatmapsets/${beatmap.osuId})"

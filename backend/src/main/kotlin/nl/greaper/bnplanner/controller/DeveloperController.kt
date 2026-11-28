@@ -12,11 +12,13 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
+import java.io.InputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.time.LocalDate
 import java.time.ZoneOffset
 
@@ -51,8 +53,26 @@ class DeveloperController(
     @RolesAllowed(RolePermission.DEVELOPER)
     fun import(
         @RequestParam(required = false) dryRun: Boolean?,
-        @RequestBody file: ByteArray,
-    ): TransferService.ImportSummary = if (dryRun != false) transfer.check(file) else transfer.start(file)
+        body: InputStream,
+    ): TransferService.ImportSummary {
+        // Kept on disk instead of in memory, an export of the whole ranked history is tens of megabytes
+        val file = Files.createTempFile("import", ".json.gz")
+        try {
+            body.use { Files.copy(it, file, StandardCopyOption.REPLACE_EXISTING) }
+        } catch (ex: Exception) {
+            Files.deleteIfExists(file)
+            throw ex
+        }
+        if (dryRun == false) {
+            // Deleted once the import is done
+            return transfer.start(file)
+        }
+        try {
+            return transfer.check(file)
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
 
     @GetMapping("/import")
     @RolesAllowed(RolePermission.DEVELOPER)

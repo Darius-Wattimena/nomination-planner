@@ -42,9 +42,9 @@ class RankedServiceTest {
                 "1",
                 "Title 1",
                 "10",
-                UPDATED,
+                UPDATED.epochSecond,
                 listOf(RankedMode(Gamemode.osu, listOf("5", "6")), RankedMode(Gamemode.mania, listOf("5"))),
-                ADDED,
+                ADDED.epochSecond,
             ),
             update.beatmaps.single { it.id == "1" },
         )
@@ -73,5 +73,62 @@ class RankedServiceTest {
         assertEquals(setOf("2", "3", "4"), update.removed.toSet())
         assertEquals(mapOf("5" to "BN", "6" to "New"), update.names)
         assertTrue(service.find("unknown").isComplete)
+    }
+
+    @Test
+    fun `Should only send the names after a restart when no ranked beatmap changed`() {
+        planner.user("5", "BN", nominator(Gamemode.osu))
+        planner.save(beatmap("1", mode(Gamemode.osu, "5"), status = BeatmapStatus.Ranked))
+        val before = service.find(null)
+
+        // Another run of the backend, of which the versions start over
+        val restarted = RankedService(planner.beatmaps, planner.users, FeedTokens(planner.beatmaps, planner.users))
+        planner.save(beatmap("2", status = BeatmapStatus.Pending))
+        val update = restarted.find(before.token)
+        assertFalse(update.isComplete)
+        assertEquals(emptyList<Any>(), update.beatmaps + update.removed)
+        assertEquals("BN", update.names["5"])
+        assertEquals(true, restarted.find(update.token).beatmaps.isEmpty())
+
+        val again = RankedService(planner.beatmaps, planner.users, FeedTokens(planner.beatmaps, planner.users))
+        planner.save(beatmap("3", status = BeatmapStatus.Ranked))
+        val changed = again.find(update.token)
+        assertTrue(changed.isComplete)
+        assertEquals(setOf("1", "3"), changed.beatmaps.map { it.id }.toSet())
+    }
+
+    @Test
+    fun `Should put everything together once until a ranked beatmap changes`() {
+        var now = 0L
+        val kept =
+            RankedService(
+                planner.beatmaps,
+                planner.users,
+                FeedTokens(planner.beatmaps, planner.users),
+                rebuildEveryMillis = 1_000,
+                clock = { now },
+            )
+        planner.save(beatmap("1", status = BeatmapStatus.Ranked))
+        val first = kept.findJson(null)
+
+        planner.save(beatmap("3", status = BeatmapStatus.Ranked))
+        // Not again within a second, what changed comes with the next update
+        now = 500
+        assertTrue(first === kept.findJson(null))
+        now = 2_000
+        val second = kept.findJson(null)
+        assertEquals(
+            setOf("1", "3"),
+            kept
+                .find(null)
+                .beatmaps
+                .map { it.id }
+                .toSet(),
+        )
+
+        // Only ranked beatmaps matter
+        planner.save(beatmap("2", status = BeatmapStatus.Pending))
+        now = 10_000
+        assertTrue(second === kept.findJson(null))
     }
 }

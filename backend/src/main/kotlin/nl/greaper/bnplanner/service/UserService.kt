@@ -216,14 +216,25 @@ class UserService(
                     )
                 }
             }
-        dataSource.saveAll(changed)
+        // Only who is in a group now is shown by the planner, the thousands of others don't wake whoever waits for it
+        val (shown, others) = changed.partition { user -> user.gamemodes.any { it.role.canNominate } }
+        dataSource.saveAll(shown)
+        dataSource.saveAll(others, forPlanner = false)
         log.info { "Marked ${changed.size} users as former nominators of the gamemodes they nominated ranked beatmaps of" }
 
         return changed.size
     }
 
-    /** Everyone who nominated before in a gamemode they have no role in now */
-    fun findFormerNominators(): List<User> = dataSource.allUsers().filter { user -> user.gamemodes.any { it.role == Role.Former } }
+    /**
+     * Everyone who nominated before in a gamemode they have no role in now, by name
+     *
+     * @param gamemode only those who nominated this gamemode before, null for all of them, thousands after the ranked history
+     */
+    fun findFormerNominators(gamemode: Gamemode? = null): List<User> =
+        dataSource
+            .allUsers()
+            .filter { user -> user.gamemodes.any { it.role == Role.Former && (gamemode == null || it.gamemode == gamemode) } }
+            .sortedBy { it.username.lowercase() }
 
     /**
      * Follow someone joining or leaving a group on osu!, or changing their gamemodes in it, the same way a user sync sees it afterwards

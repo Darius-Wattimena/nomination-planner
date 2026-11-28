@@ -20,7 +20,10 @@ export function involvement(maps: Beatmap[]): Map<string, Involvement[]> {
       ids.delete(MISSING_USER_ID)
       for (const id of ids) {
         const part = partOf(map, id)
-        if (part) index.set(id, [...(index.get(id) ?? []), {map, part}])
+        if (!part) continue
+        const own = index.get(id)
+        if (own) own.push({map, part})
+        else index.set(id, [{map, part}])
       }
     }
     known.set(maps, index)

@@ -55,6 +55,9 @@ class FormerNominatorTest {
                 .sorted()
                 .filter { it != "20" },
         )
+        // By name
+        assertEquals(listOf("22", "21"), planner.userService.findFormerNominators(Gamemode.mania).map { it.osuId })
+        assertEquals(listOf("20"), planner.userService.findFormerNominators(Gamemode.taiko).map { it.osuId })
         assertEquals(0, planner.userService.markFormerNominators(beatmaps))
     }
 

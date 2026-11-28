@@ -646,18 +646,21 @@ class BeatmapService(
         val nominators = filter.nominators.orEmpty()
         val gamemodes = filter.gamemodes.orEmpty()
 
+        val statuses = filter.page.statuses
+
+        // Goes through every beatmap of the history, so the cheapest checks come first and nothing is made for each of them
         return { beatmap ->
-            beatmap.status in filter.page.statuses &&
-                listOf(beatmap.artist, beatmap.title, beatmap.mapper).any { it.contains(search, true) } &&
-                isEmptyOrAny(nominators, beatmap.gamemodes.flatMap { it.nominators }.map { it.nominatorId }) &&
-                isEmptyOrAny(gamemodes, beatmap.gamemodes.map { it.gamemode })
+            beatmap.status in statuses &&
+                (gamemodes.isEmpty() || beatmap.gamemodes.any { it.gamemode in gamemodes }) &&
+                (nominators.isEmpty() || beatmap.gamemodes.any { mode -> mode.nominators.any { it.nominatorId in nominators } }) &&
+                (
+                    search.isEmpty() ||
+                        beatmap.artist.contains(search, true) ||
+                        beatmap.title.contains(search, true) ||
+                        beatmap.mapper.contains(search, true)
+                )
         }
     }
-
-    private fun <T> isEmptyOrAny(
-        wanted: Set<T>,
-        found: List<T>,
-    ): Boolean = wanted.isEmpty() || found.any { it in wanted }
 
     fun updateBeatmapNote(
         login: OsuLogin,

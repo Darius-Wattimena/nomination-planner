@@ -91,9 +91,10 @@ const Api = {
     params: {since}
   }),
   // Everyone who nominated before in a mode they have no role in now
-  fetchFormerNominators: (): AxiosRequestConfig => ({
+  fetchFormerNominators: (gamemode?: Gamemode): AxiosRequestConfig => ({
     method: 'GET',
-    url: '/v2/planner/former'
+    url: '/v2/planner/former',
+    params: gamemode ? {gamemode} : undefined
   }),
   fetchSyncWaiting: (): AxiosRequestConfig => ({
     method: 'GET',

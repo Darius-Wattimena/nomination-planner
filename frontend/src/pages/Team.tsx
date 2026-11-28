@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useMemo, useState} from "react";
 import {Link, useSearchParams} from "react-router";
 import {FaArrowLeft, FaArrowUpRightFromSquare, FaMagnifyingGlass} from "react-icons/fa6";
 import {useOpenMap} from "../beatmaps/useOpenMap";
@@ -6,6 +6,7 @@ import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
 import {GAMEMODE_NAMES, ROLES} from "../Constants";
 import type {Gamemode, User, UserRole} from "../models/Types";
+import {peopleOf} from "../stats/stats";
 import Api from "../resources/Api";
 import {useQuery} from "../resources/client";
 import {usePlanner} from "../resources/planner";
@@ -28,6 +29,9 @@ import {ageInDays, LABELS, lookingForNominator} from "../utils/workflow";
 import type {Involvement} from "../utils/involvement";
 import {involvementOf} from "../utils/involvement";
 import {usePairings} from "../resources/pairings";
+
+/** Cards shown at once, more appear when asked for */
+const PAGE = 60
 
 const TEAM_ROLES: UserRole[] = ["NominationAssessment", "Nominator", "Probation", "Former"]
 const SHOWN_COVERS = 5
@@ -86,30 +90,35 @@ function Overview() {
 
   // Former nominators are only asked for when someone looks for them, there are many over the years
   const showFormer = role === "Former"
-  const {data: former} = useQuery<User[]>(showFormer ? Api.fetchFormerNominators() : undefined)
+  const {data: former} = useQuery<User[]>(showFormer ? Api.fetchFormerNominators(mode) : undefined)
   const people = showFormer ? former : nominators
-  const isShown = (user: User) => showFormer ? highestRole(user, mode) === "Former" : canNominateAs(highestRole(user, mode))
-  const members = (people ?? []).filter(isShown).map((user): Member => {
-    const all = involvementOf(maps, user.osuId)
-    return {
-      user,
-      inProgress: all.filter(it => it.part !== "qualified").sort((a, b) => ORDER.indexOf(a.part) - ORDER.indexOf(b.part) || ageInDays(b.map) - ageInDays(a.map)),
-      moves: all.filter(it => it.part === "move").length,
-      qualified: all.filter(it => it.part === "qualified").length,
-      together: rankedWith(user)
-    }
-  })
+  const members = useMemo(() => (people ?? [])
+    .filter(user => showFormer ? highestRole(user, mode) === "Former" : canNominateAs(highestRole(user, mode)))
+    .map((user): Member => {
+      const all = involvementOf(maps, user.osuId)
+      return {
+        user,
+        inProgress: all.filter(it => it.part !== "qualified").sort((a, b) => ORDER.indexOf(a.part) - ORDER.indexOf(b.part) || ageInDays(b.map) - ageInDays(a.map)),
+        moves: all.filter(it => it.part === "move").length,
+        qualified: all.filter(it => it.part === "qualified").length,
+        together: rankedWith(user)
+      }
+    }), [people, showFormer, mode, maps, rankedWith])
   // Being free is relative, what is much for one team is little for another
   const loads = members.map(it => it.inProgress.length).sort((a, b) => a - b)
   const usual = loads[Math.floor(loads.length / 2)] ?? 0
   const isFree = (it: Member) => it.inProgress.length === 0 || it.inProgress.length < usual
 
-  const shown = members
+  const shown = useMemo(() => members
     .filter(it => !role || highestRole(it.user, mode) === role)
     .filter(it => it.user.username.toLowerCase().includes(text.trim().toLowerCase()))
     .sort((a, b) => sorting === "free" ? a.inProgress.length - b.inProgress.length || b.together - a.together
       : sorting === "together" ? b.together - a.together || a.inProgress.length - b.inProgress.length
-      : a.user.username.localeCompare(b.user.username))
+      : a.user.username.localeCompare(b.user.username)), [members, role, mode, text, sorting])
+  // Former nominators are thousands over the years, so only a page of cards at a time, starting over when the list changes
+  const listed = `${role}/${mode}/${text}/${sorting}`
+  const [limit, setLimit] = useState({listed, count: PAGE})
+  const count = limit.listed === listed ? limit.count : PAGE
 
   const help = lookingForNominator(maps, mode)
 
@@ -142,8 +151,11 @@ function Overview() {
           {loading && <Loading/>}
           {!loading && members.length > 0 && shown.length === 0 && <p className="muted team-none">Nobody matches.</p>}
           <ul className="members">
-            {shown.map(it => <MemberCard key={it.user.osuId} member={it} mode={mode} free={isFree(it)} self={it.user.osuId === self?.osuId} onOpen={open}/>)}
+            {shown.slice(0, count).map(it => <MemberCard key={it.user.osuId} member={it} mode={mode} free={isFree(it)} self={it.user.osuId === self?.osuId} onOpen={open}/>)}
           </ul>
+          {shown.length > count &&
+            <button className="button team-more" onClick={() => setLimit({listed, count: count + PAGE})}>Show more ({shown.length - count} left)</button>
+          }
           {shown.some(it => it.inProgress.length > 0) &&
             <p className="legend muted">{ORDER.filter(it => it !== "qualified").map(it => <span key={it} className="legend-item"><span className="covers-key" data-state={it}/>{STATE[it]}</span>)}</p>
           }
@@ -224,7 +236,7 @@ function Profile({id}: {id: string}) {
   const isSelf = id === self?.osuId
   const known = maps.flatMap(it => [...it.gamemodes.flatMap(mode => mode.nominators).map(slot => slot.nominator), it.mapper]).find(it => it.osuId === id)
   // Somebody who is no longer on the planner can still be among those who ranked something
-  const before = ranked?.flatMap(it => [it.mapper, ...it.gamemodes.flatMap(mode => mode.nominators).map(slot => slot.nominator)]).find(it => it.osuId === id && it.username !== "Unknown")
+  const before = ranked && peopleOf(ranked).get(id)
   const user = isSelf ? self : known ?? nominators.find(it => it.osuId === id) ?? before
   const name = user ? displayName(user) : `User ${id}`
   useTitle(name)

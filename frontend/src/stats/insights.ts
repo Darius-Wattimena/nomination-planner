@@ -3,7 +3,7 @@ import type {Beatmap, Gamemode, User} from "../models/Types";
 import {displayName} from "../utils/users";
 import {toDate} from "../utils/workflow";
 import type {Column} from "./stats";
-import {debuts, inLastYear, median, nominatorsOf, perMonth, rankedDate, topBy} from "./stats";
+import {firstsOf, inLastYear, median, nominatedIndex, nominatorsOf, perMonth, rankedDate, topBy} from "./stats";
 
 /** Personal numbers for the profile, all over the last 12 months like the rest of the statistics */
 
@@ -22,10 +22,8 @@ export function lastYearStart(now = new Date()) {
 }
 
 /** Ranked beatmaps somebody nominated, the latest first */
-export function nominatedBy(maps: Beatmap[], id: string) {
-  return maps
-    .filter(map => rankedDate(map) && nominatorsOf(map).some(it => it.osuId === id))
-    .sort((a, b) => rankedDate(b)!.getTime() - rankedDate(a)!.getTime())
+export function nominatedBy(maps: Beatmap[], id: string): Beatmap[] {
+  return nominatedIndex(maps).get(id) ?? []
 }
 
 export function lastYear(maps: Beatmap[], now = new Date()) {
@@ -195,13 +193,18 @@ export function monthly(maps: Beatmap[], id: string, now = new Date()): Column[]
   return perMonth(nominatedBy(maps, id), month(now) - 11, month(now))
 }
 
+const known = new WeakMap<Beatmap[], User[]>()
+
 /** Everyone who nominated something ranked, by name */
 export function knownNominators(maps: Beatmap[]): User[] {
+  if (known.has(maps)) return known.get(maps)!
   const people = new Map<string, User>()
   maps.forEach(map => nominatorsOf(map).forEach(it => {
     if (it.username !== "Unknown") people.set(it.osuId, it)
   }))
-  return Array.from(people.values()).sort((a, b) => a.username.localeCompare(b.username))
+  const sorted = Array.from(people.values()).sort((a, b) => a.username.localeCompare(b.username))
+  known.set(maps, sorted)
+  return sorted
 }
 
 // Sentences
@@ -282,7 +285,7 @@ export function insights(maps: Beatmap[], id: string, voice: Voice, now = new Da
     })
   }
 
-  const firsts = new Set(debuts(maps).map(it => it.osuId))
+  const firsts = firstsOf(maps)
   const helped = mappersHelped(own, firsts)
   const debutText = helped.debuts > 0 ? `, ${helped.debuts} of them to their first ranked beatmap` : ""
   const topMapper = helped.top ? ` Most often ${displayName(helped.top.user)}, ${plural(helped.top.count, "time")}.` : ""

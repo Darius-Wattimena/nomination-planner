@@ -6,6 +6,7 @@ import ModeIcon from "../ui/ModeIcon";
 import {Avatar} from "../ui/Person";
 import type {Summary} from "./stats";
 import {inYear, network, nominatorsOf, rankedDate, summarize} from "./stats";
+import {largest} from "./sky";
 import Delta from "./Delta";
 import {buckets, count, resolve} from "./range";
 import {displayName} from "../utils/users";
@@ -88,8 +89,19 @@ interface YearTableProps {
 
 /** All years below each other, to compare them */
 export function YearTable({maps, firsts, years, mode, onPick}: YearTableProps) {
-  const rows = years.map(year => ({year, own: maps.filter(it => inYear(it, year))})).map(it => ({...it, summary: summarize(it.own, firsts, mode)}))
-  const most = Math.max(...rows.map(it => it.summary.ranked), 1)
+  // Each beatmap goes to its year once, instead of going through all of them for every year
+  const rows = useMemo(() => {
+    const byYear = new Map<number, Beatmap[]>(years.map(year => [year, []]))
+    maps.forEach(it => years.forEach(year => {
+      if (inYear(it, year)) byYear.get(year)!.push(it)
+    }))
+    return years.map(year => {
+      const own = byYear.get(year)!
+      const perMode = new Map(GAMEMODES.map(mode => [mode, own.filter(map => map.gamemodes.some(it => it.gamemode === mode)).length]))
+      return {year, own, perMode, summary: summarize(own, firsts, mode)}
+    })
+  }, [maps, years, firsts, mode])
+  const most = largest(rows.map(it => it.summary.ranked), 1)
   const current = new Date().getFullYear()
 
   return (
@@ -106,14 +118,14 @@ export function YearTable({maps, firsts, years, mode, onPick}: YearTableProps) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(({year, own, summary}) => (
+            {rows.map(({year, perMode, summary}) => (
               <tr key={year} onClick={() => onPick(year)}>
                 <th scope="row"><button className="link" onClick={event => {
                   event.stopPropagation()
                   onPick(year)
                 }}>{year}</button>{year === current && <span className="muted"> so far</span>}</th>
                 <td className="year-bar"><span className="year-value">{summary.ranked}</span><span className="bars-track"><span style={{width: `${summary.ranked / most * 100}%`}}/></span></td>
-                {!mode && GAMEMODES.map(it => <td key={it}>{own.filter(map => map.gamemodes.some(own => own.gamemode === it)).length}</td>)}
+                {!mode && GAMEMODES.map(it => <td key={it}>{perMode.get(it)}</td>)}
                 <td>{summary.hybrids}</td><td>{summary.mappers}</td><td>{summary.firsts}</td><td>{summary.nominators}</td>
               </tr>
             ))}

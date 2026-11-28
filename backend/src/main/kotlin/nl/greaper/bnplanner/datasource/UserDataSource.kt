@@ -53,9 +53,13 @@ class UserDataSource(
 
     fun findUser(osuId: String): User? = users[osuId]
 
-    fun addInMemoryUser(user: User) {
+    /** @param forPlanner false for someone the planner doesn't show, which doesn't wake those waiting for it */
+    fun addInMemoryUser(
+        user: User,
+        forPlanner: Boolean = true,
+    ) {
         users[user.osuId] = user
-        changes.mark(user.osuId)
+        changes.mark(user.osuId, forPlanner)
     }
 
     /** Only for tests, which start over with nobody known */
@@ -69,10 +73,16 @@ class UserDataSource(
 
     /** Saves many at once, like after an import */
     @Synchronized
-    fun saveAll(users: Collection<User>) {
+    fun saveAll(
+        users: Collection<User>,
+        forPlanner: Boolean = true,
+    ) {
+        if (users.isEmpty()) {
+            return
+        }
         users.chunked(BeatmapDataSource.BATCH_SIZE).forEach { batch ->
             collection.bulkWrite(batch.map { ReplaceOneModel(Filters.eq("_id", it.osuId), toDocument(it), ReplaceOptions().upsert(true)) })
-            batch.forEach { addInMemoryUser(it) }
+            batch.forEach { addInMemoryUser(it, forPlanner) }
         }
     }
 
@@ -82,12 +92,15 @@ class UserDataSource(
      * @return the users that were added
      */
     @Synchronized
-    fun saveAllMissing(users: Collection<User>): List<User> {
+    fun saveAllMissing(
+        users: Collection<User>,
+        forPlanner: Boolean = true,
+    ): List<User> {
         val missing = users.distinctBy { it.osuId }.filter { this.users[it.osuId] == null }
 
         missing.chunked(BeatmapDataSource.BATCH_SIZE).forEach { batch ->
             collection.bulkWrite(batch.map { ReplaceOneModel(Filters.eq("_id", it.osuId), toDocument(it), ReplaceOptions().upsert(true)) })
-            batch.forEach { addInMemoryUser(it) }
+            batch.forEach { addInMemoryUser(it, forPlanner) }
         }
 
         return missing

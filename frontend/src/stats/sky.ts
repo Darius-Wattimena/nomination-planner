@@ -58,58 +58,117 @@ export function mainMode(star: Star) {
  * People are drawn to their modes, so who nominates several ends up in between, and to those they ranked with.
  * The more people, the bigger the sky. Always gives the same result.
  */
+/** The largest, without spreading them as arguments, which fails for tens of thousands */
+export function largest(values: number[], least = -Infinity): number {
+  let most = least
+  for (const value of values) if (value > most) most = value
+  return most
+}
+
+/** Stars further apart than this hardly push each other */
+const REACH = 400
+/** Squares of the sky, larger than the room two of the largest stars need, so whoever is closer is in a neighbouring one */
+const CLOSE = 80
+const keyOf = (column: number, row: number) => (column + 50_000) * 100_000 + row + 50_000
+const squareOf = (x: number, y: number) => keyOf(Math.floor(x / CLOSE), Math.floor(y / CLOSE))
+
 export function layout({people, links}: Network): Map<string, Point> {
-  const most = Math.max(1, ...people.map(it => it.count))
-  const strongest = Math.max(1, ...links.map(it => it.count))
+  const count = people.length
+  const most = largest(people.map(it => it.count), 1)
+  const strongest = largest(links.map(it => it.count), 1)
   const index = new Map(people.map((it, position) => [it.user.osuId, position]))
-  const spread = Math.max(1, Math.sqrt(people.length / 48))
+  const spread = Math.max(1, Math.sqrt(count / 48))
   const homes = people.map(it => shares(it).reduce((sum, {mode, part}) =>
     ({x: sum.x + HOME[mode].x * spread * part, y: sum.y + HOME[mode].y * spread * part}), {x: 0, y: 0}))
+  // Numbers in arrays rather than objects, as a big sky goes through them millions of times
+  const xs = new Float64Array(count), ys = new Float64Array(count)
+  const fx = new Float64Array(count), fy = new Float64Array(count)
   // Start around home on a sunflower, with the most active closest to it
-  const points = people.map((_, position) => {
+  homes.forEach((home, position) => {
     const distance = 14 * Math.sqrt(position + .5), angle = position * 2.39996
-    return {x: homes[position].x + distance * Math.cos(angle), y: homes[position].y + distance * Math.sin(angle)}
+    xs[position] = home.x + distance * Math.cos(angle)
+    ys[position] = home.y + distance * Math.sin(angle)
   })
-  const sizes = people.map(it => radius(it.count, most))
+  const sizes = Float64Array.from(people, it => radius(it.count, most))
+  const linkA = Int32Array.from(links, it => index.get(it.a)!), linkB = Int32Array.from(links, it => index.get(it.b)!)
+  const linkPull = Float64Array.from(links, it => .02 * Math.sqrt(it.count / strongest))
   // Fewer rounds for a big sky, so it still appears at once
-  const rounds = people.length > 150 ? 180 : 320
+  const rounds = count > 150 ? 180 : 320
 
   for (let round = 0; round < rounds; round++) {
     const heat = 14 * (1 - round / rounds) + .2
-    const forces = points.map((point, position) => ({x: (homes[position].x - point.x) * .06, y: (homes[position].y - point.y) * .06}))
-    for (let a = 0; a < points.length; a++) {
-      for (let b = a + 1; b < points.length; b++) {
-        const dx = points[a].x - points[b].x, dy = points[a].y - points[b].y
-        // Far away stars hardly push each other
-        if (dx > 400 || dx < -400 || dy > 400 || dy < -400) continue
-        const distance = Math.max(1, Math.hypot(dx, dy))
-        const room = sizes[a] + sizes[b] + 34
-        const push = 1500 / (distance * distance) + (distance < room ? (room - distance) * .4 : 0)
-        forces[a].x += dx / distance * push
-        forces[a].y += dy / distance * push
-        forces[b].x -= dx / distance * push
-        forces[b].y -= dy / distance * push
+    for (let a = 0; a < count; a++) {
+      fx[a] = (homes[a].x - xs[a]) * .06
+      fy[a] = (homes[a].y - ys[a]) * .06
+    }
+
+    // Stars close by push each other one by one, those further away together by the square they are in. Exactly would mean
+    // every pair of a big sky, which takes seconds for the whole history.
+    const squares = new Map<number, number[]>()
+    for (let a = 0; a < count; a++) {
+      const key = squareOf(xs[a], ys[a])
+      const square = squares.get(key)
+      if (square) square.push(a)
+      else squares.set(key, [a])
+    }
+    const centres = Array.from(squares.values(), members => {
+      let x = 0, y = 0
+      for (const it of members) {
+        x += xs[it]
+        y += ys[it]
+      }
+      return {column: Math.floor(xs[members[0]] / CLOSE), row: Math.floor(ys[members[0]] / CLOSE), x: x / members.length, y: y / members.length, count: members.length}
+    })
+
+    for (let a = 0; a < count; a++) {
+      const column = Math.floor(xs[a] / CLOSE), row = Math.floor(ys[a] / CLOSE)
+      for (let x = column - 1; x <= column + 1; x++) {
+        for (let y = row - 1; y <= row + 1; y++) {
+          const members = squares.get(keyOf(x, y))
+          if (!members) continue
+          for (const b of members) {
+            if (b <= a) continue
+            const dx = xs[a] - xs[b], dy = ys[a] - ys[b]
+            const distance = Math.max(1, Math.sqrt(dx * dx + dy * dy))
+            const room = sizes[a] + sizes[b] + 34
+            const push = (1500 / (distance * distance) + (distance < room ? (room - distance) * .4 : 0)) / distance
+            fx[a] += dx * push
+            fy[a] += dy * push
+            fx[b] -= dx * push
+            fy[b] -= dy * push
+          }
+        }
+      }
+      for (const centre of centres) {
+        const dx = xs[a] - centre.x, dy = ys[a] - centre.y
+        const near = Math.abs(centre.column - column) <= 1 && Math.abs(centre.row - row) <= 1
+        if (near || dx > REACH || dx < -REACH || dy > REACH || dy < -REACH) continue
+        const distance = Math.max(1, Math.sqrt(dx * dx + dy * dy))
+        const push = 1500 * centre.count / (distance * distance * distance)
+        fx[a] += dx * push
+        fy[a] += dy * push
       }
     }
-    links.forEach(link => {
-      const a = index.get(link.a)!, b = index.get(link.b)!
-      const dx = points[b].x - points[a].x, dy = points[b].y - points[a].y
-      const distance = Math.max(1, Math.hypot(dx, dy))
-      const pull = (distance - 80) * .02 * Math.sqrt(link.count / strongest)
-      forces[a].x += dx / distance * pull
-      forces[a].y += dy / distance * pull
-      forces[b].x -= dx / distance * pull
-      forces[b].y -= dy / distance * pull
-    })
-    points.forEach((point, position) => {
-      const force = Math.max(.01, Math.hypot(forces[position].x, forces[position].y))
+
+    for (let link = 0; link < linkA.length; link++) {
+      const a = linkA[link], b = linkB[link]
+      const dx = xs[b] - xs[a], dy = ys[b] - ys[a]
+      const distance = Math.max(1, Math.sqrt(dx * dx + dy * dy))
+      const pull = (distance - 80) * linkPull[link] / distance
+      fx[a] += dx * pull
+      fy[a] += dy * pull
+      fx[b] -= dx * pull
+      fy[b] -= dy * pull
+    }
+    for (let a = 0; a < count; a++) {
+      const force = Math.max(.01, Math.sqrt(fx[a] * fx[a] + fy[a] * fy[a]))
       const step = Math.min(force, heat)
-      point.x += forces[position].x / force * step
-      point.y += forces[position].y / force * step
-    })
+      xs[a] += fx[a] / force * step
+      ys[a] += fy[a] / force * step
+    }
   }
 
-  return new Map(people.map((it, position) => [it.user.osuId, points[position]]))
+  return new Map(people.map((it, position) => [it.user.osuId, {x: xs[position], y: ys[position]}]))
 }
 
 export const clampZoom = (zoom: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom))
@@ -126,7 +185,7 @@ export function toSky(camera: Camera, size: Size, point: Point): Point {
 export function fit(points: Point[], size: Size, most = 1.4): Camera {
   if (points.length === 0) return {x: 0, y: 0, zoom: 1}
   const xs = points.map(it => it.x), ys = points.map(it => it.y)
-  const left = Math.min(...xs), right = Math.max(...xs), top = Math.min(...ys), bottom = Math.max(...ys)
+  const left = -largest(xs.map(it => -it)), right = largest(xs), top = -largest(ys.map(it => -it)), bottom = largest(ys)
   // Room for names at the edges, less on a small screen
   const width = size.width - Math.min(120, size.width * .12), height = size.height - Math.min(90, size.height * .14)
   const zoom = Math.min(width / Math.max(1, right - left), height / Math.max(1, bottom - top), most)
@@ -159,33 +218,62 @@ interface Box {
 
 const overlaps = (a: Box, b: Box) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
 
+/** Boxes on the screen by the squares they cover, so checking one only looks at those nearby */
+class Boxes {
+  private readonly squares = new Map<string, Box[]>()
+
+  private keys(box: Box) {
+    const keys: string[] = []
+    for (let x = Math.floor(box.left / SQUARE); x <= Math.floor(box.right / SQUARE); x++)
+      for (let y = Math.floor(box.top / SQUARE); y <= Math.floor(box.bottom / SQUARE); y++) keys.push(`${x},${y}`)
+    return keys
+  }
+
+  add(box: Box) {
+    this.keys(box).forEach(key => {
+      const square = this.squares.get(key)
+      if (square) square.push(box)
+      else this.squares.set(key, [box])
+    })
+  }
+
+  overlaps(box: Box, except?: Box) {
+    return this.keys(box).some(key => this.squares.get(key)?.some(it => it !== except && overlaps(it, box)))
+  }
+}
+
+const SQUARE = 64
+
 /**
  * Names that fit without covering other names or stars, the most active first.
  * Zooming in makes room, so more names appear. The ones in `always` get theirs anyway.
  */
 export function placeNames(people: Star[], screen: Map<string, Point>, sizes: Map<string, number>, size: Size, always: Set<string> = new Set()): Set<string> {
   const visible = people.filter(it => screen.has(it.user.osuId) && isVisible(screen.get(it.user.osuId)!, size, 0))
-  const stars = visible.map(it => {
+  const stars = new Boxes()
+  const starBoxes = new Map(visible.map(it => {
     const point = screen.get(it.user.osuId)!, r = sizes.get(it.user.osuId)!
-    return {id: it.user.osuId, box: {left: point.x - r, right: point.x + r, top: point.y - r, bottom: point.y + r}}
-  })
+    const box = {left: point.x - r, right: point.x + r, top: point.y - r, bottom: point.y + r}
+    stars.add(box)
+    return [it.user.osuId, box]
+  }))
   const boxOf = (star: Star): Box => {
     const point = screen.get(star.user.osuId)!
     const half = displayName(star.user).length * 4.1 + 4, top = point.y + sizes.get(star.user.osuId)! + 3
     return {left: point.x - half, right: point.x + half, top, bottom: top + 17}
   }
 
-  const placed: Box[] = []
+  const placed = new Boxes()
   const named = new Set<string>()
   const first = [...visible.filter(it => always.has(it.user.osuId)), ...visible.filter(it => !always.has(it.user.osuId))]
   first.forEach(star => {
     const box = boxOf(star)
     const forced = always.has(star.user.osuId)
     const crossed = box.left < 0 || box.right > size.width || box.bottom > size.height
-      || placed.some(it => overlaps(it, box))
-      || stars.some(it => it.id !== star.user.osuId && overlaps(it.box, box))
+      || placed.overlaps(box)
+      || stars.overlaps(box, starBoxes.get(star.user.osuId))
     if (crossed && !forced) return
-    placed.push(box)
+    placed.add(box)
     named.add(star.user.osuId)
   })
   return named

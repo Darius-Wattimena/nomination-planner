@@ -27,8 +27,29 @@ function monthColumn(index: number): Column {
   }
 }
 
+const dates = new WeakMap<Beatmap, {value: Beatmap["dateRanked"], date: Date | undefined}>()
+
+/** Asked for many times for each of tens of thousands of beatmaps, so worked out once for each */
 export function rankedDate(map: Beatmap) {
-  return toDate(map.dateRanked)
+  const known = dates.get(map)
+  if (known && known.value === map.dateRanked) return known.date
+  const date = toDate(map.dateRanked)
+  dates.set(map, {value: map.dateRanked, date})
+  return date
+}
+
+/**
+ * Worked out once for each list of beatmaps, as several parts of a page ask for the same of every ranked beatmap.
+ * A list that changes is a new list, so what was worked out for the old one is forgotten with it.
+ */
+function once<T>(work: (maps: Beatmap[]) => T): (maps: Beatmap[]) => T {
+  const known = new WeakMap<Beatmap[], T>()
+  return maps => {
+    if (known.has(maps)) return known.get(maps)!
+    const result = work(maps)
+    known.set(maps, result)
+    return result
+  }
 }
 
 export function inLastYear(map: Beatmap, now = new Date()) {
@@ -52,8 +73,18 @@ export function nominatorsOf(map: Beatmap, mode?: Gamemode): User[] {
     .flatMap(it => it.nominators)
     .map(it => it.nominator)
     .filter(it => !isMissing(it))
-  return users.filter((user, index) => users.findIndex(it => it.osuId === user.osuId) === index)
+  const seen = new Set<string>()
+  return users.filter(user => !seen.has(user.osuId) && !!seen.add(user.osuId))
 }
+
+/** Everyone a beatmap mentions with a name, as a mapper or a nominator, by id */
+export const peopleOf = once(maps => {
+  const people = new Map<string, User>()
+  maps.forEach(map => [map.mapper, ...map.gamemodes.flatMap(mode => mode.nominators.map(it => it.nominator))].forEach(it => {
+    if (!isMissing(it) && it.username !== "Unknown") people.set(it.osuId, it)
+  }))
+  return people
+})
 
 type ModeCounts = Partial<Record<Gamemode, number>>
 
@@ -128,14 +159,32 @@ export function combinations(maps: Beatmap[]) {
 }
 
 /** The first ranked beatmap of every mapper, the latest debut first */
-export function debuts(maps: Beatmap[]) {
+export const debuts = once(maps => {
   const first = new Map<string, Beatmap>()
   maps.filter(rankedDate).forEach(map => {
     const known = first.get(map.mapper.osuId)
     if (!known || rankedDate(map)! < rankedDate(known)!) first.set(map.mapper.osuId, map)
   })
   return Array.from(first.values()).sort((a, b) => rankedDate(b)!.getTime() - rankedDate(a)!.getTime())
-}
+})
+
+/** The beatmaps that were the first ranked one of their mapper */
+export const firstsOf = once(maps => new Set(debuts(maps).map(it => it.osuId)))
+
+/** Every nominator with what they nominated that was ranked, the newest first */
+export const nominatedIndex = once(maps => {
+  const index = new Map<string, Beatmap[]>()
+  maps.forEach(map => {
+    if (!rankedDate(map)) return
+    nominatorsOf(map).forEach(user => {
+      const own = index.get(user.osuId)
+      if (own) own.push(map)
+      else index.set(user.osuId, [map])
+    })
+  })
+  index.forEach(own => own.sort((a, b) => rankedDate(b)!.getTime() - rankedDate(a)!.getTime()))
+  return index
+})
 
 export function topBy<T>(items: T[], keyOf: (item: T) => string) {
   const counts = new Map<string, {item: T, count: number}>()

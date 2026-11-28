@@ -72,7 +72,8 @@ export function lorenz(counts: number[], points = 20): {x: number, y: number}[] 
   const total = counts.reduce((sum, it) => sum + it, 0)
   if (total === 0) return []
   const ascending = [...counts].sort((a, b) => a - b)
-  const cumulative = ascending.reduce((all, it) => [...all, all[all.length - 1] + it], [0])
+  const cumulative = [0]
+  ascending.forEach(it => cumulative.push(cumulative[cumulative.length - 1] + it))
   const steps = Math.min(points, ascending.length)
   return Array.from({length: steps + 1}, (_, index) => {
     const people = Math.round(index / steps * ascending.length)

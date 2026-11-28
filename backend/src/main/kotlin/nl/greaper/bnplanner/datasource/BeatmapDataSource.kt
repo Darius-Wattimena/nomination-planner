@@ -88,7 +88,31 @@ class BeatmapDataSource(
             }
         }
 
+        loads++
         log.info { "Loaded ${beatmaps.size} beatmaps (old collection = $usesOld)" }
+    }
+
+    /** Every beatmap in the order the planner shows them, kept until one changes, as sorting all of the history takes a while */
+    private class Sorted(
+        val loads: Int,
+        val version: Long,
+        val beatmaps: List<Beatmap>,
+    )
+
+    @Volatile
+    private var loads = 0
+
+    @Volatile
+    private var sorted: Sorted? = null
+
+    private fun findSorted(): List<Beatmap> {
+        // Read first, what changes while sorting makes the next one sort again
+        val version = changes.version
+        val current = sorted
+        if (current != null && current.version == version && current.loads == loads) {
+            return current.beatmaps
+        }
+        return Sorted(loads, version, beatmaps.values.sortedWith(ORDER)).also { sorted = it }.beatmaps
     }
 
     /** Only for tests, the planner always wants some of them */
@@ -98,13 +122,20 @@ class BeatmapDataSource(
 
     fun count(filter: (Beatmap) -> Boolean): Int = beatmaps.values.count(filter)
 
-    fun findAll(filter: (Beatmap) -> Boolean): List<Beatmap> = beatmaps.values.filter(filter).sortedWith(ORDER)
+    fun findAll(filter: (Beatmap) -> Boolean): List<Beatmap> = findSorted().filter(filter)
 
+    /** Stops once the page is full, so the first pages don't go through everything */
     fun findAll(
         filter: (Beatmap) -> Boolean,
         from: Int,
         to: Int,
-    ): List<Beatmap> = findAll(filter).drop(maxOf(0, from)).take(maxOf(0, to - from))
+    ): List<Beatmap> =
+        findSorted()
+            .asSequence()
+            .filter(filter)
+            .drop(maxOf(0, from))
+            .take(maxOf(0, to - from))
+            .toList()
 
     fun findAll(
         filter: (Beatmap) -> Boolean,
