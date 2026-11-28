@@ -8,6 +8,7 @@ import nl.greaper.bnplanner.datasource.BeatmapEventDataSource
 import nl.greaper.bnplanner.datasource.HistoryImportDataSource
 import nl.greaper.bnplanner.datasource.UserDataSource
 import nl.greaper.bnplanner.model.Gamemode
+import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.beatmap.Beatmap
 import nl.greaper.bnplanner.model.beatmap.BeatmapEvent
@@ -22,6 +23,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -83,6 +85,9 @@ class HistoryImportService(
 
     @Volatile
     private var stopping = false
+
+    /** The nominators osu! was asked about since the start of the backend */
+    private val lookedUp = ConcurrentHashMap.newKeySet<String>()
 
     /** Pages of one search of osu!, which stops after 10,000 results. Only tests change it. */
     internal var pagesPerSearch = 150
@@ -283,7 +288,10 @@ class HistoryImportService(
         names: Map<String, String>,
     ) {
         val known = users.findUser(userId)
-        if (known != null && known.restricted != true) {
+        // Someone in a group or marked as former is known well enough. Anybody else may only have been seen as a mapper so far, with
+        // the name of the search and no roles, or be restricted. Each of those is asked about once, not for every beatmap.
+        val wellKnown = known != null && known.restricted != true && known.gamemodes.any { it.role.canNominate || it.role == Role.Former }
+        if (wellKnown || !lookedUp.add(userId)) {
             return
         }
 
@@ -321,6 +329,7 @@ class HistoryImportService(
         }
 
         log.info { "Worked out the gamemodes of the nominators of ${guesses.size} ranked beatmaps, $changed changed" }
+        userService.markFormerNominators(beatmaps.findAll { it.status == BeatmapStatus.Ranked })
         status = status.copy(guessed = guesses.size)
     }
 

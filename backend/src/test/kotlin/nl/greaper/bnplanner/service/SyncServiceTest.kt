@@ -100,11 +100,11 @@ class SyncServiceTest {
     }
 
     @Test
-    fun `Should remove the gamemodes of a restricted user during a forced sync`() {
+    fun `Should keep only that a restricted user nominated before during a forced sync`() {
         planner.user("10", "BN", Planner.nominator(Gamemode.osu))
         syncUsers(setOf("10"), force = true)
 
-        assertEquals(listOf(User("10", "RESTRICTED", emptyList(), true)), planner.users.list())
+        assertEquals(listOf(User("10", "RESTRICTED", listOf(UserGamemode(Gamemode.osu, Role.Former)), true)), planner.users.list())
         assertEquals(emptyList<Any>(), planner.discord.sent)
     }
 

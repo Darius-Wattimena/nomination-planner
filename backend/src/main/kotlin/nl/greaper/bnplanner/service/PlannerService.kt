@@ -6,7 +6,6 @@ import nl.greaper.bnplanner.model.PlannerBeatmap
 import nl.greaper.bnplanner.model.PlannerMode
 import nl.greaper.bnplanner.model.PlannerNominator
 import nl.greaper.bnplanner.model.PlannerUpdate
-import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.beatmap.Beatmap
 import nl.greaper.bnplanner.model.beatmap.BeatmapGamemode
@@ -55,7 +54,7 @@ class PlannerService(
         )
     }
 
-    private fun User.canNominate(): Boolean = gamemodes.any { it.role != Role.Mapper }
+    private fun User.canNominate(): Boolean = gamemodes.any { it.role.canNominate }
 
     private fun findUserIds(beatmaps: List<Beatmap>): Set<String> =
         beatmaps

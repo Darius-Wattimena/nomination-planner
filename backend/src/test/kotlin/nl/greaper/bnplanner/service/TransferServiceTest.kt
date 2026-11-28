@@ -2,10 +2,12 @@ package nl.greaper.bnplanner.service
 
 import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.NominationGroup
+import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.RoleChange
 import nl.greaper.bnplanner.model.RoleChangeKind
 import nl.greaper.bnplanner.model.RoleChangeSource
 import nl.greaper.bnplanner.model.User
+import nl.greaper.bnplanner.model.UserGamemode
 import nl.greaper.bnplanner.model.beatmap.BeatmapEvent
 import nl.greaper.bnplanner.model.beatmap.BeatmapEventType
 import nl.greaper.bnplanner.model.beatmap.BeatmapNominator
@@ -87,6 +89,8 @@ class TransferServiceTest {
         assertEquals(1, planner.events.findNewest("1", 10).size)
         // Who the planner knows stays as they are
         assertEquals("Known 20", planner.users.findUser("20")!!.username)
+        // Known already, but now a former nominator of what the new beatmaps show they nominated
+        assertEquals(listOf(UserGamemode(Gamemode.osu, Role.Former)), planner.users.findUser("20")!!.gamemodes)
         assertEquals("User 22", planner.users.findUser("22")!!.username)
         assertEquals(listOf(role), planner.roleHistory.findAll())
         assertEquals(false, service.findStatus().running)

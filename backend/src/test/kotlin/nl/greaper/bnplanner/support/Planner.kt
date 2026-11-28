@@ -57,7 +57,7 @@ class Planner(
     val profileService = ProfileService(beatmapService, userService)
     val roleHistories = RoleHistoryDataSource(TestMongo.database)
     val roleHistory = RoleHistoryService(roleHistories, osuClient, jacksonMapperBuilder().build())
-    val transferService = TransferService(beatmaps, events, users, roleHistory, jacksonMapperBuilder().build())
+    val transferService = TransferService(beatmaps, events, users, userService, roleHistory, jacksonMapperBuilder().build())
     val historyProgress = HistoryImportDataSource(TestMongo.database)
 
     /** How long the import of the ranked history waited between calls to osu! */

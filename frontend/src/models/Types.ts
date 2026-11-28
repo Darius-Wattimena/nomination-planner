@@ -1,4 +1,5 @@
-export type UserRole = 'Mapper' | 'Nominator' | 'Probation' | 'NominationAssessment'
+/** Former: nominated before in that mode, without a role in it now. Like Mapper, it may only view. */
+export type UserRole = 'Mapper' | 'Former' | 'Nominator' | 'Probation' | 'NominationAssessment'
 export type PageLimit = 'TEN' | 'TWENTY' | 'FIFTY'
 export type BeatmapPage = 'RANKED' | 'GRAVEYARD'
 

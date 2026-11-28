@@ -30,6 +30,7 @@ class TransferService(
     private val beatmaps: BeatmapDataSource,
     private val events: BeatmapEventDataSource,
     private val users: UserDataSource,
+    private val userService: UserService,
     private val roleHistory: RoleHistoryService,
     private val objectMapper: ObjectMapper,
 ) {
@@ -139,6 +140,8 @@ class TransferService(
                 val addedIds = added.map { it.osuId }.toSet()
                 events.insertAll(export.events.filter { it.beatmapId in addedIds })
                 val roleChanges = roleHistory.saveAll(export.roleHistory)
+                // Also the users this planner knew already may have nominated some of the new beatmaps
+                userService.markFormerNominators(beatmaps.findAll { it.status == BeatmapStatus.Ranked })
                 log.info {
                     "Imported ${added.size} ranked beatmaps, ${addedUsers.size} users and $roleChanges role changes " +
                         "of the export of ${export.exportedAt}"

@@ -67,6 +67,15 @@ class UserDataSource(
         addInMemoryUser(user)
     }
 
+    /** Saves many at once, like after an import */
+    @Synchronized
+    fun saveAll(users: Collection<User>) {
+        users.chunked(BeatmapDataSource.BATCH_SIZE).forEach { batch ->
+            collection.bulkWrite(batch.map { ReplaceOneModel(Filters.eq("_id", it.osuId), toDocument(it), ReplaceOptions().upsert(true)) })
+            batch.forEach { addInMemoryUser(it) }
+        }
+    }
+
     /**
      * Saves the users that are not known yet, like of an import. Who is known stays as they are, the planner knows them better.
      *

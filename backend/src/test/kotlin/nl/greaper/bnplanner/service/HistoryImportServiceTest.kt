@@ -1,6 +1,8 @@
 package nl.greaper.bnplanner.service
 
 import nl.greaper.bnplanner.model.Gamemode
+import nl.greaper.bnplanner.model.Role
+import nl.greaper.bnplanner.model.UserGamemode
 import nl.greaper.bnplanner.model.beatmap.BeatmapGamemode
 import nl.greaper.bnplanner.model.beatmap.BeatmapNominator
 import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
@@ -34,12 +36,13 @@ class HistoryImportServiceTest {
         modes: List<String> = listOf("osu"),
         nominations: List<Pair<String, String?>> = emptyList(),
         main: String = "osu",
+        mapper: String = "10",
     ): String {
         val difficulties = modes.joinToString { """{"total_length":100,"user_id":10,"mode":"$it","version":"$it"}""" }
         val current =
             nominations.joinToString { (user, rulesets) -> """{"rulesets":${rulesets ?: "null"},"reset":false,"user_id":$user}""" }
         return """
-            {"id":$id,"artist":"Artist $id","title":"Title $id","creator":"Mapper","user_id":10,"ranked":$ranked,
+            {"id":$id,"artist":"Artist $id","title":"Title $id","creator":"Mapper $mapper","user_id":$mapper,"ranked":$ranked,
             "ranked_date":"2014-0${id.last()}-01T00:00:00Z","last_updated":"2014-01-01T00:00:00Z","beatmaps":[$difficulties],
             "current_nominations":[$current],"nominations_summary":{"eligible_main_rulesets":["$main"]}}
             """.trimIndent()
@@ -107,12 +110,35 @@ class HistoryImportServiceTest {
         // A restricted nominator gets the name of the staff log
         assertEquals("Zyid", planner.users.findUser("2778")!!.username)
         assertEquals(true, planner.users.findUser("2778")!!.restricted)
-        assertEquals("Mapper", planner.users.findUser("10")!!.username)
+        assertEquals("Mapper 10", planner.users.findUser("10")!!.username)
+        // Not in a group now, so former nominators of what they nominated
+        assertEquals(listOf(UserGamemode(Gamemode.taiko, Role.Former)), planner.users.findUser("30")!!.gamemodes)
         // The staff log is part of the role history
         assertEquals(true, planner.roleHistory.findAll().any { it.userId == "2778" })
         // Slower than the rest of the planner
         assertEquals(true, planner.historySleeps.isNotEmpty() && planner.historySleeps.all { it == 1_000L })
         assertEquals(emptyList<Any>(), planner.discord.sent)
+    }
+
+    @Test
+    fun `Should ask osu about a nominator that was only seen as a mapper, once`() {
+        setUp()
+        // A BN of osu!taiko now, who mapped the first beatmap and nominated two later ones
+        FakeOsu.user("40", "BN 40", """[{"id":${MeGroup.BN},"playmodes":["taiko"]}]""")
+        details(
+            "1" to set("1", mapper = "40", nominations = listOf("20" to null, "21" to null)),
+            "4" to set("4", modes = listOf("taiko"), main = "taiko", nominations = listOf("40" to null, "30" to null)),
+            "5" to set("5", modes = listOf("taiko"), main = "taiko", nominations = listOf("40" to null, "2778" to null)),
+        )
+
+        service.start()
+        service.finish()
+
+        assertEquals(listOf(UserGamemode(Gamemode.taiko, Role.Nominator)), planner.users.findUser("40")!!.gamemodes)
+        assertEquals("BN 40", planner.users.findUser("40")!!.username)
+        assertEquals(1, FakeOsu.calls().count { it == "GET /api/v2/users/40?key=id" })
+        // Restricted, also asked about only once
+        assertEquals(1, FakeOsu.calls().count { it == "GET /api/v2/users/2778?key=id" })
     }
 
     @Test

@@ -1,7 +1,12 @@
 import {GAMEMODES, MISSING_USER_ID} from "../Constants";
 import type {Beatmap, BeatmapGamemode, Gamemode, User, UserRole} from "../models/Types";
 
-const RANKING: UserRole[] = ["NominationAssessment", "Nominator", "Probation", "Mapper"]
+const RANKING: UserRole[] = ["NominationAssessment", "Nominator", "Probation", "Former", "Mapper"]
+
+/** The roles of the groups that can nominate now, only these give more than viewing */
+export function canNominateAs(role: UserRole) {
+  return role === "Nominator" || role === "Probation" || role === "NominationAssessment"
+}
 
 export function highestRole(user: User, gamemode?: Gamemode): UserRole {
   const roles = user.gamemodes
@@ -12,7 +17,7 @@ export function highestRole(user: User, gamemode?: Gamemode): UserRole {
 
 /** Modes in which the user has a role, these decide what they may do */
 export function roleModes(user: User | undefined): Gamemode[] {
-  return GAMEMODES.filter(mode => user?.gamemodes.some(it => it.gamemode === mode && it.role !== "Mapper"))
+  return GAMEMODES.filter(mode => user?.gamemodes.some(it => it.gamemode === mode && canNominateAs(it.role)))
 }
 
 /** Whether the user picks their modes themselves, as they have no role in any */
@@ -32,7 +37,7 @@ export function isMissing(user: User) {
 }
 
 export function canNominate(user: User | undefined, gamemode: Gamemode) {
-  return !!user && highestRole(user, gamemode) !== "Mapper"
+  return !!user && canNominateAs(highestRole(user, gamemode))
 }
 
 export function isNominator(mode: BeatmapGamemode, userId: string) {

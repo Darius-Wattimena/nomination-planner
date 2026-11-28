@@ -26,5 +26,6 @@ export const ROLES: Record<UserRole, {name: string, short: string, className: st
   Nominator: {name: "Beatmap Nominator", short: "BN", className: "role-bn"},
   Probation: {name: "Probationary Beatmap Nominator", short: "Probation", className: "role-pbn"},
   NominationAssessment: {name: "Nomination Assessment Team", short: "NAT", className: "role-nat"},
+  Former: {name: "Former nominator", short: "Former BN", className: "role-former"},
   Mapper: {name: "Mapper", short: "Mapper", className: "role-user"}
 }

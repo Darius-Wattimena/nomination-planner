@@ -90,6 +90,11 @@ const Api = {
     url: '/v2/planner/wait',
     params: {since}
   }),
+  // Everyone who nominated before in a mode they have no role in now
+  fetchFormerNominators: (): AxiosRequestConfig => ({
+    method: 'GET',
+    url: '/v2/planner/former'
+  }),
   fetchSyncWaiting: (): AxiosRequestConfig => ({
     method: 'GET',
     url: '/v2/admin/sync/waiting'

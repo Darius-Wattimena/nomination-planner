@@ -5,7 +5,7 @@ import {usePlanner} from "../resources/planner";
 import {useRanked} from "../resources/ranked";
 import {Avatar, RoleBadges} from "../ui/Person";
 import {Loading} from "../ui/States";
-import {canNominate, displayName, isMissing} from "../utils/users";
+import {canNominate, displayName, isMissing, roleModes} from "../utils/users";
 import {badges, scores} from "./boards";
 import Columns from "./Columns";
 import {Badges} from "./Badges";
@@ -85,7 +85,7 @@ export function NominatorBadges({id}: {id: string}) {
 
 /** People for the same modes that they never ranked anything with */
 export function NewPairings({user, pairings}: {user: User, pairings: Pairing[]}) {
-  const modes = user.gamemodes.filter(it => it.role !== "Mapper").map(it => it.gamemode)
+  const modes = roleModes(user)
   const {nominators = []} = usePlanner()
   const known = new Set(pairings.filter(it => it.pairingRanked > 0 || it.pairingPending > 0).map(it => it.osuId))
   const fresh = nominators.filter(it => it.osuId !== user.osuId && !known.has(it.osuId) && modes.some(mode => canNominate(it, mode))).slice(0, 6)

@@ -10,6 +10,8 @@ import nl.greaper.bnplanner.model.Gamemode
 import nl.greaper.bnplanner.model.Role
 import nl.greaper.bnplanner.model.User
 import nl.greaper.bnplanner.model.UserGamemode
+import nl.greaper.bnplanner.model.beatmap.Beatmap
+import nl.greaper.bnplanner.model.beatmap.BeatmapStatus
 import nl.greaper.bnplanner.model.discord.EmbedColor
 import nl.greaper.bnplanner.model.discord.EmbedFooter
 import nl.greaper.bnplanner.model.discord.EmbedThumbnail
@@ -126,8 +128,73 @@ class UserService(
         return newUser
     }
 
-    /** osu! knows nothing about the modes someone chose themselves, which they may have changed while asking osu! */
-    private fun saveFromOsu(user: User): User = dataSource.modifyUser(user.osuId) { current -> user.copy(interests = current?.interests) }
+    /**
+     * osu! knows nothing about the modes someone chose themselves, which they may have changed while asking osu!, nor about who
+     * nominated before
+     */
+    private fun saveFromOsu(user: User): User =
+        dataSource.modifyUser(user.osuId) { current ->
+            user.copy(interests = current?.interests, gamemodes = withFormer(current, user.gamemodes))
+        }
+
+    /**
+     * The roles of the groups someone is in now, and Former in each gamemode they nominated in before without a role in it now: of a
+     * group they left, or Former already
+     */
+    private fun withFormer(
+        before: User?,
+        groups: List<UserGamemode>,
+    ): List<UserGamemode> {
+        val now = groups.filter { it.role.canNominate }.map { it.gamemode }.toSet()
+        val earlier =
+            before
+                ?.gamemodes
+                .orEmpty()
+                .filter { it.role.canNominate || it.role == Role.Former }
+                .map { it.gamemode }
+                .toSet()
+
+        return groups + Gamemode.entries.filter { it in earlier && it !in now }.map { UserGamemode(it, Role.Former) }
+    }
+
+    /**
+     * Gives Former to everyone who nominated a ranked beatmap in a gamemode they have no role in now, like after importing the
+     * ranked history
+     *
+     * @return how many users changed
+     */
+    fun markFormerNominators(beatmaps: Collection<Beatmap>): Int {
+        val nominated =
+            beatmaps
+                .filter { it.status == BeatmapStatus.Ranked }
+                .flatMap { beatmap -> beatmap.gamemodes.flatMap { mode -> mode.nominators.map { it.nominatorId to mode.gamemode } } }
+                .filter { (userId, _) -> userId != MISSING_USER_ID }
+                .groupBy({ it.first }, { it.second })
+
+        val changed =
+            nominated.mapNotNull { (userId, modes) ->
+                val user = dataSource.findUser(userId) ?: return@mapNotNull null
+                val known =
+                    user.gamemodes
+                        .filter { it.role.canNominate || it.role == Role.Former }
+                        .map { it.gamemode }
+                        .toSet()
+                val added = Gamemode.entries.filter { it in modes && it !in known }
+                added.takeIf { it.isNotEmpty() }?.let {
+                    user.copy(
+                        gamemodes =
+                            user.gamemodes + it.map { mode -> UserGamemode(mode, Role.Former) },
+                    )
+                }
+            }
+        dataSource.saveAll(changed)
+        log.info { "Marked ${changed.size} users as former nominators of the gamemodes they nominated ranked beatmaps of" }
+
+        return changed.size
+    }
+
+    /** Everyone who nominated before in a gamemode they have no role in now */
+    fun findFormerNominators(): List<User> = dataSource.allUsers().filter { user -> user.gamemodes.any { it.role == Role.Former } }
 
     /**
      * Follow someone joining or leaving a group on osu!, or changing their gamemodes in it, the same way a user sync sees it afterwards
@@ -167,12 +234,12 @@ class UserService(
             return null
         }
 
-        // Like a user sync, only the roles of groups remain
-        val otherGroups = current.gamemodes.filter { it.role != role && it.role != Role.Mapper }
+        // Like a user sync, only the roles of groups remain, and Former where someone no longer has a role
+        val otherGroups = current.gamemodes.filter { it.role != role && it.role.canNominate }
         val updated =
             current.copy(
                 username = event.userName ?: current.username,
-                gamemodes = otherGroups + Gamemode.entries.filter { it in after }.map { UserGamemode(it, role) },
+                gamemodes = withFormer(current, otherGroups + Gamemode.entries.filter { it in after }.map { UserGamemode(it, role) }),
                 // Someone in a group can't be restricted
                 restricted = current.restricted.takeUnless { isMember },
             )
@@ -230,7 +297,7 @@ class UserService(
     }
 
     /** Everyone the planner has in the BN, probationary BN or NAT */
-    fun findUsersInGroups(): List<User> = dataSource.allUsers().filter { user -> user.gamemodes.any { it.role != Role.Mapper } }
+    fun findUsersInGroups(): List<User> = dataSource.allUsers().filter { user -> user.gamemodes.any { it.role.canNominate } }
 
     fun findUserById(osuId: String): User? {
         if (osuId == MISSING_USER_ID) {

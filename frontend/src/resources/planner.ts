@@ -3,7 +3,7 @@ import {MISSING_USER_ID} from "../Constants";
 import type {Beatmap, BeatmapGamemode, Gamemode, User} from "../models/Types";
 import {BeatmapStatus} from "../models/Types";
 import {getSession, setSession, useSession} from "../utils/session";
-import {highestRole} from "../utils/users";
+import {canNominateAs, highestRole} from "../utils/users";
 import Api from "./Api";
 import {find, logOutSession, request, statusOf, useQuery} from "./client";
 import {forgetRanked} from "./ranked";
@@ -99,7 +99,7 @@ function fromFeed(feed: Feed, usersChanged = true): Pick<PlannerState, "maps" | 
       return beatmap
     }),
     nominators: !usersChanged && state.nominators ? state.nominators
-      : Object.values(feed.users).filter(it => highestRole(it) !== "Mapper").sort((a, b) => a.username.localeCompare(b.username))
+      : Object.values(feed.users).filter(it => canNominateAs(highestRole(it))).sort((a, b) => a.username.localeCompare(b.username))
   }
 }
 

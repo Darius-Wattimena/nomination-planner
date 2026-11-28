@@ -406,6 +406,7 @@ textarea { width: 100%; resize: vertical; }
 .role-pbn { --c: var(--pbn); }
 .role-nat { --c: var(--red); }
 .role-user { --c: var(--grey); }
+.role-former { --c: var(--grey); font-style: italic; }
 .role-badges { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .role-badge { display: inline-flex; align-items: center; gap: 4px; }
 .status-qualified { --c: var(--green); }

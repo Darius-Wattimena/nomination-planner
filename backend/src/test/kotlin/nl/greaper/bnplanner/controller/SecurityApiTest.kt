@@ -28,6 +28,7 @@ class SecurityApiTest : ApiTest() {
             "VIEWER | GET    | /v2/planner                                                  | ",
             "VIEWER | GET    | /v2/planner/ranked                                           | ",
             "VIEWER | GET    | /v2/planner/wait                                             | ",
+            "VIEWER | GET    | /v2/planner/former                                           | ",
             "ADMIN  | GET    | /v2/admin/sync/waiting                                       | ",
             "ADMIN  | POST   | /v2/admin/sync/beatmaps/pending?background=true              | ",
             "VIEWER | GET    | /v2/profile/1/pairing                                        | ",

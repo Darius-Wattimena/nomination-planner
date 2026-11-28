@@ -84,7 +84,9 @@ class GroupEventTest {
             User(
                 "40",
                 "tilda",
-                gamemodes(Role.NominationAssessment, Gamemode.mania) + gamemodes(Role.Nominator, Gamemode.taiko, Gamemode.fruits),
+                gamemodes(Role.NominationAssessment, Gamemode.mania) + gamemodes(Role.Nominator, Gamemode.taiko, Gamemode.fruits) +
+                    // No longer a nominator of osu!
+                    gamemodes(Role.Former, Gamemode.osu),
             ),
             planner.users.findUser("40"),
         )
@@ -110,13 +112,13 @@ class GroupEventTest {
     }
 
     @Test
-    fun `Should remove someone from a group, keeping the other groups`() {
+    fun `Should remove someone from a group, keeping the other groups, as a former nominator`() {
         planner.user("40", "tilda", nominator(Gamemode.osu), UserGamemode(Gamemode.osu, Role.NominationAssessment))
 
         apply(event("user_remove"))
         apply(event("user_remove", group = MeGroup.NAT))
 
-        assertEquals(emptyList<UserGamemode>(), planner.users.findUser("40")!!.gamemodes)
+        assertEquals(gamemodes(Role.Former, Gamemode.osu), planner.users.findUser("40")!!.gamemodes)
         assertEquals(
             listOf(
                 message("Removed from Beatmap Nominators [osu]", EmbedColor.RED),
@@ -133,7 +135,10 @@ class GroupEventTest {
         apply(event("user_add_playmodes", modes = listOf("mania")))
         apply(event("user_remove_playmodes", modes = listOf("osu")))
 
-        assertEquals(gamemodes(Role.Nominator, Gamemode.mania), planner.users.findUser("40")!!.gamemodes)
+        assertEquals(
+            gamemodes(Role.Nominator, Gamemode.mania) + gamemodes(Role.Former, Gamemode.osu),
+            planner.users.findUser("40")!!.gamemodes,
+        )
         assertEquals(
             listOf(message("Added to Beatmap Nominators [mania]"), message("Removed from Beatmap Nominators [osu]", EmbedColor.RED)),
             planner.discord.sent,

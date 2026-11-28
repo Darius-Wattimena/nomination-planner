@@ -6,6 +6,8 @@ import MapView from "../beatmaps/MapView";
 import {MapRow} from "../beatmaps/MapRow";
 import {GAMEMODE_NAMES, ROLES} from "../Constants";
 import type {Gamemode, User, UserRole} from "../models/Types";
+import Api from "../resources/Api";
+import {useQuery} from "../resources/client";
 import {usePlanner} from "../resources/planner";
 import {useRanked} from "../resources/ranked";
 import NominatorYear, {NewPairings, NominatorBadges} from "../stats/NominatorYear";
@@ -20,14 +22,14 @@ import OwnModesDialog from "../ui/OwnModes";
 import {useTitle} from "../ui/useTitle";
 import {MODE_WORDS, modeParam} from "../utils/query";
 import {useSession} from "../utils/session";
-import {choosesOwnModes, displayName, highestRole, modesOf, roleModes} from "../utils/users";
+import {canNominateAs, choosesOwnModes, displayName, highestRole, modesOf, roleModes} from "../utils/users";
 import type {Part} from "../utils/workflow";
 import {ageInDays, LABELS, lookingForNominator} from "../utils/workflow";
 import type {Involvement} from "../utils/involvement";
 import {involvementOf} from "../utils/involvement";
 import {usePairings} from "../resources/pairings";
 
-const TEAM_ROLES: UserRole[] = ["NominationAssessment", "Nominator", "Probation"]
+const TEAM_ROLES: UserRole[] = ["NominationAssessment", "Nominator", "Probation", "Former"]
 const SHOWN_COVERS = 5
 /** Beatmaps in progress on a profile before "Show all", so what comes after stays in reach */
 const SHOWN_IN_PROGRESS = 8
@@ -82,7 +84,12 @@ function Overview() {
 
   const {rankedWith} = usePairings(self?.osuId)
 
-  const members = (nominators ?? []).filter(it => highestRole(it, mode) !== "Mapper").map((user): Member => {
+  // Former nominators are only asked for when someone looks for them, there are many over the years
+  const showFormer = role === "Former"
+  const {data: former} = useQuery<User[]>(showFormer ? Api.fetchFormerNominators() : undefined)
+  const people = showFormer ? former : nominators
+  const isShown = (user: User) => showFormer ? highestRole(user, mode) === "Former" : canNominateAs(highestRole(user, mode))
+  const members = (people ?? []).filter(isShown).map((user): Member => {
     const all = involvementOf(maps, user.osuId)
     return {
       user,
@@ -106,11 +113,11 @@ function Overview() {
 
   const help = lookingForNominator(maps, mode)
 
-  const loading = !nominators
+  const loading = !people
 
   return (
     <div className="page">
-      <PageHeader title="Nominators" subtitle={members.length > 0 ? `${members.length} nominators for ${mode ? GAMEMODE_NAMES[mode] : "all modes"}. ${help.length} ${help.length === 1 ? "beatmap needs" : "beatmaps need"} nominators` : " "}>
+      <PageHeader title="Nominators" subtitle={members.length > 0 ? `${members.length} ${showFormer ? "former nominators" : "nominators"} for ${mode ? GAMEMODE_NAMES[mode] : "all modes"}. ${help.length} ${help.length === 1 ? "beatmap needs" : "beatmaps need"} nominators` : " "}>
         <ModeSwitch selected={mode} onChange={it => update("mode", it ?? "all")}/>
       </PageHeader>
 
