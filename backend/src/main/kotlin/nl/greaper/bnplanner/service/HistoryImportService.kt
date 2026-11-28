@@ -24,6 +24,7 @@ import nl.greaper.bnplanner.util.Sleeper
 import nl.greaper.bnplanner.util.findMainGamemodes
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
+import org.springframework.web.client.RestClientException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -249,18 +250,19 @@ class HistoryImportService(
 
         while (!from.isAfter(end)) {
             val until = minOf(from.withDayOfMonth(from.lengthOfMonth()), end)
-            var page = 1
-            do {
-                if (stopping) {
-                    // The month is read again
-                    return
-                }
-                check(page <= MAX_PAGES_PER_MONTH) { "osu! gave more than $MAX_PAGES_PER_MONTH pages of nominations from $from" }
-                pace()
-                val found = osuClient.findNominationHistory(token(), from, until, page).events
-                progress.saveNominations(found.mapNotNull { toNominationEvent(it) })
-                page++
-            } while (found.size >= OsuHttpClient.EVENTS_PER_PAGE)
+            for (type in NOMINATION_TYPES) {
+                var page = 1
+                do {
+                    if (stopping) {
+                        // The month is read again
+                        return
+                    }
+                    check(page <= MAX_PAGES_PER_MONTH) { "osu! gave more than $MAX_PAGES_PER_MONTH pages of ${type.osuName} from $from" }
+                    val found = retried { osuClient.findNominationHistory(token(), from, until, type, page).events }
+                    progress.saveNominations(found.mapNotNull { toNominationEvent(it) })
+                    page++
+                } while (found.size >= OsuHttpClient.EVENTS_PER_PAGE)
+            }
 
             from = until.plusDays(1)
             current = current.copy(nominationsFrom = from)
@@ -269,6 +271,26 @@ class HistoryImportService(
         }
 
         progress.saveProgress(current.copy(nominationsDone = true))
+    }
+
+    /**
+     * Asks osu! again after a call that failed on the way or on the side of osu!, like one that took too long, as a run takes an hour
+     * or more. An answer it can't read stays the same, so that stops it at once.
+     */
+    private fun <T> retried(call: () -> T): T {
+        var attempt = 1
+        while (true) {
+            pace()
+            try {
+                return call()
+            } catch (ex: RestClientException) {
+                if (attempt >= ATTEMPTS || stopping) {
+                    throw ex
+                }
+                log.warn { "Asking osu! again after: ${ex.message}" }
+                attempt++
+            }
+        }
     }
 
     private fun toNominationEvent(event: BeatmapsetEvent): NominationEvent? {
@@ -510,6 +532,11 @@ class HistoryImportService(
     companion object {
         /** A month of nominations is about 30 pages, more means osu! doesn't keep to the days asked for */
         private const val MAX_PAGES_PER_MONTH = 500
+
+        private const val ATTEMPTS = 3
+
+        private val NOMINATION_TYPES =
+            listOf(BeatmapsetEventType.NOMINATE, BeatmapsetEventType.NOMINATION_RESET, BeatmapsetEventType.DISQUALIFY)
     }
 
     @PreDestroy

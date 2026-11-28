@@ -1,5 +1,6 @@
 package nl.greaper.bnplanner.model.osu
 
+import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 
@@ -20,10 +21,19 @@ data class BeatmapsetEvent(
     /** Missing when the beatmap set is deleted */
     val beatmapset: Beatmapset? = null,
 ) {
-    data class Comment(
-        /** The gamemodes of a nomination */
-        val modes: List<String>? = null,
-    )
+    /** Old resets and disqualifications have only their reason as the comment, which says nothing of use here */
+    data class Comment
+        @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+        constructor(
+            /** The gamemodes of a nomination */
+            @JsonProperty("modes")
+            val modes: List<String>? = null,
+        ) {
+            @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+            constructor(
+                @Suppress("UNUSED_PARAMETER") reason: String,
+            ) : this(null)
+        }
 
     data class Beatmapset(
         val id: String,

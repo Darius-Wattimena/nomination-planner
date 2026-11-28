@@ -156,7 +156,7 @@ function ImportResult({summary, title}: {summary: ImportSummary, title: string})
   )
 }
 
-const PHASES = {Roles: "Reading the role history", Nominations: "Reading every nomination of osu!", Beatmaps: "Importing ranked beatmaps", Modes: "Working out the modes"}
+const PHASES = {Roles: "Reading the role history", Nominations: "Reading every nomination of osu! up to today, the beatmaps follow after that", Beatmaps: "Importing ranked beatmaps", Modes: "Working out the modes"}
 
 function RankedHistory() {
   const status = usePolled<HistoryStatus>(Api.fetchHistoryStatus, 5000)

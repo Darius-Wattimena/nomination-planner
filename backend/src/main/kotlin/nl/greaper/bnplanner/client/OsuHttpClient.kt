@@ -211,7 +211,8 @@ class OsuHttpClient(
     }
 
     /**
-     * A page of the nominations, resets and disqualifications of all beatmap sets between two days, in no useful order
+     * A page of the events of one type of all beatmap sets between two days, in no useful order. One type at a time, as osu! takes
+     * more than 10 seconds to answer when asked for several types between two days.
      *
      * @param from the first day (in UTC)
      * @param until the last day (in UTC), included
@@ -221,12 +222,11 @@ class OsuHttpClient(
         osuApiToken: String,
         from: LocalDate,
         until: LocalDate,
+        type: BeatmapsetEventType,
         page: Int,
     ): BeatmapsetEvents {
-        val types =
-            listOf(BeatmapsetEventType.NOMINATE, BeatmapsetEventType.NOMINATION_RESET, BeatmapsetEventType.DISQUALIFY)
-                .joinToString("&") { "types[]=${it.osuName}" }
-        val response = get("/beatmapsets/events?$types&min_date=$from&max_date=$until&limit=$EVENTS_PER_PAGE&page=$page", osuApiToken)
+        val response =
+            get("/beatmapsets/events?types[]=${type.osuName}&min_date=$from&max_date=$until&limit=$EVENTS_PER_PAGE&page=$page", osuApiToken)
 
         return objectMapper.readValue<BeatmapsetEvents>(response.body ?: "")
     }

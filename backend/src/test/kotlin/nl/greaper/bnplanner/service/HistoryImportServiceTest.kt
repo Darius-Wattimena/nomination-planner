@@ -29,9 +29,11 @@ class HistoryImportServiceTest {
     private fun nominationsOf(
         from: String,
         until: String,
+        type: String = "nominate",
         page: Int = 1,
-    ) = "GET /api/v2/beatmapsets/events?types%5B%5D=nominate&types%5B%5D=nomination_reset&types%5B%5D=disqualify" +
-        "&min_date=$from&max_date=$until&limit=50&page=$page"
+    ) = "GET /api/v2/beatmapsets/events?types%5B%5D=$type&min_date=$from&max_date=$until&limit=50&page=$page"
+
+    private val types = listOf("nominate", "nomination_reset", "disqualify")
 
     private var eventId = 0
 
@@ -55,8 +57,10 @@ class HistoryImportServiceTest {
         MeGroup.SupportedGroups.forEach { FakeOsu.groupHistory(it, """{"events":[]}""") }
         listOf("20", "21", "30").forEach { FakeOsu.user(it, "BN $it") }
         service.nominationsSince = LocalDate.of(2014, 1, 1)
-        FakeOsu.respond(january, events())
-        FakeOsu.respond(february, events())
+        types.forEach { type ->
+            FakeOsu.respond(nominationsOf("2014-01-01", "2014-01-31", type), events())
+            FakeOsu.respond(nominationsOf("2014-02-01", "2014-02-10", type), events())
+        }
     }
 
     private fun set(
@@ -174,13 +178,12 @@ class HistoryImportServiceTest {
     fun `Should take who nominated from the nominations of osu, without asking about each beatmap set`() {
         setUp()
         // Deleted beatmap sets fill the first page, so a second one is read
-        val filler = List(46) { event(null) }
+        val filler = List(47) { event(null) }
         FakeOsu.respond(
             january,
             events(
                 event("1", user = "20", at = "2014-01-02T10:00:00Z"),
                 event("1", user = "25", at = "2014-01-02T11:00:00Z"),
-                event("1", type = "disqualify", at = "2014-01-03T10:00:00Z"),
                 event("1", user = "20", modes = """["osu"]""", at = "2014-01-04T10:00:00Z"),
                 *filler.toTypedArray(),
             ),
@@ -194,6 +197,12 @@ class HistoryImportServiceTest {
                 // Not ranked, of no use
                 event("7", user = "20"),
             ),
+        )
+
+        FakeOsu.respond(
+            nominationsOf("2014-01-01", "2014-01-31", "disqualify"),
+            // Old ones have only their reason as the comment
+            events(event("1", type = "disqualify", at = "2014-01-03T10:00:00Z").replace("}}", ""","comment":"missing hitsounds"}}""")),
         )
 
         service.start()
@@ -243,6 +252,7 @@ class HistoryImportServiceTest {
     @Test
     fun `Should continue reading the nominations at the month it stopped`() {
         setUp()
+        // Asked three times before it stops
         FakeOsu.respond(february, "{}", 503)
 
         service.start()
@@ -257,7 +267,8 @@ class HistoryImportServiceTest {
 
         assertEquals(true, service.findStatus().done)
         assertEquals(1, FakeOsu.calls().count { it == january })
-        assertEquals(2, FakeOsu.calls().count { it == february })
+        assertEquals(4, FakeOsu.calls().count { it == february })
+        assertEquals(1, FakeOsu.calls().count { it == nominationsOf("2014-02-01", "2014-02-10", "disqualify") })
     }
 
     @Test
